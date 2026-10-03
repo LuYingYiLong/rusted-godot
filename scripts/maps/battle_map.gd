@@ -36,6 +36,7 @@ var _unit_states: Dictionary
 var _unit_visuals: Dictionary
 var _unit_registry: RwUnitRegistry
 var _combat: RwBattleCombat
+var _state_probe: RwBattleStateProbe
 var _unit_orders: RwUnitOrderController
 var _fog: RwFogOfWar
 var _path_grid: RwPathGrid
@@ -62,6 +63,7 @@ var _next_object_id: int = 1
 
 
 func _ready() -> void:
+	_state_probe = RwBattleStateProbe.new()
 	RwRoomClient.connection_changed.connect(_on_room_connection_changed)
 	RwRoomClient.battle_frame_advanced.connect(_on_battle_frame_advanced)
 	RwRoomClient.battle_commands_reached.connect(_on_battle_commands_reached)
@@ -123,6 +125,12 @@ func _ready() -> void:
 		hud_layer.show_status(warning.strip_edges())
 	RwRoomClient.mark_battle_map_loaded()
 	AudioManager.play_music(&"battle")
+	_state_probe.capture(_last_simulated_frame, RwRoomClient.battle_timeline.step_rate, _unit_states)
+
+
+func _exit_tree() -> void:
+	if _state_probe != null:
+		_state_probe.close()
 
 
 func _render_initial_units(map_name: String) -> Dictionary:
@@ -771,6 +779,8 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 		_advance_unit_generation(first_frame + step)
 		if _combat != null:
 			_combat.advance_frame(RwRoomClient.battle_timeline.step_rate)
+		if _state_probe != null:
+			_state_probe.capture(first_frame + step + 1, RwRoomClient.battle_timeline.step_rate, _unit_states)
 	if frame_delta > 0:
 		projectile_layer.queue_redraw()
 		_refresh_fog_visibility()
