@@ -78,6 +78,7 @@ func _update_availability() -> void:
 
 func _on_chat_received(sender: String, message: String) -> void:
 	append_message(sender, message)
+	AudioManager.play_ui(&"message")
 
 
 func _on_connection_changed(message: String) -> void:

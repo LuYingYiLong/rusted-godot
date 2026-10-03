@@ -5,6 +5,7 @@ enum Kind {
 	UNSUPPORTED,
 	QUEUE_UNIT,
 	PLACE_BUILDING,
+	UPGRADE_UNIT,
 }
 
 @export var action_id: String
@@ -19,3 +20,5 @@ enum Kind {
 @export var target_unit_name: String
 @export var resource_costs: Dictionary
 @export var build_rate_per_frame: float
+@export var required_tech_level: int = 1
+@export var result_tech_level: int

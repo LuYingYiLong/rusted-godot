@@ -15,6 +15,7 @@ const BUILD_RETRY_FRAMES: int = 12
 @onready var fog_sprite: Sprite2D = %FogOverlay
 @onready var navigation_overlay: Node2D = %NavigationOverlay
 @onready var unit_layer: Node2D = %InitialUnits
+@onready var vfx_layer: RwBattleVfxLayer = %BattleVfxLayer
 @onready var selection_overlay: Control = %SelectionOverlay
 @onready var hud_layer: RwHudLayer = $HudLayer
 
@@ -36,6 +37,7 @@ var _fog: RwFogOfWar
 var _path_grid: RwPathGrid
 var _mobile_unit_states: Array[RwUnitState]
 var _animated_command_centers: Array[RwUnitState]
+var _animated_extractors: Array[RwUnitState]
 var _selected_unit_ids: Array[int]
 var _production_queues: Dictionary
 var _pending_queue_cancellations: Dictionary
@@ -87,7 +89,9 @@ func _ready() -> void:
 	var minimap_error: String = hud_layer.configure_battle(map_name, _world_size, _unit_states, _unit_registry)
 	hud_layer.set_fog(_fog)
 	hud_layer.update_camera_view(map_camera.position, map_camera.zoom.x, get_viewport_rect().size)
-	RwRoomClient.set_initial_command_centers(unit_result["command_center_counts"], unit_result["extractor_counts"])
+	for extractor: RwUnitState in _animated_extractors:
+		RwRoomClient.battle_economy.register_extractor(extractor)
+	RwRoomClient.set_initial_command_centers(unit_result["command_center_counts"])
 	var warning: String = " Minimap: %s." % minimap_error if not minimap_error.is_empty() else ""
 	if int(RwRoomClient.settings.get("starting_units", 1)) != 1:
 		warning = " The room uses a starting-unit preset that is not simulated."
@@ -99,6 +103,7 @@ func _ready() -> void:
 	if not warning.is_empty():
 		hud_layer.show_status(warning.strip_edges())
 	RwRoomClient.mark_battle_map_loaded()
+	AudioManager.play_music(&"battle")
 
 
 func _render_initial_units(map_name: String) -> Dictionary:
@@ -110,7 +115,6 @@ func _render_initial_units(map_name: String) -> Dictionary:
 	var defined: int = 0
 	var placeholder: int = 0
 	var command_center_counts: Dictionary
-	var extractor_counts: Dictionary
 	for spawn: Dictionary in parsed["spawns"]:
 		var team: String = str(spawn["team"])
 		if not _is_active_team(team):
@@ -136,9 +140,8 @@ func _render_initial_units(map_name: String) -> Dictionary:
 			if team.is_valid_int():
 				var team_slot: int = team.to_int()
 				command_center_counts[team_slot] = int(command_center_counts.get(team_slot, 0)) + 1
-		if unit_name == "extractor" and team.is_valid_int():
-			var extractor_slot: int = team.to_int()
-			extractor_counts[extractor_slot] = int(extractor_counts.get(extractor_slot, 0)) + 1
+		if unit_name == "extractor":
+			_animated_extractors.append(unit_state)
 		total += 1
 		if definition == null:
 			placeholder += 1
@@ -151,7 +154,6 @@ func _render_initial_units(map_name: String) -> Dictionary:
 		"defined": defined,
 		"placeholder": placeholder,
 		"command_center_counts": command_center_counts,
-		"extractor_counts": extractor_counts,
 	}
 
 
@@ -479,7 +481,7 @@ func _on_unit_action_chosen(action_id: String, unit_ids: Array[int]) -> void:
 	if action != null and action.kind == RwUnitActionDefinition.Kind.PLACE_BUILDING:
 		_begin_placement(action, unit_ids)
 		return
-	if action == null or action.kind != RwUnitActionDefinition.Kind.QUEUE_UNIT:
+	if action == null or (action.kind != RwUnitActionDefinition.Kind.QUEUE_UNIT and action.kind != RwUnitActionDefinition.Kind.UPGRADE_UNIT):
 		hud_layer.show_status("%s is not available in the current battle simulation" % action_id)
 		return
 	var valid_ids: Array[int] = []
@@ -492,6 +494,7 @@ func _on_unit_action_chosen(action_id: String, unit_ids: Array[int]) -> void:
 	var credit_cost: float = float(action.resource_costs.get("credits", 0.0))
 	if RwRoomClient.battle_economy.get_balance(RwRoomClient.local_slot, "credits") < credit_cost:
 		hud_layer.show_status("Not enough credits to queue %s" % action.display_name)
+		AudioManager.play_ui(&"error")
 		return
 	if not RwRoomClient.send_unit_action(valid_ids, action.network_action_id):
 		hud_layer.show_status("Could not send production order; check the room connection")
@@ -585,9 +588,11 @@ func _confirm_placement(is_queued: bool) -> void:
 	_update_placement_preview()
 	if not _placement_error.is_empty():
 		hud_layer.show_status(_placement_error)
+		AudioManager.play_ui(&"error")
 		return
 	if not RwRoomClient.send_build_order(_placement_builder_ids, _placement_action.network_build_index, _placement_position, is_queued):
 		hud_layer.show_status("Could not send building order")
+		AudioManager.play_ui(&"error")
 		return
 	if not is_queued:
 		_cancel_placement()
@@ -619,6 +624,9 @@ func _request_move(screen_position: Vector2) -> void:
 	var target: Vector2 = _screen_to_world(screen_position).clamp(Vector2.ZERO, _world_size)
 	if not RwRoomClient.send_move_order(movable_ids, target):
 		hud_layer.show_status("Could not send move order; check the room connection")
+		AudioManager.play_ui(&"error")
+		return
+	AudioManager.play_ui(&"move", linear_to_db(0.2))
 
 
 func _on_room_updated(_settings: Dictionary, _players: Array[Dictionary], _local_slot: int) -> void:
@@ -632,10 +640,13 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	for step: int in frame_delta:
 		for unit_state: RwUnitState in _mobile_unit_states:
 			unit_state.advance_movement(1, _path_grid)
+		for extractor: RwUnitState in _animated_extractors:
+			extractor.advance_visual_animation(1)
 		_separate_mobile_units()
 		_advance_unit_generation(first_frame + step)
 	if frame_delta > 0:
 		_refresh_fog_visibility()
+		_refresh_builder_vfx(frame)
 	var animation_frame: int = _command_center_frame(frame)
 	for unit_state: RwUnitState in _animated_command_centers:
 		if unit_state.animation_frame != animation_frame and not unit_state.is_dead:
@@ -694,6 +705,8 @@ func _find_action(producer: RwUnitState, action_id: String) -> RwUnitActionDefin
 		return null
 	for action: RwUnitActionDefinition in definition.build_actions:
 		if action.action_id == action_id or action.network_action_id == action_id:
+			if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and action.required_tech_level != producer.tech_level:
+				return null
 			return action
 	return null
 
@@ -706,7 +719,7 @@ func _apply_production_command(command: Dictionary) -> void:
 		if producer == null or producer.is_dead or producer.team != str(team_slot):
 			continue
 		var action: RwUnitActionDefinition = _find_action(producer, network_action_id)
-		if action == null or action.kind != RwUnitActionDefinition.Kind.QUEUE_UNIT:
+		if action == null or (action.kind != RwUnitActionDefinition.Kind.QUEUE_UNIT and action.kind != RwUnitActionDefinition.Kind.UPGRADE_UNIT):
 			continue
 		if bool(command.get("stop_current_action", false)):
 			var pending_key: String = "%d:%s" % [object_id, action.action_id]
@@ -717,9 +730,17 @@ func _apply_production_command(command: Dictionary) -> void:
 				if cancelled_action != null:
 					RwRoomClient.battle_economy.refund_credits(team_slot, float(cancelled_action.resource_costs.get("credits", 0.0)))
 			continue
+		var queue: RwProductionQueue = _production_queues.get(object_id) as RwProductionQueue
+		if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and queue != null:
+			var already_queued: bool
+			for queued_action: RwUnitActionDefinition in queue.items:
+				if queued_action.action_id == action.action_id:
+					already_queued = true
+					break
+			if already_queued:
+				continue
 		if not RwRoomClient.battle_economy.try_spend_credits(team_slot, float(action.resource_costs.get("credits", 0.0))):
 			continue
-		var queue: RwProductionQueue = _production_queues.get(object_id) as RwProductionQueue
 		if queue == null:
 			queue = RwProductionQueue.new()
 			_production_queues[object_id] = queue
@@ -854,6 +875,8 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 		var site_position: Vector2 = site["position"]
 		if builder.world_position.distance_to(site_position) > BUILD_RANGE:
 			return
+		if builder.order_type == "move" or builder.order_type == "attackMove":
+			builder.apply_order("", site_position)
 		var building: RwUnitState = _unit_states.get(int(site["object_id"])) as RwUnitState
 		if building == null:
 			if frame < int(site["next_attempt_frame"]):
@@ -874,15 +897,14 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 				return
 		var progress: float = minf(float(site["progress"]) + float(site["rate"]), 1.0)
 		site["progress"] = progress
-		building.apply_snapshot({"build_progress": progress, "health": building.max_health * progress,})
+		building.apply_snapshot({"build_progress": progress,})
 		if progress >= 1.0:
 			site["finished"] = true
-			if building.unit_name == "extractor":
-				RwRoomClient.battle_economy.add_extractor(int(site["team"]))
 			for assigned_id: int in site["builders"]:
 				_advance_builder_site_queue(assigned_id, site_id)
 			if int(site["team"]) == RwRoomClient.local_slot:
 				hud_layer.show_status("Building constructed: %s (x1)" % (site["definition"] as RwUnitDefinition).display_name)
+				AudioManager.play_ui(&"add")
 		return
 
 
@@ -896,6 +918,29 @@ func _is_site_assigned_or_queued(site_id: int) -> bool:
 	return false
 
 
+func _refresh_builder_vfx(frame: int) -> void:
+	var beams: Dictionary = {}
+	for builder_id: int in _builder_site_ids:
+		var builder: RwUnitState = _unit_states.get(builder_id) as RwUnitState
+		var builder_visual: RwUnitVisual = _unit_visuals.get(builder_id) as RwUnitVisual
+		if builder == null or builder.is_dead or builder_visual == null or not builder_visual.visible:
+			continue
+		var site_id: int = int(_builder_site_ids[builder_id])
+		for site: Dictionary in _build_sites:
+			if int(site["id"]) != site_id or bool(site["finished"]):
+				continue
+			var building: RwUnitState = _unit_states.get(int(site["object_id"])) as RwUnitState
+			if building == null or building.is_dead or builder.world_position.distance_to(building.world_position) > BUILD_RANGE:
+				break
+			beams[builder_id] = {
+				"origin": builder.world_position,
+				"target": building.world_position,
+				"radius": building.collision_radius,
+			}
+			break
+	vfx_layer.set_builder_beams(beams, frame)
+
+
 func _create_building_site(site: Dictionary, object_id: int) -> RwUnitState:
 	var definition: RwUnitDefinition = site["definition"]
 	var spawn: Dictionary = {
@@ -904,7 +949,7 @@ func _create_building_site(site: Dictionary, object_id: int) -> RwUnitState:
 		"unit_name": definition.unit_name,
 		"team": str(site["team"]),
 		"position": site["position"],
-		"build_progress": 0.01,
+		"build_progress": 0.0,
 	}
 	var color: Color = RwUnitTeamColors.for_team(str(site["team"]), RwRoomClient.players)
 	var visual: RwUnitVisual = _unit_registry.create_visual(spawn, color)
@@ -916,6 +961,9 @@ func _create_building_site(site: Dictionary, object_id: int) -> RwUnitState:
 	_unit_states[building.object_id] = building
 	_unit_visuals[building.object_id] = visual
 	site["object_id"] = building.object_id
+	if building.unit_name == "extractor":
+		_animated_extractors.append(building)
+		RwRoomClient.battle_economy.register_extractor(building)
 	_path_grid.block_structure(building.world_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	_path_grid.finalize_obstacles()
 	hud_layer.minimap.refresh_units()
@@ -929,7 +977,26 @@ func _advance_factory_production(factory_id: int) -> void:
 		return
 	var queue: RwProductionQueue = _production_queues[factory_id] as RwProductionQueue
 	for action: RwUnitActionDefinition in queue.advance(1):
-		_spawn_produced_unit(factory, action)
+		if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT:
+			_complete_unit_upgrade(factory, action)
+		else:
+			_spawn_produced_unit(factory, action)
+
+
+func _complete_unit_upgrade(unit_state: RwUnitState, action: RwUnitActionDefinition) -> void:
+	if unit_state.tech_level != action.required_tech_level:
+		return
+	var added_health: float
+	if unit_state.unit_name == "extractor":
+		added_health = 200.0 if action.result_tech_level == 2 else 1000.0
+	unit_state.apply_snapshot({
+		"tech_level": action.result_tech_level,
+		"max_health": unit_state.max_health + added_health,
+		"health": unit_state.health + added_health,
+	})
+	if _selected_unit_ids.has(unit_state.object_id):
+		hud_layer.refresh_selected_unit_actions()
+		_refresh_production_status()
 
 
 func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) -> void:
@@ -974,6 +1041,7 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	hud_layer.minimap.refresh_units()
 	if factory.team == str(RwRoomClient.local_slot):
 		hud_layer.show_status("Unit created: %s (x1)" % action.display_name)
+		AudioManager.play_ui(&"add")
 
 
 func _find_factory_exit(factory_position: Vector2, movement_type: String, exit_distance: float) -> Vector2:

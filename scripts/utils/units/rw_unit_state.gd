@@ -27,6 +27,7 @@ signal state_changed(state: RwUnitState)
 @export var push_mass: float = 3000.0
 @export var sight_range: int
 @export var animation_frame: int
+@export var tech_level: int = 1
 @export var is_dead: bool
 @export var order_type: String
 @export var order_target: Vector2
@@ -38,6 +39,12 @@ var _movement_velocity: float
 var _turn_velocity: float
 var _factory_exit_footprint: Rect2i
 var _is_exiting_factory: bool
+var _animation_step_frames: int
+var _animation_frame_count: int
+var _animation_ping_pong: bool
+var _animation_speed_follows_tech_level: bool
+var _animation_tick: float
+var _animation_step: int
 
 
 func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> void:
@@ -73,7 +80,14 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	collision_radius = definition.collision_radius if definition != null else 0.0
 	push_mass = definition.push_mass if definition != null else 3000.0
 	sight_range = definition.sight_range if definition != null else 15
-	health = max_health * build_progress
+	tech_level = maxi(int(spawn.get("tech_level", 1)), 1)
+	_animation_step_frames = definition.animation_step_frames if definition != null else 0
+	_animation_frame_count = definition.body_frames if definition != null else 1
+	_animation_ping_pong = definition.animation_ping_pong if definition != null else false
+	_animation_speed_follows_tech_level = definition.animation_speed_follows_tech_level if definition != null else false
+	_animation_tick = 0.0
+	_animation_step = 0
+	health = clampf(float(spawn.get("health", max_health)), 0.0, max_health)
 	state_changed.emit(self)
 
 
@@ -100,6 +114,8 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		health = clampf(float(snapshot["health"]), 0.0, max_health)
 	if snapshot.has("animation_frame"):
 		animation_frame = maxi(int(snapshot["animation_frame"]), 0)
+	if snapshot.has("tech_level"):
+		tech_level = maxi(int(snapshot["tech_level"]), 1)
 	if snapshot.has("resource_balances"):
 		resource_balances = (snapshot["resource_balances"] as Dictionary).duplicate()
 	if snapshot.has("is_dead"):
@@ -115,11 +131,33 @@ func get_weapon_rotation(index: int) -> float:
 	return turret_rotation_degrees
 
 
+func advance_visual_animation(frame_count: int) -> void:
+	if frame_count <= 0 or is_dead or build_progress < 1.0 or _animation_step_frames <= 0 or _animation_frame_count <= 1:
+		return
+	var cycle_length: int = _animation_frame_count * 2 if _animation_ping_pong else _animation_frame_count
+	var is_changed: bool
+	for frame: int in frame_count:
+		var animation_speed: float = float(tech_level) if _animation_speed_follows_tech_level else 1.0
+		_animation_tick = maxf(_animation_tick - animation_speed, 0.0)
+		if _animation_tick > 0.0:
+			continue
+		_animation_tick = float(_animation_step_frames)
+		_animation_step = (_animation_step + 1) % cycle_length
+		var next_frame: int = mini(_animation_step, cycle_length - 1 - _animation_step) if _animation_ping_pong else _animation_step
+		if animation_frame != next_frame:
+			animation_frame = next_frame
+			is_changed = true
+	if is_changed:
+		state_changed.emit(self)
+
+
 func apply_order(command_type: String, target: Vector2) -> void:
 	order_type = command_type
 	order_target = target
 	_path_waypoints.clear()
 	_path_index = 0
+	_movement_velocity = 0.0
+	_turn_velocity = 0.0
 	_is_exiting_factory = false
 	state_changed.emit(self)
 

@@ -9,6 +9,7 @@ var relation: RwUnitTeamColors.Relation = RwUnitTeamColors.Relation.NEUTRAL
 
 var _provider: RwUnitAssetProvider
 var _alive_body_texture: Texture2D
+var _body_textures_by_level: Dictionary
 var _weapon_mounts: Array[Node2D]
 var _weapon_definitions: Array[RwUnitWeaponDefinition]
 
@@ -33,6 +34,10 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 		add_child(_make_sprite(provider.load_cached_texture(unit_definition.back_image), "Back"))
 	var body_texture: Texture2D = provider.load_team_texture(unit_definition.body_image, color) if unit_definition.body_team_colored else provider.load_cached_texture(unit_definition.body_image)
 	_alive_body_texture = body_texture
+	_body_textures_by_level.clear()
+	for level: int in unit_definition.body_images_by_level:
+		var image_name: String = str(unit_definition.body_images_by_level[level])
+		_body_textures_by_level[level] = provider.load_team_texture(image_name, color) if unit_definition.body_team_colored else provider.load_cached_texture(image_name)
 	var body: Sprite2D = _make_sprite(body_texture, "Body")
 	body.hframes = unit_definition.body_frames
 	body.scale = unit_definition.body_scale
@@ -140,30 +145,39 @@ func _draw() -> void:
 		else:
 			var selection_radius: float = maxf(body_size.x, body_size.y) * 0.5 + 4.0
 			draw_arc(Vector2.ZERO, selection_radius, 0.0, TAU, 32, selection_color)
-	if not state.is_dead and state.health < state.max_health:
-		var health_ratio: float = state.health / state.max_health if state.max_health > 0.0 else 0.0
+	if not state.is_dead and (state.health < state.max_health or state.build_progress < 1.0):
 		var bar_width: float = clampf(body_size.x, 24.0, 70.0)
 		var bar_y: float = maxf(body_size.y * 0.5, 8.0) + 5.0
 		draw_set_transform(Vector2.ZERO, -rotation, Vector2.ONE)
-		draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 4.0), Color.BLACK)
-		draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * health_ratio, 2.0), Color.GREEN if health_ratio > 0.5 else Color.ORANGE_RED)
+		if state.health < state.max_health:
+			var health_ratio: float = state.health / state.max_health if state.max_health > 0.0 else 0.0
+			draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 4.0), Color.BLACK)
+			draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * health_ratio, 2.0), Color.GREEN if health_ratio > 0.5 else Color.ORANGE_RED)
+			bar_y += 8.0
+		if state.build_progress < 1.0:
+			draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 5.0), Color(0.0, 0.0, 0.55, 0.47), false)
+			draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * state.build_progress, 3.0), Color(0.0, 0.0, 0.59, 0.78))
 
 
 func _on_state_changed(unit_state: RwUnitState) -> void:
 	position = unit_state.world_position
-	modulate.a = lerpf(0.55, 1.0, unit_state.build_progress)
+	modulate = Color.WHITE
+	var build_tint: Color = Color.WHITE
+	if not unit_state.is_dead and unit_state.build_progress < 1.0:
+		build_tint = Color(140.0 / 255.0, 1.0, 140.0 / 255.0, (20.0 + unit_state.build_progress * 220.0) / 255.0)
 	var render_rotation_offset: float = definition.render_rotation_offset_degrees if definition != null else 0.0
 	rotation_degrees = unit_state.body_rotation_degrees + render_rotation_offset
 	if definition != null:
 		z_index = definition.dead_draw_layer if unit_state.is_dead and definition.dead_draw_layer >= 0 else definition.draw_layer
 	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
 	if body != null and definition != null:
+		body.modulate = build_tint
 		if unit_state.is_dead and not definition.dead_image.is_empty():
 			body.texture = _provider.load_cached_texture(definition.dead_image)
 			body.hframes = 1
 			body.region_enabled = false
 		else:
-			body.texture = _alive_body_texture
+			body.texture = _body_textures_by_level.get(unit_state.tech_level, _alive_body_texture)
 			body.hframes = definition.body_frames
 			body.region_enabled = definition.body_region.size != Vector2i.ZERO
 			body.frame = mini(unit_state.animation_frame, body.hframes - 1)
@@ -174,9 +188,16 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 		mount.position = weapon.mount_offset if weapon.mount_follows_body else weapon.mount_offset.rotated(-rotation)
 		var weapon_angle: float = unit_state.body_rotation_degrees if weapon.aim_follows_body else unit_state.get_weapon_rotation(weapon.rotation_state_index)
 		mount.rotation_degrees = weapon_angle + weapon.rotation_offset_degrees - rotation_degrees
+		var weapon_sprite: Sprite2D = mount.get_node_or_null("Sprite") as Sprite2D
+		if weapon_sprite != null:
+			weapon_sprite.modulate = build_tint
 	var shadow: Sprite2D = get_node_or_null("Shadow") as Sprite2D
 	if shadow != null:
 		shadow.visible = not unit_state.is_dead
+	var back: Sprite2D = get_node_or_null("Back") as Sprite2D
+	if back != null:
+		back.visible = not unit_state.is_dead
+		back.modulate = build_tint
 	queue_redraw()
 
 

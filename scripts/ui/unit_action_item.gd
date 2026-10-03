@@ -59,19 +59,21 @@ func set_production_status(queue_count: int, progress: float, is_active: bool) -
 		_pending_cancellations = 0
 		unit_name_label.text = action_definition.display_name
 		progress_bar.hide()
+		_refresh_disabled_state()
 		return
 	unit_name_label.text = "%s x%d" % [action_definition.display_name, queue_count]
 	progress_bar.visible = is_active
 	progress_bar.value = clampf(progress, 0.0, 1.0) * 100.0
+	_refresh_disabled_state()
 
 
 func set_affordable(is_affordable: bool) -> void:
 	_is_affordable = is_affordable
-	disabled_color_rect.visible = not is_affordable
+	_refresh_disabled_state()
 
 
 func _on_button_pressed() -> void:
-	if _is_affordable:
+	if _is_affordable and (action_definition.kind != RwUnitActionDefinition.Kind.UPGRADE_UNIT or _queue_count == 0):
 		activated.emit(action_id)
 
 
@@ -101,3 +103,7 @@ func _on_button_mouse_entered() -> void:
 func _on_button_mouse_exited() -> void:
 	_right_held = false
 	unhovered.emit(self)
+
+
+func _refresh_disabled_state() -> void:
+	disabled_color_rect.visible = not _is_affordable or (action_definition.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and _queue_count > 0)

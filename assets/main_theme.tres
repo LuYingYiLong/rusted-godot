@@ -4,6 +4,12 @@
 [ext_resource type="FontVariation" uid="uid://b7yfknp6y8e66" path="res://assets/fonts/bold_italics_font.tres" id="2_0arac"]
 [ext_resource type="FontVariation" uid="uid://chdxmh2gevyga" path="res://assets/fonts/italics_font.tres" id="3_611f8"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0arac"]
+bg_color = Color(0, 0, 0, 0.49019608)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1it3o"]
+bg_color = Color(0, 0, 0, 0.49019608)
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wvhbo"]
 content_margin_left = 8.0
 content_margin_top = 8.0
@@ -41,6 +47,8 @@ ResourceLabel/colors/font_color = Color(0.06666667, 0.7764706, 0.03137255, 1)
 ResourceLabel/colors/font_outline_color = Color(0.06666667, 0.4, 0.03137255, 1)
 ResourceLabel/font_sizes/font_size = 18
 ResourceLabel/fonts/font = ExtResource("1_xgdp2")
+ResourceLabel/styles/focus = SubResource("StyleBoxFlat_0arac")
+ResourceLabel/styles/normal = SubResource("StyleBoxFlat_1it3o")
 RichTextLabel/fonts/bold_font = ExtResource("1_xgdp2")
 RichTextLabel/fonts/bold_italics_font = ExtResource("2_0arac")
 RichTextLabel/fonts/italics_font = ExtResource("3_611f8")

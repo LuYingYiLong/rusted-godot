@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c2gocmn6t3reo"
+path="res://.godot/imported/[noloop]Ove Melaa - Theme Crystalized.ogg-1d176d6f6393960c9f300ea46f036de4.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/music/buildup/[noloop]Ove Melaa - Theme Crystalized.ogg"
+dest_files=["res://.godot/imported/[noloop]Ove Melaa - Theme Crystalized.ogg-1d176d6f6393960c9f300ea46f036de4.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

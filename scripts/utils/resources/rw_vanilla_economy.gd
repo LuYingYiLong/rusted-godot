@@ -12,15 +12,21 @@ const MAX_CREDITS: float = 999_999_999.0
 var _balances: Dictionary
 var _command_center_counts: Dictionary
 var _extractor_counts: Dictionary
+var _extractor_sources: Dictionary
 var _income_multiplier: float = 1.0
 var _last_frame: int
 var _sources_ready: bool
 
 
 func clear() -> void:
+	for object_id: int in _extractor_sources:
+		var unit_state: RwUnitState = _extractor_sources[object_id]["state"]
+		if unit_state.state_changed.is_connected(_on_extractor_state_changed):
+			unit_state.state_changed.disconnect(_on_extractor_state_changed)
 	_balances.clear()
 	_command_center_counts.clear()
 	_extractor_counts.clear()
+	_extractor_sources.clear()
 	_income_multiplier = 1.0
 	_last_frame = 0
 	_sources_ready = false
@@ -53,6 +59,31 @@ func add_extractor(team_slot: int) -> void:
 		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
 
 
+func register_extractor(unit_state: RwUnitState) -> void:
+	if unit_state == null or unit_state.is_dead or not unit_state.team.is_valid_int():
+		return
+	var team_slot: int = unit_state.team.to_int()
+	if not _balances.has(team_slot) or _extractor_sources.has(unit_state.object_id):
+		return
+	_extractor_sources[unit_state.object_id] = {"state": unit_state, "timer": 0, "rate": _active_extractor_rate(unit_state),}
+	unit_state.state_changed.connect(_on_extractor_state_changed)
+	if _sources_ready:
+		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
+
+
+func unregister_extractor(object_id: int) -> void:
+	if not _extractor_sources.has(object_id):
+		return
+	var source: Dictionary = _extractor_sources[object_id]
+	var unit_state: RwUnitState = source["state"]
+	var team_slot: int = unit_state.team.to_int()
+	if unit_state.state_changed.is_connected(_on_extractor_state_changed):
+		unit_state.state_changed.disconnect(_on_extractor_state_changed)
+	_extractor_sources.erase(object_id)
+	if _sources_ready:
+		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
+
+
 func set_command_centers(counts: Dictionary) -> void:
 	for slot: int in _balances:
 		_command_center_counts[slot] = maxi(int(counts.get(slot, 0)), 0)
@@ -74,20 +105,34 @@ func set_income_multiplier(income_multiplier: float) -> void:
 func advance_to(frame: int) -> void:
 	if not _sources_ready or frame <= _last_frame:
 		return
+	var frame_delta: int = frame - _last_frame
 	@warning_ignore("integer_division")
 	var previous_payout: int = int(_last_frame / INCOME_UPDATE_FRAMES)
 	@warning_ignore("integer_division")
 	var current_payout: int = int(frame / INCOME_UPDATE_FRAMES)
 	var payout_count: int = current_payout - previous_payout
 	_last_frame = frame
-	if payout_count <= 0:
-		return
+	var payouts: Dictionary = {}
 	for slot: int in _balances:
-		var income_rate: float = _base_income_rate(slot)
-		if income_rate <= 0.0:
+		var pooled_rate: float = _pooled_income_rate(slot)
+		if pooled_rate > 0.0 and payout_count > 0:
+			payouts[slot] = pooled_rate * float(INCOME_UPDATE_FRAMES * payout_count) / INCOME_RATE_PERIOD
+	for object_id: int in _extractor_sources:
+		var source: Dictionary = _extractor_sources[object_id]
+		var unit_state: RwUnitState = source["state"]
+		if unit_state.is_dead or unit_state.build_progress < 1.0:
 			continue
-		var payout: float = income_rate * _income_multiplier * float(INCOME_UPDATE_FRAMES) / INCOME_RATE_PERIOD
-		_balances[slot] = minf(float(_balances[slot]) + payout * payout_count, MAX_CREDITS)
+		var timer: int = int(source["timer"]) + frame_delta
+		@warning_ignore("integer_division")
+		var source_payouts: int = int(timer / INCOME_UPDATE_FRAMES)
+		source["timer"] = timer % INCOME_UPDATE_FRAMES
+		if source_payouts <= 0:
+			continue
+		var slot: int = unit_state.team.to_int()
+		var amount: float = _active_extractor_rate(unit_state) * float(INCOME_UPDATE_FRAMES * source_payouts) / INCOME_RATE_PERIOD
+		payouts[slot] = float(payouts.get(slot, 0.0)) + amount
+	for slot: int in payouts:
+		_balances[slot] = minf(float(_balances[slot]) + float(payouts[slot]) * _income_multiplier, MAX_CREDITS)
 		balance_changed.emit(slot, "credits", float(_balances[slot]), get_income_rate(slot, "credits"))
 
 
@@ -123,4 +168,43 @@ func get_income_rate(team_slot: int, resource_id: String) -> float:
 
 
 func _base_income_rate(team_slot: int) -> float:
+	var income_rate: float = _pooled_income_rate(team_slot)
+	for object_id: int in _extractor_sources:
+		var unit_state: RwUnitState = _extractor_sources[object_id]["state"]
+		if unit_state.team == str(team_slot):
+			income_rate += _active_extractor_rate(unit_state)
+	return income_rate
+
+
+func _pooled_income_rate(team_slot: int) -> float:
 	return COMMAND_CENTER_INCOME_RATE * int(_command_center_counts.get(team_slot, 0)) + EXTRACTOR_INCOME_RATE * int(_extractor_counts.get(team_slot, 0))
+
+
+func _extractor_rate(level: int) -> float:
+	if level >= 3:
+		return 18.0
+	if level == 2:
+		return 12.0
+	return EXTRACTOR_INCOME_RATE
+
+
+func _active_extractor_rate(unit_state: RwUnitState) -> float:
+	if unit_state.is_dead or unit_state.build_progress < 1.0:
+		return 0.0
+	return _extractor_rate(unit_state.tech_level)
+
+
+func _on_extractor_state_changed(unit_state: RwUnitState) -> void:
+	if unit_state.is_dead:
+		unregister_extractor(unit_state.object_id)
+		return
+	var source: Dictionary = _extractor_sources.get(unit_state.object_id, {})
+	if source.is_empty():
+		return
+	var next_rate: float = _active_extractor_rate(unit_state)
+	if is_equal_approx(float(source["rate"]), next_rate):
+		return
+	source["rate"] = next_rate
+	if _sources_ready:
+		var team_slot: int = unit_state.team.to_int()
+		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))

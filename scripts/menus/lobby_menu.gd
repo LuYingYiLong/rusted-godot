@@ -21,6 +21,7 @@ func _ready() -> void:
 
 
 func _on_exit_button_pressed() -> void:
+	AudioManager.play_ui(&"click")
 	if RwRoomClient != null:
 		RwRoomClient.leave_room()
 	get_tree().change_scene_to_file(JOIN_SCENE_UID)
@@ -71,9 +72,11 @@ func _on_room_updated(settings: Dictionary, players: Array[Dictionary], local_sl
 
 func _on_chat_received(sender: String, message: String) -> void:
 	chat_history.append_text("%s: %s\n" % [sender, message])
+	AudioManager.play_ui(&"message")
 
 
 func _on_game_started() -> void:
+	AudioManager.play_music(&"battle")
 	get_tree().change_scene_to_file(BATTLE_MAP_SCENE_UID)
 
 

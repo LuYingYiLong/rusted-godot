@@ -73,6 +73,15 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 		match unit_name:
 			"extractor":
 				definition.body_frames = 4
+				definition.back_image = "extractor_back.png"
+				definition.body_images_by_level = {2: "extractor_t2.png", 3: "extractor_t3.png",}
+				definition.animation_step_frames = 17
+				definition.animation_ping_pong = true
+				definition.animation_speed_follows_tech_level = true
+				definition.build_actions = [
+					_extractor_upgrade("extractorT2", "102", 1, 2, 1200.0, 0.0006, "extractor_t2.png"),
+					_extractor_upgrade("extractorT3", "103", 2, 3, 2500.0, 0.0003, "extractor_t3.png"),
+				]
 			"airFactory":
 				definition.body_frames = 5
 			"fabricator":
@@ -87,3 +96,18 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 		definition.placement_requires_resource_pool = bool(spec.get("pool", false))
 		definition.placement_requires_water = bool(spec.get("water", false))
 		registry.register_definition(definition, assets)
+
+
+static func _extractor_upgrade(action_id: String, network_id: String, required_level: int, result_level: int, cost: float, rate: float, icon_image: String) -> RwUnitActionDefinition:
+	var action: RwUnitActionDefinition = RwUnitActionDefinition.new()
+	action.action_id = action_id
+	action.network_action_id = network_id
+	action.display_name = "Upgrade T%d" % result_level
+	action.icon_image = icon_image
+	action.icon_frames = 4
+	action.kind = RwUnitActionDefinition.Kind.UPGRADE_UNIT
+	action.required_tech_level = required_level
+	action.result_tech_level = result_level
+	action.resource_costs = {"credits": cost,}
+	action.build_rate_per_frame = rate
+	return action

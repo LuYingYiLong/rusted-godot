@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://da7yq7onso5sd"
+path="res://.godot/imported/Ove - Earth Is All We Have.ogg-1142d1cd8a27506dfa44531ec423c515.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/music/buildup/Ove - Earth Is All We Have.ogg"
+dest_files=["res://.godot/imported/Ove - Earth Is All We Have.ogg-1142d1cd8a27506dfa44531ec423c515.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

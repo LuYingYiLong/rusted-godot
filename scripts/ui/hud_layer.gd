@@ -107,6 +107,11 @@ func show_selection(selected_units: Array[RwUnitState], unit_visuals: Dictionary
 	_render_selection()
 
 
+func refresh_selected_unit_actions() -> void:
+	if not _selected_units.is_empty():
+		_render_selection()
+
+
 func set_production_status(status: Dictionary) -> void:
 	for child: Node in unit_action_container.get_children():
 		var item: RwUnitActionItem = child as RwUnitActionItem
@@ -167,6 +172,8 @@ func _render_selection() -> void:
 	if definition != null and can_control:
 		reclaim_button.visible = definition.can_reclaim
 		for action: RwUnitActionDefinition in definition.build_actions:
+			if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and action.required_tech_level != focused_unit.tech_level:
+				continue
 			var action_item: RwUnitActionItem = UNIT_ACTION_ITEM_SCENE.instantiate() as RwUnitActionItem
 			unit_action_container.add_child(action_item)
 			action_item.configure(action, _icon_for_action(action, focused_unit.team))
@@ -314,7 +321,7 @@ func _update_description_position() -> void:
 	var action_left: float = unit_action_container.get_global_rect().position.x
 	unit_description_panel.global_position = Vector2(
 		action_left - unit_description_panel.size.x,
-		clampf(mouse_y, 0.0, max_y),
+		clampf(mouse_y - unit_description_panel.size.y / 2.0, 0.0, max_y),
 	)
 
 
@@ -344,6 +351,7 @@ func _on_unit_action_cancelled(action_id: String) -> void:
 	for unit_state: RwUnitState in group:
 		unit_ids.append(unit_state.object_id)
 	if not unit_ids.is_empty():
+		AudioManager.play_ui(&"remove")
 		unit_action_cancelled.emit(action_id, unit_ids)
 
 
@@ -365,6 +373,7 @@ func _emit_focused_action(action_id: String) -> void:
 	for unit_state: RwUnitState in group:
 		unit_ids.append(unit_state.object_id)
 	if not unit_ids.is_empty():
+		AudioManager.play_ui(&"click")
 		unit_action_chosen.emit(action_id, unit_ids)
 
 

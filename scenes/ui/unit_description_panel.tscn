@@ -28,7 +28,6 @@ stretch_mode = 5
 [node name="UnitNameLabel" type="Label" parent="VBoxContainer" unique_id=2053643643]
 unique_name_in_owner = true
 layout_mode = 2
-mouse_filter = 2
 theme_type_variation = &"TooltipLabel"
 text = "Unit"
 horizontal_alignment = 1
@@ -39,8 +38,6 @@ text_overrun_behavior = 5
 unique_name_in_owner = true
 custom_minimum_size = Vector2(128, 34)
 layout_mode = 2
-mouse_filter = 2
 theme_type_variation = &"DescriptionLabel"
 text = "Description"
 autowrap_mode = 3
-text_overrun_behavior = 5

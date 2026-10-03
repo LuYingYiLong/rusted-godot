@@ -11,6 +11,7 @@ enum SelectionShape {
 @export var display_name: String
 @export_multiline var description: String
 @export var body_image: String
+@export var body_images_by_level: Dictionary
 @export var back_image: String
 @export var turret_image: String
 @export var weapon_parts: Array[RwUnitWeaponDefinition]
@@ -44,6 +45,9 @@ enum SelectionShape {
 @export var can_reclaim: bool
 @export var build_actions: Array[RwUnitActionDefinition]
 @export_range(1, 32, 1) var body_frames: int = 1
+@export var animation_step_frames: int
+@export var animation_ping_pong: bool
+@export var animation_speed_follows_tech_level: bool
 @export var shadow_offset: Vector2
 @export var body_team_colored: bool = true
 @export var turret_team_colored: bool
