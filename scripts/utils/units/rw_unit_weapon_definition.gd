@@ -16,6 +16,11 @@ extends Resource
 @export var draw_order: int = 1
 ## 无目标时每同步帧旋转的角度
 @export var idle_spin_degrees: float
+## 无目标时在基准角度两侧摆动的幅度
+@export var idle_sweep_angle_degrees: float
+@export var idle_sweep_delay: float
+@export var idle_sweep_speed_degrees: float
+@export var idle_sweep_random_delay: float
 ## 无目标时相对单位朝向的复位角度
 @export var idle_direction_degrees: float
 @export var reset_when_idle: bool = true

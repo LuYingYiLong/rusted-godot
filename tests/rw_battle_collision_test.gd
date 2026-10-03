@@ -24,6 +24,11 @@ func _run() -> void:
 	assert(is_equal_approx(second.world_position.x, 8.2375))
 	first.world_position = Vector2.ZERO
 	second.world_position = Vector2(8.0, 0.0)
+	battle_map.call("_separate_mobile_units", 2.0)
+	assert(is_equal_approx(first.world_position.x, -0.475))
+	assert(is_equal_approx(second.world_position.x, 8.475))
+	first.world_position = Vector2.ZERO
+	second.world_position = Vector2(8.0, 0.0)
 	second.team = "2"
 	battle_map.call("_separate_mobile_units")
 	assert(first.world_position == Vector2.ZERO)

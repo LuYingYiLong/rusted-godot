@@ -112,6 +112,10 @@ static func _configure_visual_parts(definition: RwUnitDefinition, spec: Dictiona
 		part.rotation_offset_degrees = 90.0
 		part.sprite_scale = Vector2(turret_scale, turret_scale)
 		part.idle_spin_degrees = float(part_info.get("idle_spin", 0.0))
+		part.idle_sweep_angle_degrees = float(part_info.get("idle_sweep_angle", 0.0))
+		part.idle_sweep_delay = float(part_info.get("idle_sweep_delay", 0.0))
+		part.idle_sweep_speed_degrees = float(part_info.get("idle_sweep_speed", 0.0))
+		part.idle_sweep_random_delay = float(part_info.get("idle_sweep_random_delay", 0.0))
 		part.idle_direction_degrees = float(part_info.get("idle_direction", 0.0))
 		part.reset_when_idle = bool(part_info.get("reset_when_idle", true))
 		part.idle_turn_speed_degrees = float(part_info.get("turn_speed", 0.0))

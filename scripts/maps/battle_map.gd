@@ -766,7 +766,7 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 				unit_state.advance_movement(1, _path_grid)
 		for animated_unit: RwUnitState in _animated_visual_units:
 			animated_unit.advance_visual_animation(1)
-		_separate_mobile_units()
+		_separate_mobile_units(RwRoomClient.battle_timeline.step_rate)
 		_advance_service_orders()
 		_advance_unit_generation(first_frame + step)
 		if _combat != null:
@@ -1459,7 +1459,7 @@ func _formation_targets(unit_ids: Array[int], target: Vector2) -> Dictionary:
 	return formation_targets
 
 
-func _separate_mobile_units() -> void:
+func _separate_mobile_units(simulation_delta: float = 1.0) -> void:
 	for first_index: int in _mobile_unit_states.size():
 		var first: RwUnitState = _mobile_unit_states[first_index]
 		if first.is_dead or first.collision_radius <= 0.0:
@@ -1478,7 +1478,7 @@ func _separate_mobile_units() -> void:
 			var direction: Vector2 = separation.normalized() if separation.length_squared() > 0.000001 else Vector2.RIGHT
 			var overlap: float = minimum_distance - distance
 			var priority: int = maxi(first.soft_collision_on_all, second.soft_collision_on_all)
-			var push_distance: float = overlap / float(priority) if priority > 0 else overlap
+			var push_distance: float = minf(overlap / float(priority) * simulation_delta, overlap) if priority > 0 else overlap
 			push_distance *= 0.95
 			if push_distance > 1.0:
 				push_distance *= 0.7

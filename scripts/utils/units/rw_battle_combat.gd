@@ -16,6 +16,7 @@ var _unit_states: Dictionary
 var _registry: RwUnitRegistry
 var _players: Array[Dictionary]
 var _weapon_runtime: Dictionary
+var _idle_sweep_runtime: Dictionary
 var _sorted_ids: Array[int]
 var _sorted_ids_dirty: bool = true
 var _simulation_delta: float = 1.0
@@ -27,6 +28,7 @@ func configure(unit_states: Dictionary, registry: RwUnitRegistry, players: Array
 	_registry = registry
 	_players = players.duplicate(true)
 	_weapon_runtime.clear()
+	_idle_sweep_runtime.clear()
 	projectiles.clear()
 	_sorted_ids_dirty = true
 	var unit_ids: Array[int] = _sorted_unit_ids()
@@ -59,6 +61,7 @@ func reset_unit(unit_state: RwUnitState) -> void:
 	if unit_state == null:
 		return
 	_weapon_runtime.erase(unit_state.object_id)
+	_idle_sweep_runtime.erase(unit_state.object_id)
 	register_unit(unit_state)
 
 
@@ -198,9 +201,14 @@ func _advance_idle_visual_parts(unit_state: RwUnitState, definition: RwUnitDefin
 		if part == null:
 			continue
 		if active_indices.has(part.rotation_state_index):
+			var unit_runtime: Dictionary = _idle_sweep_runtime.get(unit_state.object_id, {})
+			unit_runtime.erase(part.rotation_state_index)
+			_idle_sweep_runtime[unit_state.object_id] = unit_runtime
 			continue
 		var current_angle: float = unit_state.get_weapon_rotation(part.rotation_state_index)
-		if part.idle_spin_degrees != 0.0:
+		if part.idle_sweep_angle_degrees > 0.0 and part.idle_sweep_speed_degrees > 0.0:
+			_advance_idle_sweep(unit_state, part, current_angle)
+		elif part.idle_spin_degrees != 0.0:
 			unit_state.set_weapon_rotation(part.rotation_state_index, current_angle + part.idle_spin_degrees * _simulation_delta)
 		elif part.reset_when_idle:
 			var base_angle: float = unit_state.body_rotation_degrees
@@ -213,6 +221,37 @@ func _advance_idle_visual_parts(unit_state: RwUnitState, definition: RwUnitDefin
 				var turn_limit: float = part.idle_turn_speed_degrees * _simulation_delta
 				turn_step = clampf(angular_delta, -turn_limit, turn_limit)
 			unit_state.set_weapon_rotation(part.rotation_state_index, current_angle + turn_step)
+
+
+func _advance_idle_sweep(unit_state: RwUnitState, part: RwUnitWeaponDefinition, current_angle: float) -> void:
+	var unit_runtime: Dictionary = _idle_sweep_runtime.get(unit_state.object_id, {})
+	var state: Dictionary = unit_runtime.get(part.rotation_state_index, {
+		"base_angle": current_angle,
+		"elapsed": 0.0,
+		"offset": 0.0,
+		"reached": true,
+		"cycle": 0,
+	})
+	var offset: float = float(state["offset"])
+	if not bool(state["reached"]):
+		var target_angle: float = float(state["base_angle"]) + offset
+		var angular_delta: float = wrapf(target_angle - current_angle, -180.0, 180.0)
+		var turn_limit: float = part.idle_sweep_speed_degrees * _simulation_delta
+		var turn_step: float = clampf(angular_delta, -turn_limit, turn_limit)
+		unit_state.set_weapon_rotation(part.rotation_state_index, current_angle + turn_step)
+		if absf(angular_delta) <= turn_limit:
+			state["reached"] = true
+	state["elapsed"] = float(state["elapsed"]) + _simulation_delta
+	if float(state["elapsed"]) > part.idle_sweep_delay:
+		var cycle: int = int(state["cycle"]) + 1
+		var random_range: int = maxi(ceili(part.idle_sweep_random_delay), 1)
+		var random_delay: int = posmod(unit_state.object_id * 1313 + cycle * 13, random_range)
+		state["elapsed"] = -float(random_delay)
+		state["offset"] = -part.idle_sweep_angle_degrees if offset > 0.0 else part.idle_sweep_angle_degrees
+		state["reached"] = false
+		state["cycle"] = cycle
+	unit_runtime[part.rotation_state_index] = state
+	_idle_sweep_runtime[unit_state.object_id] = unit_runtime
 
 
 func _find_target(source: RwUnitState, weapon: RwWeaponDefinition) -> RwUnitState:
@@ -338,4 +377,5 @@ func _damage_unit(unit_state: RwUnitState, amount: float) -> void:
 	if definition != null and definition.behavior != null:
 		definition.behavior.on_destroyed(unit_state, definition, self)
 	_weapon_runtime.erase(unit_state.object_id)
+	_idle_sweep_runtime.erase(unit_state.object_id)
 	unit_destroyed.emit(unit_state)

@@ -13,6 +13,7 @@ func _run() -> void:
 	_test_guided_missile()
 	_test_weapon_warmup()
 	_test_idle_turret_rotation()
+	_test_idle_turret_sweep()
 	_test_idle_turret_step_rate()
 	_test_projectile_step_rate()
 	_test_native_turret_idle()
@@ -145,6 +146,23 @@ func _test_idle_turret_rotation() -> void:
 	combat.configure({2: anti_air,}, registry, _players())
 	combat.advance_frame()
 	assert(is_equal_approx(anti_air.get_weapon_rotation(0), 0.8))
+
+
+func _test_idle_turret_sweep() -> void:
+	var registry: RwUnitRegistry = RwVanillaUnitDefinitions.create_registry()
+	var definition: RwUnitDefinition = registry.find_definition("custom", "c_turret_t1")
+	var turret: RwUnitState = _unit(9, "custom", "c_turret_t1", "1", Vector2.ZERO, definition)
+	turret.build_progress = 1.0
+	assert(is_equal_approx(definition.weapon_parts[0].idle_sweep_angle_degrees, 20.0))
+	assert(is_equal_approx(definition.weapon_parts[0].idle_sweep_delay, 210.0))
+	var initial_angle: float = turret.get_weapon_rotation(0)
+	var combat: RwBattleCombat = RwBattleCombat.new()
+	combat.configure({9: turret,}, registry, _players())
+	for frame: int in 211:
+		combat.advance_frame()
+	assert(is_equal_approx(turret.get_weapon_rotation(0), initial_angle))
+	combat.advance_frame()
+	assert(is_equal_approx(turret.get_weapon_rotation(0), initial_angle + 0.2))
 
 
 func _test_native_turret_idle() -> void:

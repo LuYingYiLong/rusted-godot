@@ -166,10 +166,21 @@ def spec_for(path: Path) -> dict[str, object]:
             "y": number(entries.get("y", "")),
         }
         idle_spin = number(entries.get("idlespin", ""))
+        idle_sweep_angle = number(entries.get("idlesweepangle", ""))
+        idle_sweep_delay = number(entries.get("idlesweepdelay", ""), 10.0)
+        idle_sweep_speed = number(entries.get("idlesweepspeed", ""))
         idle_direction = number(entries.get("idledir", ""))
         turn_speed = number(entries.get("turnspeed", ""), number(attack.get("turretturnspeed", ""), 8.0))
         if idle_spin != 0.0:
             part["idle_spin"] = idle_spin
+        if idle_sweep_angle > 0.0:
+            part["idle_sweep_angle"] = idle_sweep_angle
+            part["idle_sweep_delay"] = idle_sweep_delay
+            part["idle_sweep_speed"] = idle_sweep_speed
+            random_delay = number(entries.get("idlesweepaddrandomdelay", ""), -1.0)
+            if random_delay < 0.0:
+                random_delay = 20.0 if idle_sweep_delay > 200.0 else 5.0 if idle_sweep_delay > 50.0 else 1.0
+            part["idle_sweep_random_delay"] = random_delay
         if idle_direction != 0.0:
             part["idle_direction"] = idle_direction
         if entries.get("shouldresetturret", "true").casefold() == "false":
