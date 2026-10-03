@@ -414,6 +414,10 @@ func _on_unit_action_chosen(action_id: String, _unit_ids: Array[int]) -> void:
 	hud_layer.show_status("%s is not available in the current battle simulation" % action_id)
 
 
+func _on_unit_group_selected(unit_ids: Array[int]) -> void:
+	_set_selection(unit_ids, false)
+
+
 func _request_move(screen_position: Vector2) -> void:
 	if _path_grid == null:
 		return

@@ -3,6 +3,7 @@ extends CanvasLayer
 
 signal minimap_position_chosen(world_position: Vector2)
 signal unit_action_chosen(action_id: String, unit_ids: Array[int])
+signal unit_group_selected(unit_ids: Array[int])
 
 const JOIN_SCENE_UID: String = "uid://c75kjomieop5w"
 const RESOURCE_LABEL_SCENE: PackedScene = preload("uid://mb863ppm1pam")
@@ -11,6 +12,8 @@ const UNIT_ACTION_ITEM_SCENE: PackedScene = preload("uid://bmw3cmgk62apu")
 const MINIMAP_REFRESH_SECONDS: float = 0.2
 
 @onready var chat_panel: RwChatPanel = %ChatPanel
+@onready var sidebar: HBoxContainer = %Sidebar
+@onready var unit_description_panel: RwUnitDescriptionPanel = %UnitDescriptionPanel
 @onready var resource_container: VBoxContainer = %ResourceContainer
 @onready var minimap: RwMinimap = %Minimap
 @onready var unit_info_container: GridContainer = %UnitInfoContainer
@@ -20,6 +23,8 @@ const MINIMAP_REFRESH_SECONDS: float = 0.2
 @onready var selected_unit_scroll_container: ScrollContainer = %SelectedUnitScrollContainer
 @onready var selected_unit_container: GridContainer = %SelectedUnitContainer
 @onready var reclaim_button: Button = %ReclaimButton
+@onready var patrol_button: Button = %SetPatrolAreaButton
+@onready var escort_button: Button = %EscortUnitButton
 
 var _resource_labels: Dictionary
 var _resource_catalog: RwResourceCatalog = RwResourceCatalog.create_vanilla()
@@ -34,6 +39,7 @@ var _selected_ids: Array[int]
 var _selected_groups: Dictionary
 var _focused_unit_key: String
 var _minimap_refresh_timer: float
+var _description_source: Control
 
 
 func _ready() -> void:
@@ -54,6 +60,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if unit_description_panel.visible:
+		_update_description_position()
 	_minimap_refresh_timer -= delta
 	if _minimap_refresh_timer <= 0.0:
 		_minimap_refresh_timer = MINIMAP_REFRESH_SECONDS
@@ -100,6 +108,7 @@ func show_selection(selected_units: Array[RwUnitState], unit_visuals: Dictionary
 
 
 func _render_selection() -> void:
+	_hide_description()
 	_clear_dynamic_items(unit_info_container)
 	_clear_dynamic_items(unit_action_container)
 	_clear_children(selected_unit_container)
@@ -119,6 +128,8 @@ func _render_selection() -> void:
 			selected_unit_container.add_child(item)
 			item.configure(unit_key, first_unit.unit_name, group.size(), _icon_for_unit(first_unit))
 			item.selected.connect(_on_unit_type_selected)
+			item.hovered.connect(_on_selected_item_hovered)
+			item.unhovered.connect(_on_description_item_unhovered)
 		_refresh_selection_details()
 		return
 	if _focused_unit_key.is_empty():
@@ -134,10 +145,12 @@ func _render_selection() -> void:
 	info_item.configure(_focused_unit_key, focused_unit.unit_name, focused_group.size(), _icon_for_unit(focused_unit))
 	info_item.set_focused(_selected_groups.size() > 1)
 	info_item.selected.connect(_on_focused_item_selected)
+	info_item.hovered.connect(_on_selected_item_hovered)
+	info_item.unhovered.connect(_on_description_item_unhovered)
 	var can_control: bool = focused_unit.team == str(_local_slot)
 	var can_move: bool = definition != null and definition.movement_speed > 0.0 and can_control
-	($HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/SetPatrolAreaButton as Button).visible = can_move
-	($HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/EscortUnitButton as Button).visible = can_move
+	patrol_button.visible = can_move
+	escort_button.visible = can_move
 	if definition != null and can_control:
 		reclaim_button.visible = definition.can_reclaim
 		for action: RwUnitActionDefinition in definition.build_actions:
@@ -145,6 +158,8 @@ func _render_selection() -> void:
 			unit_action_container.add_child(action_item)
 			action_item.configure(action, _icon_for_action(action, focused_unit.team))
 			action_item.activated.connect(_on_unit_action_activated)
+			action_item.hovered.connect(_on_action_item_hovered)
+			action_item.unhovered.connect(_on_description_item_unhovered)
 	unit_info_container.show()
 	unit_action_scroll_container.show()
 	_refresh_selection_details()
@@ -197,9 +212,78 @@ func _clear_dynamic_items(container: Node) -> void:
 			child.queue_free()
 
 
+func _on_selected_item_hovered(item: RwSelectedUnitItem) -> void:
+	var group: Array = _selected_groups.get(item.unit_key, [])
+	if group.is_empty():
+		return
+	var unit_state: RwUnitState = group[0] as RwUnitState
+	var definition: RwUnitDefinition = _unit_registry.find_definition(unit_state.source_id, unit_state.unit_name) if _unit_registry != null else null
+	var unit_name: String = unit_state.unit_name
+	var lines: Array[String] = []
+	if definition != null:
+		if not definition.display_name.is_empty():
+			unit_name = definition.display_name
+		if not definition.description.is_empty():
+			lines.append(definition.description)
+	lines.append("HP: %.0f/%.0f" % [unit_state.health, unit_state.max_health])
+	if definition != null and definition.attack_range > 0.0:
+		lines.append("Range: %.0f" % definition.attack_range)
+	if unit_state.movement_speed > 0.0:
+		lines.append("Speed: %.1f" % unit_state.movement_speed)
+	_show_description(item, item.unit_texture.texture, unit_name, "\n".join(lines))
+
+
+func _on_action_item_hovered(item: RwUnitActionItem) -> void:
+	var action: RwUnitActionDefinition = item.action_definition
+	if action == null:
+		return
+	var description: String = action.description
+	if description.is_empty():
+		var verb: String = "Build" if _focused_unit_key.ends_with(":builder") else "Produce"
+		description = "%s %s" % [verb, action.display_name]
+	_show_description(item, item.unit_texture.texture, action.display_name, description)
+
+
+func _on_description_item_unhovered(item: Control) -> void:
+	if _description_source == item:
+		_hide_description()
+
+
+func _show_description(source: Control, icon: Texture2D, unit_name: String, description: String) -> void:
+	_description_source = source
+	unit_description_panel.configure(icon, unit_name, description)
+	unit_description_panel.show()
+	unit_description_panel.reset_size()
+	_update_description_position()
+
+
+func _hide_description() -> void:
+	_description_source = null
+	unit_description_panel.hide()
+
+
+func _update_description_position() -> void:
+	if not is_instance_valid(_description_source):
+		_hide_description()
+		return
+	var mouse_y: float = get_viewport().get_mouse_position().y
+	var viewport_height: float = get_viewport().get_visible_rect().size.y
+	var max_y: float = maxf(0.0, viewport_height - unit_description_panel.size.y)
+	var sidebar_left: float = sidebar.get_global_rect().position.x
+	unit_description_panel.global_position = Vector2(
+		sidebar_left - unit_description_panel.size.x,
+		clampf(mouse_y, 0.0, max_y),
+	)
+
+
 func _on_unit_type_selected(unit_key: String) -> void:
-	_focused_unit_key = unit_key
-	_render_selection()
+	var group: Array = _selected_groups.get(unit_key, [])
+	if group.is_empty():
+		return
+	var unit_ids: Array[int] = []
+	for unit_state: RwUnitState in group:
+		unit_ids.append(unit_state.object_id)
+	unit_group_selected.emit(unit_ids)
 
 
 func _on_focused_item_selected(_unit_key: String) -> void:

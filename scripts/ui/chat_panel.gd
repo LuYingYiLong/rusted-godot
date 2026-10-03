@@ -4,7 +4,7 @@ extends PanelContainer
 const MAX_MESSAGE_LINES: int = 80
 const PREVIEW_MESSAGE_LINES: int = 8
 
-@onready var main_panel: VBoxContainer = $VBoxContainer
+@onready var main_panel: VBoxContainer = %MainPanel
 @onready var message_label: RichTextLabel = %MessageLabel
 @onready var team_check_button: CheckButton = %TeamCheckButton
 @onready var line_edit: LineEdit = %LineEdit
@@ -19,6 +19,7 @@ func _ready() -> void:
 	RwRoomClient.chat_received.connect(_on_chat_received)
 	RwRoomClient.connection_changed.connect(_on_connection_changed)
 	RwRoomClient.room_updated.connect(_on_room_updated)
+	main_panel.hide()
 	for entry: Dictionary in RwRoomClient.chat_log:
 		_append_message(str(entry.get("sender", "System")), str(entry.get("message", "")), false)
 	_update_availability()

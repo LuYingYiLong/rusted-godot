@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://drfrgct4wnfx6"]
+
+[ext_resource type="Texture2D" uid="uid://ckfgd7o8ykx7k" path="res://assets/rwx/drawable/ui/errors/error.png" id="1_6iupg"]
+[ext_resource type="Script" uid="uid://cwd87fulpaq1x" path="res://scripts/ui/unit_description_panel.gd" id="1_q186r"]
+
+[node name="UnitDescriptionPanel" type="PanelContainer" unique_id=1779700227]
+custom_minimum_size = Vector2(200, 0)
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+theme_type_variation = &"TooltipPanelContainer"
+script = ExtResource("1_q186r")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1359713331]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"MarginlessVBoxContainer"
+
+[node name="UnitTexture" type="TextureRect" parent="VBoxContainer" unique_id=927237672]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("1_6iupg")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="UnitNameLabel" type="Label" parent="VBoxContainer" unique_id=2053643643]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"TooltipLabel"
+text = "Unit"
+horizontal_alignment = 1
+vertical_alignment = 1
+text_overrun_behavior = 5
+
+[node name="DescriptionLabel" type="Label" parent="VBoxContainer" unique_id=1419876285]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 34)
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"DescriptionLabel"
+text = "Description"
+autowrap_mode = 3
+text_overrun_behavior = 5

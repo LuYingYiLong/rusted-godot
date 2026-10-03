@@ -8,6 +8,7 @@ custom_minimum_size = Vector2(80, 0)
 offset_right = 80.0
 offset_bottom = 67.0
 size_flags_horizontal = 3
+theme_type_variation = &"MarginlessContainer"
 script = ExtResource("1_ul0cg")
 
 [node name="Button" type="Button" parent="." unique_id=306079163]
@@ -30,6 +31,7 @@ stretch_mode = 5
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
+mouse_filter = 2
 theme_type_variation = &"UnitLabel"
 text = "UnitName"
 horizontal_alignment = 1
@@ -39,6 +41,9 @@ autowrap_mode = 3
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+mouse_filter = 2
 color = Color(1, 0, 0, 0.23529412)
 
 [connection signal="pressed" from="Button" to="." method="_on_button_pressed"]
+[connection signal="mouse_entered" from="Button" to="." method="_on_button_mouse_entered"]
+[connection signal="mouse_exited" from="Button" to="." method="_on_button_mouse_exited"]

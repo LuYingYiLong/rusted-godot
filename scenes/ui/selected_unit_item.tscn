@@ -5,6 +5,7 @@
 
 [node name="SelectedUnitItem" type="MarginContainer" unique_id=1310337508]
 custom_minimum_size = Vector2(80, 0)
+theme_type_variation = &"MarginlessContainer"
 script = ExtResource("1_cs7cu")
 
 [node name="Button" type="Button" parent="." unique_id=1051387409]
@@ -29,10 +30,12 @@ stretch_mode = 5
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
-theme_type_variation = &"SmallLabel"
 mouse_filter = 2
+theme_type_variation = &"SmallLabel"
 text = "UnitName"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [connection signal="pressed" from="Button" to="." method="_on_button_pressed"]
+[connection signal="mouse_entered" from="Button" to="." method="_on_button_mouse_entered"]
+[connection signal="mouse_exited" from="Button" to="." method="_on_button_mouse_exited"]

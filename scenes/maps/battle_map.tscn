@@ -44,9 +44,11 @@ unique_name_in_owner = true
 z_index = 50
 y_sort_enabled = true
 
-[node name="SelectionOverlay" type="Control" parent="." unique_id=876323491]
+[node name="SelectionCanvasLayer" type="CanvasLayer" parent="."]
+layer = 1
+
+[node name="SelectionOverlay" type="Control" parent="SelectionCanvasLayer" unique_id=876323491]
 unique_name_in_owner = true
-z_index = 100
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -56,8 +58,10 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="HudLayer" parent="." unique_id=1635449708 instance=ExtResource("2_1it3o")]
+layer = 2
 
 [connection signal="draw" from="MapRoot/NavigationOverlay" to="." method="_draw_navigation_overlay"]
-[connection signal="draw" from="SelectionOverlay" to="." method="_draw_selection_overlay"]
+[connection signal="draw" from="SelectionCanvasLayer/SelectionOverlay" to="." method="_draw_selection_overlay"]
 [connection signal="minimap_position_chosen" from="HudLayer" to="." method="_on_minimap_position_chosen"]
 [connection signal="unit_action_chosen" from="HudLayer" to="." method="_on_unit_action_chosen"]
+[connection signal="unit_group_selected" from="HudLayer" to="." method="_on_unit_group_selected"]

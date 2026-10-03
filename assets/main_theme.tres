@@ -4,7 +4,31 @@
 [ext_resource type="FontVariation" uid="uid://b7yfknp6y8e66" path="res://assets/fonts/bold_italics_font.tres" id="2_0arac"]
 [ext_resource type="FontVariation" uid="uid://chdxmh2gevyga" path="res://assets/fonts/italics_font.tres" id="3_611f8"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wvhbo"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.8474744, 0.84747446, 0.8474743, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.5370113, 0.5370114, 0.5370111, 1)
+
 [resource]
+DescriptionLabel/base_type = &"Label"
+DescriptionLabel/colors/font_color = Color(0.29219002, 0.29219005, 0.29219002, 1)
+DescriptionLabel/font_sizes/font_size = 12
+MarginContainer/constants/margin_bottom = 16
+MarginContainer/constants/margin_left = 16
+MarginContainer/constants/margin_right = 16
+MarginContainer/constants/margin_top = 16
+MarginlessContainer/base_type = &"MarginContainer"
+MarginlessContainer/constants/margin_bottom = 0
+MarginlessContainer/constants/margin_left = 0
+MarginlessContainer/constants/margin_right = 0
+MarginlessContainer/constants/margin_top = 0
 MarginlessGridContainer/base_type = &"GridContainer"
 MarginlessGridContainer/constants/h_separation = 0
 MarginlessGridContainer/constants/v_separation = 0
@@ -24,6 +48,9 @@ SmallButton/base_type = &"Button"
 SmallButton/font_sizes/font_size = 12
 SmallLabel/base_type = &"Label"
 SmallLabel/font_sizes/font_size = 12
+TooltipLabel/colors/font_color = Color(0, 0, 0, 1)
+TooltipPanelContainer/base_type = &"PanelContainer"
+TooltipPanelContainer/styles/panel = SubResource("StyleBoxFlat_wvhbo")
 UnitLabel/base_type = &"Label"
 UnitLabel/colors/font_color = Color(0.06666667, 0.7764706, 0.03137255, 1)
 UnitLabel/colors/font_outline_color = Color(0.06666667, 0.4, 0.03137255, 1)

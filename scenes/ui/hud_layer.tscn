@@ -6,67 +6,68 @@
 [ext_resource type="PackedScene" uid="uid://bmw3cmgk62apu" path="res://scenes/ui/unit_action_item.tscn" id="4_t0646"]
 [ext_resource type="Script" uid="uid://cak6a04nfxyqv" path="res://scripts/ui/rw_minimap.gd" id="5_minimap"]
 [ext_resource type="PackedScene" uid="uid://kydp5n2w0r7e" path="res://scenes/ui/chat_panel.tscn" id="6_4mbyi"]
+[ext_resource type="PackedScene" uid="uid://drfrgct4wnfx6" path="res://scenes/ui/unit_description_panel.tscn" id="7_euavu"]
 
 [node name="HudLayer" type="CanvasLayer" unique_id=1635449708]
 script = ExtResource("1_k4qb0")
 
-[node name="HudMarginContainer" type="MarginContainer" parent="." unique_id=272343107]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=143570590]
+offset_right = 51.0
+offset_bottom = 27.0
 mouse_filter = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="HudMarginContainer" unique_id=143570590]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="LeaveButton" type="Button" parent="HudMarginContainer/VBoxContainer" unique_id=427828277]
+[node name="LeaveButton" type="Button" parent="VBoxContainer" unique_id=427828277]
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
 text = "Leave"
 
-[node name="Sidebar" type="HBoxContainer" parent="HudMarginContainer" unique_id=565634510]
-layout_mode = 2
+[node name="Sidebar" type="HBoxContainer" parent="." unique_id=565634510]
+unique_name_in_owner = true
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -224.0
+grow_horizontal = 0
+grow_vertical = 2
 size_flags_horizontal = 8
 theme_type_variation = &"MarginlessHBoxContainer"
 
-[node name="ResourceContainer" type="VBoxContainer" parent="HudMarginContainer/Sidebar" unique_id=763446041]
+[node name="ResourceContainer" type="VBoxContainer" parent="Sidebar" unique_id=763446041]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="ResourceLabel" parent="HudMarginContainer/Sidebar/ResourceContainer" unique_id=1126945700 instance=ExtResource("2_5unhp")]
+[node name="ResourceLabel" parent="Sidebar/ResourceContainer" unique_id=1126945700 instance=ExtResource("2_5unhp")]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="HudMarginContainer/Sidebar" unique_id=929827138]
+[node name="VBoxContainer" type="VBoxContainer" parent="Sidebar" unique_id=929827138]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
+mouse_filter = 0
 theme_type_variation = &"MarginlessVBoxContainer"
 
-[node name="Minimap" type="TextureRect" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=340851844]
+[node name="Minimap" type="TextureRect" parent="Sidebar/VBoxContainer" unique_id=340851844]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
-stretch_mode = 0
 script = ExtResource("5_minimap")
 
-[node name="UnitInfoContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=822116602]
+[node name="UnitInfoContainer" type="GridContainer" parent="Sidebar/VBoxContainer" unique_id=822116602]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_type_variation = &"MarginlessGridContainer"
 columns = 2
 
-[node name="SelectedUnitItem" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1310337508 instance=ExtResource("3_t0646")]
+[node name="SelectedUnitItem" parent="Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1310337508 instance=ExtResource("3_t0646")]
 layout_mode = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1883448970]
+[node name="PanelContainer" type="PanelContainer" parent="Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1883448970]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HealthLabel" type="Label" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/PanelContainer" unique_id=1973863147]
+[node name="HealthLabel" type="Label" parent="Sidebar/VBoxContainer/UnitInfoContainer/PanelContainer" unique_id=1973863147]
 unique_name_in_owner = true
 layout_mode = 2
 text = "999/999"
@@ -74,26 +75,28 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text_overrun_behavior = 6
 
-[node name="SetPatrolAreaButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=274016830]
+[node name="SetPatrolAreaButton" type="Button" parent="Sidebar/VBoxContainer/UnitInfoContainer" unique_id=274016830]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SmallButton"
 text = "Set patrol area"
 text_overrun_behavior = 5
 
-[node name="EscortUnitButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1447555263]
+[node name="EscortUnitButton" type="Button" parent="Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1447555263]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SmallButton"
 text = "Escort unit"
 text_overrun_behavior = 5
 
-[node name="UnitActionScrollContainer" type="ScrollContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=979914451]
+[node name="UnitActionScrollContainer" type="ScrollContainer" parent="Sidebar/VBoxContainer" unique_id=979914451]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_vertical = 3
 vertical_scroll_mode = 3
 
-[node name="UnitActionContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer" unique_id=507217756]
+[node name="UnitActionContainer" type="GridContainer" parent="Sidebar/VBoxContainer/UnitActionScrollContainer" unique_id=507217756]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -101,7 +104,7 @@ size_flags_vertical = 3
 theme_type_variation = &"MarginlessGridContainer"
 columns = 2
 
-[node name="ReclaimButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=277830602]
+[node name="ReclaimButton" type="Button" parent="Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=277830602]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -109,17 +112,17 @@ size_flags_horizontal = 3
 theme_type_variation = &"SmallButton"
 text = "Reclaim"
 
-[node name="UnitActionItem" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=2010563070 instance=ExtResource("4_t0646")]
+[node name="UnitActionItem" parent="Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=2010563070 instance=ExtResource("4_t0646")]
 layout_mode = 2
 
-[node name="SelectedUnitScrollContainer" type="ScrollContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=1021020045]
+[node name="SelectedUnitScrollContainer" type="ScrollContainer" parent="Sidebar/VBoxContainer" unique_id=1021020045]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_vertical = 3
 vertical_scroll_mode = 3
 
-[node name="SelectedUnitContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/SelectedUnitScrollContainer" unique_id=200975863]
+[node name="SelectedUnitContainer" type="GridContainer" parent="Sidebar/VBoxContainer/SelectedUnitScrollContainer" unique_id=200975863]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -127,19 +130,31 @@ size_flags_vertical = 3
 theme_type_variation = &"MarginlessGridContainer"
 columns = 2
 
-[node name="SelectedUnitItem" parent="HudMarginContainer/Sidebar/VBoxContainer/SelectedUnitScrollContainer/SelectedUnitContainer" unique_id=535367105 instance=ExtResource("3_t0646")]
+[node name="SelectedUnitItem" parent="Sidebar/VBoxContainer/SelectedUnitScrollContainer/SelectedUnitContainer" unique_id=535367105 instance=ExtResource("3_t0646")]
 layout_mode = 2
 
-[node name="ChatPanel" parent="HudMarginContainer" unique_id=1089736074 instance=ExtResource("6_4mbyi")]
+[node name="UnitDescriptionPanel" parent="." unique_id=1779700227 instance=ExtResource("7_euavu")]
 unique_name_in_owner = true
 visible = false
-layout_mode = 2
+offset_right = 200.0
+offset_bottom = 117.0
+
+[node name="ChatPanel" parent="." unique_id=1089736074 instance=ExtResource("6_4mbyi")]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_top = -77.5
+offset_right = 256.0
+offset_bottom = 77.5
+grow_vertical = 2
 size_flags_horizontal = 0
 size_flags_vertical = 4
 
-[connection signal="pressed" from="HudMarginContainer/VBoxContainer/LeaveButton" to="." method="_on_leave_button_pressed"]
-[connection signal="position_chosen" from="HudMarginContainer/Sidebar/VBoxContainer/Minimap" to="." method="_on_minimap_position_chosen"]
-[connection signal="resized" from="HudMarginContainer/Sidebar/VBoxContainer/Minimap" to="HudMarginContainer/Sidebar/VBoxContainer/Minimap" method="_on_resized"]
-[connection signal="pressed" from="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/SetPatrolAreaButton" to="." method="_on_patrol_button_pressed"]
-[connection signal="pressed" from="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/EscortUnitButton" to="." method="_on_escort_button_pressed"]
-[connection signal="pressed" from="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer/ReclaimButton" to="." method="_on_reclaim_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/LeaveButton" to="." method="_on_leave_button_pressed"]
+[connection signal="position_chosen" from="Sidebar/VBoxContainer/Minimap" to="." method="_on_minimap_position_chosen"]
+[connection signal="resized" from="Sidebar/VBoxContainer/Minimap" to="Sidebar/VBoxContainer/Minimap" method="_on_resized"]
+[connection signal="pressed" from="Sidebar/VBoxContainer/UnitInfoContainer/SetPatrolAreaButton" to="." method="_on_patrol_button_pressed"]
+[connection signal="pressed" from="Sidebar/VBoxContainer/UnitInfoContainer/EscortUnitButton" to="." method="_on_escort_button_pressed"]
+[connection signal="pressed" from="Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer/ReclaimButton" to="." method="_on_reclaim_button_pressed"]

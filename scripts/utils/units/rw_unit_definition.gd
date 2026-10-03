@@ -8,6 +8,8 @@ enum SelectionShape {
 
 @export var source_id: String = "vanilla"
 @export var unit_name: String
+@export var display_name: String
+@export_multiline var description: String
 @export var body_image: String
 @export var back_image: String
 @export var turret_image: String

@@ -69,12 +69,12 @@ offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("1_mun0l")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=156213389]
-visible = false
+[node name="MainPanel" type="VBoxContainer" parent="." unique_id=156213389]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"MarginlessVBoxContainer"
 
-[node name="MessageLabel" type="RichTextLabel" parent="VBoxContainer" unique_id=2100482860]
+[node name="MessageLabel" type="RichTextLabel" parent="MainPanel" unique_id=2100482860]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(256, 128)
 layout_mode = 2
@@ -82,29 +82,29 @@ size_flags_vertical = 3
 bbcode_enabled = true
 scroll_following = true
 
-[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=328221537]
+[node name="HBoxContainer" type="HBoxContainer" parent="MainPanel" unique_id=328221537]
 layout_mode = 2
 theme_type_variation = &"MarginlessHBoxContainer"
 
-[node name="TeamCheckButton" type="CheckButton" parent="VBoxContainer/HBoxContainer" unique_id=2060375660]
+[node name="TeamCheckButton" type="CheckButton" parent="MainPanel/HBoxContainer" unique_id=2060375660]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Team"
 
-[node name="LineEdit" type="LineEdit" parent="VBoxContainer/HBoxContainer" unique_id=264218389]
+[node name="LineEdit" type="LineEdit" parent="MainPanel/HBoxContainer" unique_id=264218389]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SendButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1867406866]
+[node name="SendButton" type="Button" parent="MainPanel/HBoxContainer" unique_id=1867406866]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Send"
 
 [node name="PreviewMessageLabel" type="RichTextLabel" parent="." unique_id=1897126354]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(256, 0)
 visible = false
+custom_minimum_size = Vector2(256, 0)
 layout_mode = 2
 mouse_filter = 2
 fit_content = true
@@ -113,6 +113,6 @@ fit_content = true
 unique_name_in_owner = true
 libraries/ = SubResource("AnimationLibrary_ddm26")
 
-[connection signal="text_submitted" from="VBoxContainer/HBoxContainer/LineEdit" to="." method="_on_text_submitted"]
-[connection signal="pressed" from="VBoxContainer/HBoxContainer/SendButton" to="." method="submit_or_hide"]
+[connection signal="text_submitted" from="MainPanel/HBoxContainer/LineEdit" to="." method="_on_text_submitted"]
+[connection signal="pressed" from="MainPanel/HBoxContainer/SendButton" to="." method="submit_or_hide"]
 [connection signal="animation_finished" from="PreviewMessageLabel/AnimationPlayer" to="." method="_on_preview_animation_finished"]

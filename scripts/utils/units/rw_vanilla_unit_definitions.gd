@@ -7,6 +7,8 @@ static func create_registry() -> RwUnitRegistry:
 	var assets: RwVanillaUnitAssets = RwVanillaUnitAssets.new()
 	var command_center: RwUnitDefinition = RwUnitDefinition.new()
 	command_center.unit_name = "commandCenter"
+	command_center.display_name = "Command center"
+	command_center.description = "Produces builders and generates team income."
 	command_center.body_image = "base.png"
 	command_center.back_image = "base_back.png"
 	command_center.dead_image = "base_dead.png"
@@ -24,6 +26,8 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(command_center, assets)
 	var builder: RwUnitDefinition = RwUnitDefinition.new()
 	builder.unit_name = "builder"
+	builder.display_name = "Builder"
+	builder.description = "Constructs buildings and reclaims units."
 	builder.body_image = "builder.png"
 	builder.dead_image = "builder_dead.png"
 	builder.dead_draw_layer = 0
@@ -56,6 +60,8 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(builder, assets)
 	var tank: RwUnitDefinition = RwUnitDefinition.new()
 	tank.unit_name = "tank"
+	tank.display_name = "Tank"
+	tank.description = "Ground combat unit."
 	tank.body_image = "tank2.png"
 	tank.turret_image = "tank2_turret.png"
 	tank.render_rotation_offset_degrees = 90.0
@@ -75,6 +81,8 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(tank, assets)
 	var hovercraft: RwUnitDefinition = RwUnitDefinition.new()
 	hovercraft.unit_name = "hovercraft"
+	hovercraft.display_name = "Hovercraft"
+	hovercraft.description = "Moves across land and water."
 	hovercraft.body_image = "hovercraft.png"
 	hovercraft.shadow_image = "hovercraft_shadow.png"
 	hovercraft.render_rotation_offset_degrees = 90.0
@@ -94,6 +102,8 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(hovercraft, assets)
 	var sea_factory: RwUnitDefinition = RwUnitDefinition.new()
 	sea_factory.unit_name = "seaFactory"
+	sea_factory.display_name = "Sea factory"
+	sea_factory.description = "Produces naval units."
 	sea_factory.body_image = "sea_factory.png"
 	sea_factory.dead_image = "sea_factory_dead.png"
 	sea_factory.applies_spawn_rotation = false
@@ -111,6 +121,8 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(sea_factory, assets)
 	var tree: RwTreeDefinition = RwTreeDefinition.new()
 	tree.unit_name = "tree"
+	tree.display_name = "Tree"
+	tree.description = "Map scenery."
 	tree.body_image = "trees.png"
 	tree.body_team_colored = false
 	tree.applies_spawn_rotation = false

@@ -2,6 +2,8 @@ class_name RwSelectedUnitItem
 extends MarginContainer
 
 signal selected(unit_key: String)
+signal hovered(item: RwSelectedUnitItem)
+signal unhovered(item: RwSelectedUnitItem)
 
 @onready var unit_texture: TextureRect = %UnitTexture
 @onready var unit_name_label: Label = %UnitNameLabel
@@ -21,3 +23,11 @@ func set_focused(focused: bool) -> void:
 
 func _on_button_pressed() -> void:
 	selected.emit(unit_key)
+
+
+func _on_button_mouse_entered() -> void:
+	hovered.emit(self)
+
+
+func _on_button_mouse_exited() -> void:
+	unhovered.emit(self)
