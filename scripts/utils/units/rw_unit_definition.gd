@@ -1,6 +1,6 @@
-## 统一保存单位的外观、移动、生产和战斗定义
-class_name RwUnitDefinition
 extends Resource
+class_name RwUnitDefinition
+## 统一保存单位的外观、移动、生产和战斗定义
 
 enum SelectionShape {
 	CIRCLE,
@@ -12,18 +12,22 @@ enum SelectionShape {
 @export var display_name: String
 @export_multiline var description: String
 @export var body_image: String
+@export var visual_hidden: bool
 @export var body_images_by_level: Dictionary
 ## 可复用的高度、护盾和附加层表现配置
 @export var visual_profile: RwUnitVisualProfile
 @export var back_image: String
 @export var turret_image: String
 @export var weapon_parts: Array[RwUnitWeaponDefinition]
+@export var leg_parts: Array[RwUnitLegDefinition]
 ## 可开火武器列表，索引不必与绘制挂件相同
 @export var combat_weapons: Array[RwWeaponDefinition]
 ## 每同步帧执行的单位行为，可由原版单位或模组提供
 @export var behavior: RwUnitBehavior
 @export var shadow_image: String
 @export var dead_image: String
+@export var hide_on_death: bool
+@export var shadow_is_silhouette: bool
 @export var body_region: Rect2i
 @export var body_scale: Vector2 = Vector2.ONE
 @export var render_rotation_offset_degrees: float
@@ -31,6 +35,9 @@ enum SelectionShape {
 @export var draw_layer: int = 2
 @export var dead_draw_layer: int = -1
 @export var max_health: float = 1.0
+@export var tech_level: int = 1
+@export var resource_costs: Dictionary
+@export var build_rate_per_frame: float
 ## 护盾最大值，由单位行为负责吸收伤害和恢复
 @export var max_shield: float
 @export var movement_speed: float
@@ -57,6 +64,14 @@ enum SelectionShape {
 @export var animation_step_frames: int
 @export var animation_ping_pong: bool
 @export var animation_speed_follows_tech_level: bool
+@export var idle_animation_start: int
+@export var idle_animation_end: int
+@export var idle_animation_step: float
+@export var idle_animation_ping_pong: bool
+@export var moving_animation_start: int
+@export var moving_animation_end: int
+@export var moving_animation_step: float
+@export var moving_animation_ping_pong: bool
 @export var shadow_offset: Vector2
 @export var body_team_colored: bool = true
 @export var turret_team_colored: bool
@@ -71,6 +86,8 @@ func key() -> String:
 func needs_visual_ticks() -> bool:
 	return (
 		animation_step_frames > 0 and body_frames > 1
+		or idle_animation_step > 0.0 and idle_animation_end > idle_animation_start
+		or moving_animation_step > 0.0 and moving_animation_end > moving_animation_start
 		or visual_profile != null and visual_profile.is_animated()
 		or max_shield > 0.0
 	)

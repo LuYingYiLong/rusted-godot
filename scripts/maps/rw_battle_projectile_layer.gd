@@ -1,6 +1,6 @@
-## 绘制战斗系统中的弹体；模拟状态由 RwBattleCombat 管理
-class_name RwBattleProjectileLayer
 extends Node2D
+class_name RwBattleProjectileLayer
+## 绘制战斗系统中的弹体；模拟状态由 RwBattleCombat 管理
 
 var _projectiles: Array[RwProjectileState]
 var _texture_cache: Dictionary

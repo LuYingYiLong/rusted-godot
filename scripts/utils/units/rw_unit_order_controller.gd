@@ -1,6 +1,6 @@
-## 在原版同步帧上应用服务器单位命令并推进路径与队列
-class_name RwUnitOrderController
 extends RefCounted
+class_name RwUnitOrderController
+## 在原版同步帧上应用服务器单位命令并推进路径与队列
 
 ## 单位命令实际生效后发出，供战斗行为接收
 signal order_applied(unit_state: RwUnitState, order_type: String, order: Dictionary)

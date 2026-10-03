@@ -28,6 +28,7 @@ var _shield_sprite: Sprite2D
 var _weapon_mounts: Array[Node2D]
 var _weapon_definitions: Array[RwUnitWeaponDefinition]
 var _weapon_textures_by_level: Array[Dictionary]
+var _leg_sprites: Array[Sprite2D]
 var _overlay_sprites: Array[Sprite2D]
 var _footprint_tile_size: Vector2i = Vector2i(20, 20)
 
@@ -37,12 +38,13 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 	team_color = color
 	_provider = provider
 	name = unit_definition.unit_name
+	visible = not unit_definition.visual_hidden
 	var profile: RwUnitVisualProfile = unit_definition.visual_profile
 	var shadow_alpha: float = profile.shadow_alpha if profile != null else 0.5
 	if not unit_definition.shadow_image.is_empty():
 		_shadow_sprite = _make_sprite(provider.load_cached_texture(unit_definition.shadow_image), "Shadow")
 		_shadow_sprite.position = unit_definition.shadow_offset
-		_shadow_sprite.modulate.a = shadow_alpha
+		_shadow_sprite.modulate = Color(0.0, 0.0, 0.0, shadow_alpha) if unit_definition.shadow_is_silhouette else Color(1.0, 1.0, 1.0, shadow_alpha)
 		_shadow_sprite.z_index = -2
 		add_child(_shadow_sprite)
 	elif unit_definition.generates_shadow:
@@ -55,6 +57,8 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 	_sprite_root = Node2D.new()
 	_sprite_root.name = "SpriteRoot"
 	add_child(_sprite_root)
+	for leg_definition: RwUnitLegDefinition in unit_definition.leg_parts:
+		_add_leg_sprites(leg_definition, provider, color)
 	if not unit_definition.back_image.is_empty():
 		_back_sprite = _make_sprite(provider.load_cached_texture(unit_definition.back_image), "Back")
 		_back_sprite.z_index = -1
@@ -90,8 +94,13 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 		var weapon_texture: Texture2D = provider.load_team_texture(weapon.image, color) if weapon.team_colored else provider.load_cached_texture(weapon.image)
 		var weapon_sprite: Sprite2D = _make_sprite(weapon_texture, "Sprite")
 		weapon_sprite.position = weapon.sprite_offset
+		weapon_sprite.scale = weapon.sprite_scale
 		mount.add_child(weapon_sprite)
-		_sprite_root.add_child(mount)
+		var parent_index: int = weapon.parent_part_index
+		if parent_index >= 0 and parent_index < _weapon_mounts.size():
+			_weapon_mounts[parent_index].add_child(mount)
+		else:
+			_sprite_root.add_child(mount)
 		_weapon_mounts.append(mount)
 		var level_textures: Dictionary
 		for level: int in weapon.images_by_level:
@@ -119,8 +128,40 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 			_shield_sprite.scale = profile.shield_scale
 			_shield_sprite.z_index = 5
 			_sprite_root.add_child(_shield_sprite)
-	if body_texture == null:
+	if body_texture == null and not unit_definition.visual_hidden:
 		configure_placeholder(unit_definition.unit_name, color)
+
+
+func _add_leg_sprites(leg: RwUnitLegDefinition, provider: RwUnitAssetProvider, color: Color) -> void:
+	var z_order: int = 2 if leg.draw_over_body else -2
+	if not leg.foot_shadow_image.is_empty():
+		var shadow_texture: Texture2D = provider.load_cached_texture(leg.foot_shadow_image)
+		if shadow_texture != null:
+			var foot_shadow: Sprite2D = _make_sprite(shadow_texture, "FootShadow")
+			foot_shadow.position = leg.foot_position + Vector2(2.0, 2.0)
+			foot_shadow.modulate = Color(0.0, 0.0, 0.0, 0.4)
+			foot_shadow.z_index = -3
+			_sprite_root.add_child(foot_shadow)
+			_leg_sprites.append(foot_shadow)
+	if not leg.leg_image.is_empty():
+		var leg_texture: Texture2D = provider.load_team_texture(leg.leg_image, color) if leg.team_colored else provider.load_cached_texture(leg.leg_image)
+		if leg_texture != null:
+			var leg_sprite: Sprite2D = _make_sprite(leg_texture, "Leg")
+			var direction: Vector2 = leg.foot_position - leg.attachment
+			leg_sprite.position = (leg.foot_position + leg.attachment) * 0.5
+			leg_sprite.rotation = direction.angle() - PI * 0.5
+			leg_sprite.scale.y = direction.length() / float(leg_texture.get_height())
+			leg_sprite.z_index = z_order
+			_sprite_root.add_child(leg_sprite)
+			_leg_sprites.append(leg_sprite)
+	if not leg.foot_image.is_empty():
+		var foot_texture: Texture2D = provider.load_team_texture(leg.foot_image, color) if leg.team_colored else provider.load_cached_texture(leg.foot_image)
+		if foot_texture != null:
+			var foot_sprite: Sprite2D = _make_sprite(foot_texture, "Foot")
+			foot_sprite.position = leg.foot_position
+			foot_sprite.z_index = z_order + 1
+			_sprite_root.add_child(foot_sprite)
+			_leg_sprites.append(foot_sprite)
 
 
 func bind_state(unit_state: RwUnitState) -> void:
@@ -250,6 +291,7 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 		_sprite_root.modulate = build_tint
 	var body: Sprite2D = _body_sprite
 	if body != null and definition != null:
+		body.visible = not unit_state.is_dead or not definition.hide_on_death
 		if unit_state.is_dead and not definition.dead_image.is_empty():
 			body.texture = _provider.load_cached_texture(definition.dead_image)
 			body.hframes = 1
@@ -263,9 +305,9 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 		var mount: Node2D = _weapon_mounts[index]
 		var weapon: RwUnitWeaponDefinition = _weapon_definitions[index]
 		mount.visible = not unit_state.is_dead
-		mount.position = weapon.mount_offset if weapon.mount_follows_body else weapon.mount_offset.rotated(-rotation)
+		mount.position = weapon.mount_offset if weapon.mount_follows_body or weapon.parent_part_index >= 0 else weapon.mount_offset.rotated(-rotation)
 		var weapon_angle: float = unit_state.body_rotation_degrees if weapon.aim_follows_body else unit_state.get_weapon_rotation(weapon.rotation_state_index)
-		mount.rotation_degrees = weapon_angle + weapon.rotation_offset_degrees - rotation_degrees
+		mount.global_rotation_degrees = weapon_angle + weapon.rotation_offset_degrees
 		var weapon_sprite: Sprite2D = mount.get_node_or_null("Sprite") as Sprite2D
 		if weapon_sprite != null:
 			var level_textures: Dictionary = _weapon_textures_by_level[index]
@@ -277,6 +319,8 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 		_shadow_sprite.visible = not unit_state.is_dead and not unit_state.submerged and (profile == null or unit_state.altitude >= profile.submerged_below)
 	if _back_sprite != null:
 		_back_sprite.visible = not unit_state.is_dead
+	for leg_sprite: Sprite2D in _leg_sprites:
+		leg_sprite.visible = not unit_state.is_dead
 	if profile != null:
 		var overlay_index: int = 0
 		for overlay: RwVisualOverlayDefinition in profile.overlays:

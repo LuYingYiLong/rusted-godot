@@ -1,6 +1,6 @@
-## 保存单位在同步帧中可变化的状态
-class_name RwUnitState
 extends Resource
+class_name RwUnitState
+## 保存单位在同步帧中可变化的状态
 
 signal state_changed(state: RwUnitState)
 
@@ -79,6 +79,16 @@ var _animation_ping_pong: bool
 var _animation_speed_follows_tech_level: bool
 var _animation_tick: float
 var _animation_step: int
+var _idle_animation_start: int
+var _idle_animation_end: int
+var _idle_animation_step: float
+var _idle_animation_ping_pong: bool
+var _moving_animation_start: int
+var _moving_animation_end: int
+var _moving_animation_step: float
+var _moving_animation_ping_pong: bool
+var _active_visual_animation_mode: int = -1
+var _snapshot_moving_frames: int
 var _has_visual_clock: bool
 var _submerged_below: float = -1.0
 
@@ -127,14 +137,24 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	collision_radius = definition.collision_radius if definition != null else 0.0
 	push_mass = definition.push_mass if definition != null else 3000.0
 	sight_range = definition.sight_range if definition != null else 15
-	tech_level = maxi(int(spawn.get("tech_level", 1)), 1)
+	tech_level = maxi(int(spawn.get("tech_level", definition.tech_level if definition != null else 1)), 1)
 	visual_frame = maxi(int(spawn.get("visual_frame", 0)), 0)
 	_animation_step_frames = definition.animation_step_frames if definition != null else 0
 	_animation_frame_count = definition.body_frames if definition != null else 1
 	_animation_ping_pong = definition.animation_ping_pong if definition != null else false
 	_animation_speed_follows_tech_level = definition.animation_speed_follows_tech_level if definition != null else false
+	_idle_animation_start = definition.idle_animation_start if definition != null else 0
+	_idle_animation_end = definition.idle_animation_end if definition != null else 0
+	_idle_animation_step = definition.idle_animation_step if definition != null else 0.0
+	_idle_animation_ping_pong = definition.idle_animation_ping_pong if definition != null else false
+	_moving_animation_start = definition.moving_animation_start if definition != null else 0
+	_moving_animation_end = definition.moving_animation_end if definition != null else 0
+	_moving_animation_step = definition.moving_animation_step if definition != null else 0.0
+	_moving_animation_ping_pong = definition.moving_animation_ping_pong if definition != null else false
 	_animation_tick = 0.0
 	_animation_step = 0
+	_active_visual_animation_mode = -1
+	_snapshot_moving_frames = 0
 	_has_visual_clock = visual_profile.is_animated() if visual_profile != null else false
 	health = clampf(float(spawn.get("health", max_health)), 0.0, max_health)
 	state_changed.emit(self)
@@ -142,6 +162,8 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 
 func apply_snapshot(snapshot: Dictionary) -> void:
 	if snapshot.has("position"):
+		if world_position.distance_to(snapshot["position"]) > 0.5:
+			_snapshot_moving_frames = 2
 		world_position = snapshot["position"]
 	if snapshot.has("body_rotation_degrees"):
 		body_rotation_degrees = float(snapshot["body_rotation_degrees"])
@@ -257,7 +279,9 @@ func advance_visual_animation(frame_count: int) -> void:
 	if shield_flash_frames > 0:
 		shield_flash_frames = maxi(shield_flash_frames - frame_count, 0)
 		is_changed = true
-	if _animation_step_frames > 0 and _animation_frame_count > 1:
+	if _idle_animation_step > 0.0 or _moving_animation_step > 0.0:
+		is_changed = _advance_custom_visual_animation(frame_count) or is_changed
+	elif _animation_step_frames > 0 and _animation_frame_count > 1:
 		var cycle_length: int = _animation_frame_count * 2 if _animation_ping_pong else _animation_frame_count
 		for frame: int in frame_count:
 			var animation_speed: float = float(tech_level) if _animation_speed_follows_tech_level else 1.0
@@ -272,6 +296,40 @@ func advance_visual_animation(frame_count: int) -> void:
 				is_changed = true
 	if is_changed:
 		state_changed.emit(self)
+
+
+func _advance_custom_visual_animation(frame_count: int) -> bool:
+	var moving: bool = _movement_velocity > 0.01 or _path_index < _path_waypoints.size() or _snapshot_moving_frames > 0
+	_snapshot_moving_frames = maxi(_snapshot_moving_frames - frame_count, 0)
+	var mode: int = 1 if moving and _moving_animation_step > 0.0 and _moving_animation_end > _moving_animation_start else 0
+	var start_frame: int = _moving_animation_start if mode == 1 else _idle_animation_start
+	var end_frame: int = _moving_animation_end if mode == 1 else _idle_animation_end
+	var step_frames: float = _moving_animation_step if mode == 1 else _idle_animation_step
+	var ping_pong: bool = _moving_animation_ping_pong if mode == 1 else _idle_animation_ping_pong
+	var is_changed: bool
+	if _active_visual_animation_mode != mode:
+		_active_visual_animation_mode = mode
+		_animation_step = 0
+		_animation_tick = step_frames
+		if animation_frame != start_frame:
+			animation_frame = start_frame
+			is_changed = true
+	if step_frames <= 0.0 or end_frame <= start_frame:
+		return is_changed
+	var frame_total: int = end_frame - start_frame + 1
+	var cycle_length: int = frame_total * 2 - 2 if ping_pong else frame_total
+	for frame: int in frame_count:
+		_animation_tick -= 1.0
+		if _animation_tick > 0.0:
+			continue
+		_animation_tick += maxf(step_frames, 0.01)
+		_animation_step = (_animation_step + 1) % cycle_length
+		var relative_frame: int = mini(_animation_step, cycle_length - _animation_step) if ping_pong else _animation_step
+		var next_frame: int = start_frame + relative_frame
+		if animation_frame != next_frame:
+			animation_frame = next_frame
+			is_changed = true
+	return is_changed
 
 
 ## 应用同步命令并清除旧路径，目标单位编号可为空

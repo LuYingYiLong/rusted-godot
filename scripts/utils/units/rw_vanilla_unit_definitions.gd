@@ -235,6 +235,8 @@ static func create_registry() -> RwUnitRegistry:
 	tree.max_health = 100.0
 	tree.sight_range = 0
 	registry.register_definition(tree, assets)
+	RwVanillaNativeExtras.register_definitions(registry, assets)
+	RwVanillaCustomDefinitions.register_definitions(registry, assets)
 	return registry
 
 

@@ -1,6 +1,6 @@
-## 读取原版同步帧中的命令和每单位目标数据
-class_name RwBattleCommandReader
 extends RefCounted
+class_name RwBattleCommandReader
+## 读取原版同步帧中的命令和每单位目标数据
 
 const MAX_COMMANDS: int = 512
 const MAX_COMMAND_BYTES: int = 1_048_576
