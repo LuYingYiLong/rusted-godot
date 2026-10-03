@@ -168,7 +168,7 @@ func _update_target_order(unit_state: RwUnitState, frame: int) -> void:
 	if target_state == null or target_state.is_dead:
 		unit_state.apply_order("", unit_state.world_position)
 		return
-	var desired_distance: float = _target_distance(unit_state, unit_state.order_type)
+	var desired_distance: float = _target_distance(unit_state, unit_state.order_type, target_state)
 	if unit_state.world_position.distance_to(target_state.world_position) <= desired_distance:
 		if not unit_state.get_navigation_path().is_empty():
 			unit_state.apply_order(unit_state.order_type, target_state.world_position, target_state.object_id, unit_state.order_action_id)
@@ -182,16 +182,16 @@ func _update_target_order(unit_state: RwUnitState, frame: int) -> void:
 
 func _issue_target_order(unit_state: RwUnitState, order_type: String, target_state: RwUnitState, action_id: String = "") -> void:
 	var target: Vector2 = target_state.world_position
-	if unit_state.movement_speed <= 0.0 or unit_state.world_position.distance_to(target) <= _target_distance(unit_state, order_type):
+	if unit_state.movement_speed <= 0.0 or unit_state.world_position.distance_to(target) <= _target_distance(unit_state, order_type, target_state):
 		unit_state.apply_order(order_type, target, target_state.object_id, action_id)
 		return
 	var waypoints: Array[Vector2] = _path_grid.find_path(unit_state.world_position, target, unit_state.movement_type) if _path_grid != null else []
 	unit_state.apply_move_order(target, waypoints, order_type, target_state.object_id, action_id)
 
 
-func _target_distance(unit_state: RwUnitState, order_type: String) -> float:
+func _target_distance(unit_state: RwUnitState, order_type: String, target_state: RwUnitState) -> float:
 	if order_type != "attack":
-		return 24.0
+		return maxf(unit_state.collision_radius + target_state.collision_radius + 8.0, 24.0)
 	var definition: RwUnitDefinition = _registry.find_definition(unit_state.source_id, unit_state.unit_name) if _registry != null else null
 	var distance: float = definition.attack_range if definition != null else 0.0
 	if definition != null:

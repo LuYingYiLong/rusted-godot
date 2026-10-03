@@ -156,6 +156,17 @@ func send_move_order(unit_ids: Array[int], target: Vector2) -> bool:
 	return true
 
 
+## 向原版服务器提交巡逻、护卫或回收等目标命令
+func send_special_order(unit_ids: Array[int], order_type: String, target: Vector2, target_id: int = -1) -> bool:
+	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty():
+		return false
+	var payload: PackedByteArray = RwBattleCommandWriter.write_order(local_slot, unit_ids, order_type, target, target_id)
+	if payload.is_empty():
+		return false
+	_send_packet(20, payload)
+	return true
+
+
 func send_unit_action(unit_ids: Array[int], action_id: String) -> bool:
 	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty() or action_id.is_empty():
 		return false
@@ -172,10 +183,10 @@ func send_cancel_unit_action(unit_id: int, action_id: String) -> bool:
 	return true
 
 
-func send_build_order(unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool) -> bool:
-	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty() or unit_type_index < 0:
+func send_build_order(unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool, custom_unit_name: String = "") -> bool:
+	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty() or unit_type_index < 0 and custom_unit_name.is_empty():
 		return false
-	var payload: PackedByteArray = RwBattleCommandWriter.write_build(local_slot, unit_ids, unit_type_index, target, is_queued)
+	var payload: PackedByteArray = RwBattleCommandWriter.write_build(local_slot, unit_ids, unit_type_index, target, is_queued, custom_unit_name)
 	_send_packet(20, payload)
 	return true
 

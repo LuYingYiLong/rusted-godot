@@ -53,6 +53,14 @@ func register_unit(unit_state: RwUnitState) -> void:
 		definition.behavior.on_spawned(unit_state, definition, self)
 
 
+## 形态切换后重建该单位的武器冷却状态
+func reset_unit(unit_state: RwUnitState) -> void:
+	if unit_state == null:
+		return
+	_weapon_runtime.erase(unit_state.object_id)
+	register_unit(unit_state)
+
+
 ## 通知单位行为已经收到同步命令
 func notify_order(unit_state: RwUnitState, order_type: String, order: Dictionary = {}) -> void:
 	if unit_state == null or _registry == null:

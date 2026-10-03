@@ -60,7 +60,7 @@ func add_extractor(team_slot: int) -> void:
 
 
 func register_extractor(unit_state: RwUnitState) -> void:
-	if unit_state == null or unit_state.is_dead or not unit_state.team.is_valid_int():
+	if unit_state == null or unit_state.is_dead or not unit_state.team.is_valid_int() or not has_unit_income(unit_state):
 		return
 	var team_slot: int = unit_state.team.to_int()
 	if not _balances.has(team_slot) or _extractor_sources.has(unit_state.object_id):
@@ -69,6 +69,16 @@ func register_extractor(unit_state: RwUnitState) -> void:
 	unit_state.state_changed.connect(_on_extractor_state_changed)
 	if _sources_ready:
 		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
+
+
+## 判断原生抽取器或内置 INI 单位是否定期产生资金
+func has_unit_income(unit_state: RwUnitState) -> bool:
+	if unit_state == null:
+		return false
+	if unit_state.source_id == "vanilla":
+		return unit_state.unit_name in ["extractor", "fabricator",]
+	var spec: Dictionary = RwBuiltinUnitSpecs.SPECS.get(unit_state.unit_name, {})
+	return float(spec.get("credit_income", 0.0)) > 0.0
 
 
 func unregister_extractor(object_id: int) -> void:
@@ -211,6 +221,13 @@ func _extractor_rate(level: int) -> float:
 func _active_extractor_rate(unit_state: RwUnitState) -> float:
 	if unit_state.is_dead or unit_state.build_progress < 1.0:
 		return 0.0
+	if unit_state.source_id == "custom":
+		var spec: Dictionary = RwBuiltinUnitSpecs.SPECS.get(unit_state.unit_name, {})
+		return float(spec.get("credit_income", 0.0))
+	if unit_state.unit_name == "fabricator":
+		if unit_state.tech_level >= 3:
+			return 14.0
+		return 7.0 if unit_state.tech_level == 2 else 2.0
 	return _extractor_rate(unit_state.tech_level)
 
 

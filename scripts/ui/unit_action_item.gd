@@ -72,8 +72,13 @@ func set_affordable(is_affordable: bool) -> void:
 	_refresh_disabled_state()
 
 
+## 返回已排队的该动作数量
+func queued_count() -> int:
+	return _queue_count
+
+
 func _on_button_pressed() -> void:
-	if _is_affordable and (action_definition.kind != RwUnitActionDefinition.Kind.UPGRADE_UNIT or _queue_count == 0):
+	if _is_affordable and (action_definition.kind not in [RwUnitActionDefinition.Kind.UPGRADE_UNIT, RwUnitActionDefinition.Kind.CONVERT_UNIT,] or _queue_count == 0):
 		activated.emit(action_id)
 
 
@@ -106,4 +111,4 @@ func _on_button_mouse_exited() -> void:
 
 
 func _refresh_disabled_state() -> void:
-	disabled_color_rect.visible = not _is_affordable or (action_definition.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and _queue_count > 0)
+	disabled_color_rect.visible = not _is_affordable or (action_definition.kind in [RwUnitActionDefinition.Kind.UPGRADE_UNIT, RwUnitActionDefinition.Kind.CONVERT_UNIT,] and _queue_count > 0)

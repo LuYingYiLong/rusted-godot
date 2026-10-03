@@ -91,7 +91,13 @@ func show_selection(selected_units: Array[RwUnitState], unit_visuals: Dictionary
 	var selected_ids: Array[int] = []
 	for unit_state: RwUnitState in selected_units:
 		selected_ids.append(unit_state.object_id)
-	if selected_ids == _selected_ids:
+	var same_states: bool = selected_ids == _selected_ids and selected_units.size() == _selected_units.size()
+	if same_states:
+		for index: int in selected_units.size():
+			if selected_units[index] != _selected_units[index]:
+				same_states = false
+				break
+	if same_states:
 		_refresh_selection_details()
 		return
 	_selected_ids = selected_ids
@@ -123,6 +129,7 @@ func set_production_status(status: Dictionary) -> void:
 			float(entry.get("progress", 0.0)),
 			bool(entry.get("active", false)),
 		)
+	_refresh_action_affordability()
 
 
 func _render_selection() -> void:
@@ -172,7 +179,7 @@ func _render_selection() -> void:
 	if definition != null and can_control:
 		reclaim_button.visible = definition.can_reclaim
 		for action: RwUnitActionDefinition in definition.build_actions:
-			if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and action.required_tech_level != focused_unit.tech_level:
+			if not action.is_visible or action.required_tech_level > 0 and action.required_tech_level != focused_unit.tech_level:
 				continue
 			var action_item: RwUnitActionItem = UNIT_ACTION_ITEM_SCENE.instantiate() as RwUnitActionItem
 			unit_action_container.add_child(action_item)
@@ -253,6 +260,14 @@ func _refresh_action_affordability() -> void:
 			if balance < cost:
 				is_affordable = false
 				break
+		if item.action_definition.kind == RwUnitActionDefinition.Kind.QUEUE_RESOURCE and item.action_definition.max_stockpile > 0 and not item.action_definition.resource_delta.is_empty():
+			var group: Array = _selected_groups.get(_focused_unit_key, [])
+			if not group.is_empty():
+				var unit_state: RwUnitState = group[0] as RwUnitState
+				var stockpile_id: String = str(item.action_definition.resource_delta.keys()[0])
+				var amount: float = float(item.action_definition.resource_delta[stockpile_id])
+				if float(unit_state.resource_balances.get(stockpile_id, 0.0)) + amount * float(item.queued_count()) >= float(item.action_definition.max_stockpile):
+					is_affordable = false
 		item.set_affordable(is_affordable)
 
 

@@ -66,6 +66,13 @@ def integer(value: str, default: int = 0) -> int:
     return int(value) if re.fullmatch(r"[+-]?\d+", value) else default
 
 
+def build_rate(value: str) -> float:
+    if value.strip().casefold().endswith("s"):
+        seconds = number(value.strip()[:-1])
+        return 1.0 / (seconds * 60.0) if seconds > 0.0 else 0.0
+    return number(value)
+
+
 def image_key(ini_path: Path, source: str) -> tuple[str, bool]:
     source = source.strip()
     if source.upper() in {"", "NONE", "AUTO"}:
@@ -194,6 +201,7 @@ def spec_for(path: Path) -> dict[str, object]:
         "radius": radius,
         "movement_type": movement_type,
     }
+    credit_income_match = re.search(r"(?:^|[,;])\s*credits\s*=\s*([0-9.]+)", core.get("generation_resources", ""), re.IGNORECASE)
     optional: dict[str, object] = {
         "display_name": core.get("displaytext", ""),
         "description": core.get("displaydescription", ""),
@@ -237,7 +245,8 @@ def spec_for(path: Path) -> dict[str, object]:
         "builder": core.get("isbuilder", "").casefold() == "true",
         "reclaim": core.get("canreclaimresources", "").casefold() == "true",
         "price": number(core.get("price", "")),
-        "build_rate": number(core.get("buildspeed", "")),
+        "build_rate": build_rate(core.get("buildspeed", "")),
+        "credit_income": number(credit_income_match.group(1)) if credit_income_match else 0.0,
         "tech_level": integer(core.get("techlevel", ""), 1),
         "hide_on_death": not dead,
     }

@@ -35,14 +35,15 @@ func _run() -> void:
 	var extractors: int
 	var extractor_id: int
 	for unit: RwUnitState in units.values():
-		if unit.unit_name == "extractor":
+		if unit.source_id == "custom" and unit.unit_name == "extractorT1":
 			extractors += 1
 			extractor_id = unit.object_id
 	assert(extractors == 1)
+	assert(is_equal_approx(room.get("battle_economy").get_income_rate(1, "credits"), 26.0))
 	var command_center: RwUnitState = units[1] as RwUnitState
 	var visuals: Dictionary = map.get("_unit_visuals")
 	assert((visuals[1] as RwUnitVisual).call("_get_footprint_rect") == Rect2(-30.0, -30.0, 60.0, 60.0))
-	assert((visuals[extractor_id] as RwUnitVisual).call("_get_footprint_rect") == Rect2(-10.0, -30.0, 20.0, 40.0))
+	assert((visuals[extractor_id] as RwUnitVisual).call("_get_footprint_rect") == Rect2(-10.0, -10.0, 20.0, 20.0))
 	var production_command: Dictionary = {
 		"team": 0,
 		"source_team": 0,
@@ -58,6 +59,18 @@ func _run() -> void:
 	production_command["stop_current_action"] = true
 	map.call("_on_battle_commands_reached", 1450, production_commands)
 	assert(command_center.production_progress < 0.0)
+	var unit_registry: RwUnitRegistry = map.get("_unit_registry") as RwUnitRegistry
+	var extractor_definition: RwUnitDefinition = unit_registry.find_definition("custom", "extractorT1")
+	var upgrade_action: RwUnitActionDefinition
+	for action: RwUnitActionDefinition in extractor_definition.build_actions:
+		if action.network_action_id == "extractorT2_0":
+			upgrade_action = action
+			break
+	assert(upgrade_action != null)
+	map.call("_complete_unit_conversion", units[extractor_id] as RwUnitState, upgrade_action)
+	var upgraded_extractor: RwUnitState = units[extractor_id] as RwUnitState
+	assert(upgraded_extractor.object_id == extractor_id and upgraded_extractor.unit_name == "extractorT2")
+	assert(is_equal_approx(room.get("battle_economy").get_income_rate(1, "credits"), 30.0))
 	print("SHARED_BUILD_SCENE_CHECK_OK")
 	map.free()
 	quit()

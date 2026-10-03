@@ -2,18 +2,25 @@ class_name RwBattleCommandWriter
 extends RefCounted
 
 const COMMAND_BLOCK_NAME: String = "c"
-const MOVE_COMMAND_TYPE: int = 0
 
 
 static func write_move(team_slot: int, unit_ids: Array[int], target: Vector2) -> PackedByteArray:
+	return write_order(team_slot, unit_ids, "move", target)
+
+
+## 写入巡逻、护卫、回收等同步单位命令
+static func write_order(team_slot: int, unit_ids: Array[int], order_type: String, target: Vector2, target_id: int = -1) -> PackedByteArray:
+	var order_index: int = RwBattleCommandReader.COMMAND_TYPES.find(order_type)
+	if order_index < 0:
+		return PackedByteArray()
 	var command: StreamPeerBuffer = RwBinary.writer()
 	command.put_8(team_slot)
 	command.put_u8(1)
-	command.put_32(MOVE_COMMAND_TYPE)
+	command.put_32(order_index)
 	command.put_32(-1)
 	command.put_float(target.x)
 	command.put_float(target.y)
-	command.put_64(-1)
+	command.put_64(target_id)
 	command.put_8(1)
 	command.put_float(-1.0)
 	command.put_float(-1.0)
@@ -77,9 +84,9 @@ static func write_action(team_slot: int, unit_ids: Array[int], action_id: String
 	return packet.data_array
 
 
-static func write_build(team_slot: int, unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool) -> PackedByteArray:
+static func write_build(team_slot: int, unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool, custom_unit_name: String = "") -> PackedByteArray:
 	var command: StreamPeerBuffer = RwBinary.writer()
-	var custom_name: String = RwVanillaBuildings.custom_name_for_index(unit_type_index)
+	var custom_name: String = custom_unit_name if not custom_unit_name.is_empty() else RwVanillaBuildings.custom_name_for_index(unit_type_index)
 	command.put_8(team_slot)
 	command.put_u8(1)
 	command.put_32(2)
