@@ -2,6 +2,8 @@ class_name RwUnitWeaponDefinition
 extends Resource
 
 @export var image: String
+## 升级后替换的炮塔纹理，键为科技等级
+@export var images_by_level: Dictionary
 @export var team_colored: bool
 @export var mount_offset: Vector2
 @export var mount_follows_body: bool = true

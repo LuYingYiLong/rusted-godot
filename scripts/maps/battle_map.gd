@@ -15,6 +15,7 @@ const BUILD_RETRY_FRAMES: int = 12
 @onready var fog_sprite: Sprite2D = %FogOverlay
 @onready var navigation_overlay: Node2D = %NavigationOverlay
 @onready var unit_layer: Node2D = %InitialUnits
+@onready var projectile_layer: RwBattleProjectileLayer = %ProjectileLayer
 @onready var vfx_layer: RwBattleVfxLayer = %BattleVfxLayer
 @onready var selection_overlay: Control = %SelectionOverlay
 @onready var hud_layer: RwHudLayer = $HudLayer
@@ -33,13 +34,17 @@ var _last_simulated_frame: int
 var _unit_states: Dictionary
 var _unit_visuals: Dictionary
 var _unit_registry: RwUnitRegistry
+var _combat: RwBattleCombat
+var _unit_orders: RwUnitOrderController
 var _fog: RwFogOfWar
 var _path_grid: RwPathGrid
 var _mobile_unit_states: Array[RwUnitState]
 var _animated_command_centers: Array[RwUnitState]
 var _animated_extractors: Array[RwUnitState]
+var _animated_visual_units: Array[RwUnitState]
 var _selected_unit_ids: Array[int]
 var _production_queues: Dictionary
+var _factory_rally_points: Dictionary
 var _pending_queue_cancellations: Dictionary
 var _build_sites: Array[Dictionary]
 var _builder_site_ids: Dictionary
@@ -54,6 +59,7 @@ var _next_object_id: int = 1
 
 
 func _ready() -> void:
+	RwRoomClient.connection_changed.connect(_on_room_connection_changed)
 	RwRoomClient.battle_frame_advanced.connect(_on_battle_frame_advanced)
 	RwRoomClient.battle_commands_reached.connect(_on_battle_commands_reached)
 	RwRoomClient.room_updated.connect(_on_room_updated)
@@ -84,6 +90,14 @@ func _ready() -> void:
 		return
 	_block_initial_structures()
 	_path_grid.finalize_obstacles()
+	_unit_orders = RwUnitOrderController.new()
+	_unit_orders.configure(_unit_states, _unit_registry, _path_grid)
+	_unit_orders.order_applied.connect(_on_unit_order_applied)
+	_combat = RwBattleCombat.new()
+	_combat.projectile_fired.connect(_on_projectile_fired)
+	_combat.unit_destroyed.connect(_on_combat_unit_destroyed)
+	_combat.configure(_unit_states, _unit_registry, RwRoomClient.players)
+	projectile_layer.set_projectiles(_combat.projectiles)
 	_focus_on_local_start()
 	_initialize_fog(map_size, tile_size)
 	var minimap_error: String = hud_layer.configure_battle(map_name, _world_size, _unit_states, _unit_registry)
@@ -142,6 +156,8 @@ func _render_initial_units(map_name: String) -> Dictionary:
 				command_center_counts[team_slot] = int(command_center_counts.get(team_slot, 0)) + 1
 		if unit_name == "extractor":
 			_animated_extractors.append(unit_state)
+		if definition != null and definition.needs_visual_ticks():
+			_animated_visual_units.append(unit_state)
 		total += 1
 		if definition == null:
 			placeholder += 1
@@ -630,7 +646,48 @@ func _request_move(screen_position: Vector2) -> void:
 
 
 func _on_room_updated(_settings: Dictionary, _players: Array[Dictionary], _local_slot: int) -> void:
+	if _combat != null:
+		_combat.set_players(_players)
 	_refresh_fog_visibility()
+
+
+func _on_room_connection_changed(message: String) -> void:
+	hud_layer.show_status(message)
+
+
+func _on_combat_unit_destroyed(unit_state: RwUnitState) -> void:
+	var definition: RwUnitDefinition = _unit_registry.find_definition(unit_state.source_id, unit_state.unit_name)
+	if definition != null and definition.blocks_movement and _path_grid != null:
+		_path_grid.unblock_structure(unit_state.world_position, definition.structure_footprint_min, definition.structure_footprint_max)
+		_path_grid.finalize_obstacles()
+	if unit_state.unit_name == "commandCenter" and unit_state.team.is_valid_int():
+		RwRoomClient.battle_economy.remove_command_center(unit_state.team.to_int())
+	_animated_command_centers.erase(unit_state)
+	_animated_extractors.erase(unit_state)
+	_animated_visual_units.erase(unit_state)
+	_mobile_unit_states.erase(unit_state)
+	if _unit_orders != null:
+		_unit_orders.clear_pending(unit_state.object_id)
+	_factory_rally_points.erase(unit_state.object_id)
+	_production_queues.erase(unit_state.object_id)
+	_builder_site_ids.erase(unit_state.object_id)
+	_builder_site_queues.erase(unit_state.object_id)
+	for site: Dictionary in _build_sites:
+		if int(site["object_id"]) != unit_state.object_id or bool(site["finished"]):
+			continue
+		site["finished"] = true
+		for builder_id: int in site["builders"]:
+			_advance_builder_site_queue(builder_id, int(site["id"]))
+	var visual: RwUnitVisual = _unit_visuals.get(unit_state.object_id) as RwUnitVisual
+	if visual != null:
+		visual.set_selected(false)
+		if visual.visible:
+			AudioManager.play_unit_at(&"explode", unit_state.world_position, map_camera.position)
+	if _selected_unit_ids.has(unit_state.object_id):
+		_selected_unit_ids.erase(unit_state.object_id)
+		navigation_overlay.queue_redraw()
+		_show_selection()
+	hud_layer.minimap.refresh_units()
 
 
 func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
@@ -639,12 +696,18 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	_last_simulated_frame = frame
 	for step: int in frame_delta:
 		for unit_state: RwUnitState in _mobile_unit_states:
-			unit_state.advance_movement(1, _path_grid)
-		for extractor: RwUnitState in _animated_extractors:
-			extractor.advance_visual_animation(1)
+			if _unit_orders != null:
+				_unit_orders.advance_unit(unit_state, first_frame + step, _builder_site_ids.has(unit_state.object_id))
+			else:
+				unit_state.advance_movement(1, _path_grid)
+		for animated_unit: RwUnitState in _animated_visual_units:
+			animated_unit.advance_visual_animation(1)
 		_separate_mobile_units()
 		_advance_unit_generation(first_frame + step)
+		if _combat != null:
+			_combat.advance_frame()
 	if frame_delta > 0:
+		projectile_layer.queue_redraw()
 		_refresh_fog_visibility()
 		_refresh_builder_vfx(frame)
 	var animation_frame: int = _command_center_frame(frame)
@@ -659,42 +722,66 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 
 func _on_battle_commands_reached(_frame: int, commands: Array[Dictionary]) -> void:
 	for command: Dictionary in commands:
+		if bool(command.get("is_system_action", false)):
+			var step_rate: float = float(command.get("game_speed_change", 0.0))
+			if step_rate >= 0.1:
+				RwRoomClient.battle_timeline.set_step_rate(step_rate)
+			continue
 		var order_type: String = str(command.get("order_type", ""))
 		if order_type.is_empty():
 			var action_id: String = str(command.get("action_id", ""))
 			if not action_id.is_empty() and action_id != "-1":
 				_apply_production_command(command)
+			if command.get("rally_point") is Vector2:
+				_apply_rally_point_command(command)
+			if (bool(command.get("clear_existing_orders", false)) or int(command.get("attack_mode", -1)) >= 0) and _unit_orders != null:
+				_unit_orders.apply_command(command)
 			continue
 		if order_type == "build":
 			_apply_build_command(command)
 			continue
-		var target: Vector2 = command.get("target", Vector2.ZERO)
-		var command_paths: Dictionary = command.get("paths", {})
+		if _unit_orders == null:
+			continue
 		var unit_ids: Array[int] = []
 		for object_id: int in command.get("unit_ids", []):
 			unit_ids.append(object_id)
-		var is_movement_order: bool = order_type == "move" or order_type == "attackMove"
+		var is_movement_order: bool = RwUnitOrderController.POINT_ORDER_TYPES.has(order_type)
+		var target: Vector2 = command.get("target", Vector2.ZERO)
 		var formation_targets: Dictionary = _formation_targets(unit_ids, target) if is_movement_order else {}
+		var busy_ids: Array[int] = []
+		var should_queue: bool = (bool(command.get("is_queued", false)) or bool(command.get("order_is_queued", false))) and not bool(command.get("is_instant_command", false))
 		for object_id: int in unit_ids:
 			var unit_state: RwUnitState = _unit_states.get(object_id) as RwUnitState
-			if unit_state == null:
+			if unit_state == null or not _unit_orders.can_apply_to_unit(unit_state, _command_source_team(command), int(command.get("allowed_team_mask", 0))):
 				continue
-			_builder_site_ids.erase(object_id)
-			_builder_site_queues.erase(object_id)
-			if is_movement_order and _path_grid != null and unit_state.movement_speed > 0.0:
-				var unit_target: Vector2 = formation_targets.get(object_id, target)
-				var path_start: Vector2 = unit_state.get_factory_exit_target() if unit_state.is_exiting_factory() else unit_state.world_position
-				var waypoints: Array[Vector2] = []
-				if command_paths.has(object_id):
-					var path_cells: Array[Vector2i] = command_paths[object_id]
-					waypoints = _path_grid.path_from_cells(path_start, unit_target, path_cells, unit_state.movement_type)
-				if waypoints.is_empty():
-					waypoints = _path_grid.find_path(path_start, unit_target, unit_state.movement_type)
-				unit_state.apply_move_order(unit_target, waypoints, order_type)
-			else:
-				unit_state.apply_order(order_type, target)
+			if _builder_site_ids.has(object_id):
+				busy_ids.append(object_id)
+			if not should_queue:
+				_builder_site_ids.erase(object_id)
+				_builder_site_queues.erase(object_id)
+		_unit_orders.apply_command(command, formation_targets, busy_ids)
 	if not _selected_unit_ids.is_empty():
 		_show_selection()
+
+
+func _on_unit_order_applied(unit_state: RwUnitState, order_type: String, order: Dictionary) -> void:
+	if _combat != null:
+		_combat.notify_order(unit_state, order_type, order)
+
+
+func _on_projectile_fired(projectile: RwProjectileState) -> void:
+	projectile.object_id = _next_object_id
+	_next_object_id += 1
+
+
+func _apply_rally_point_command(command: Dictionary) -> void:
+	var rally_point: Vector2 = command["rally_point"]
+	var team_slot: int = _command_source_team(command)
+	var allowed_mask: int = int(command.get("allowed_team_mask", 0))
+	for object_id: int in command.get("unit_ids", []):
+		var factory: RwUnitState = _unit_states.get(object_id) as RwUnitState
+		if factory != null and not factory.is_dead and _unit_orders != null and _unit_orders.can_apply_to_unit(factory, team_slot, allowed_mask):
+			_factory_rally_points[object_id] = rally_point
 
 
 func _find_action(producer: RwUnitState, action_id: String) -> RwUnitActionDefinition:
@@ -711,13 +798,20 @@ func _find_action(producer: RwUnitState, action_id: String) -> RwUnitActionDefin
 	return null
 
 
+func _command_source_team(command: Dictionary) -> int:
+	var source_team: int = int(command.get("source_team", -1))
+	return source_team if source_team != -1 else int(command.get("team", -1))
+
+
 func _apply_production_command(command: Dictionary) -> void:
-	var team_slot: int = int(command.get("team", -1))
+	var team_slot: int = _command_source_team(command)
+	var allowed_mask: int = int(command.get("allowed_team_mask", 0))
 	var network_action_id: String = str(command.get("action_id", ""))
 	for object_id: int in command.get("unit_ids", []):
 		var producer: RwUnitState = _unit_states.get(object_id) as RwUnitState
-		if producer == null or producer.is_dead or producer.team != str(team_slot):
+		if producer == null or producer.is_dead or _unit_orders == null or not _unit_orders.can_apply_to_unit(producer, team_slot, allowed_mask):
 			continue
+		var owner_slot: int = producer.team.to_int()
 		var action: RwUnitActionDefinition = _find_action(producer, network_action_id)
 		if action == null or (action.kind != RwUnitActionDefinition.Kind.QUEUE_UNIT and action.kind != RwUnitActionDefinition.Kind.UPGRADE_UNIT):
 			continue
@@ -728,7 +822,7 @@ func _apply_production_command(command: Dictionary) -> void:
 			if existing_queue != null:
 				var cancelled_action: RwUnitActionDefinition = existing_queue.cancel_one(action.action_id)
 				if cancelled_action != null:
-					RwRoomClient.battle_economy.refund_credits(team_slot, float(cancelled_action.resource_costs.get("credits", 0.0)))
+					RwRoomClient.battle_economy.refund_credits(owner_slot, float(cancelled_action.resource_costs.get("credits", 0.0)))
 			continue
 		var queue: RwProductionQueue = _production_queues.get(object_id) as RwProductionQueue
 		if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and queue != null:
@@ -739,7 +833,7 @@ func _apply_production_command(command: Dictionary) -> void:
 					break
 			if already_queued:
 				continue
-		if not RwRoomClient.battle_economy.try_spend_credits(team_slot, float(action.resource_costs.get("credits", 0.0))):
+		if not RwRoomClient.battle_economy.try_spend_credits(owner_slot, float(action.resource_costs.get("credits", 0.0))):
 			continue
 		if queue == null:
 			queue = RwProductionQueue.new()
@@ -749,8 +843,9 @@ func _apply_production_command(command: Dictionary) -> void:
 
 
 func _apply_build_command(command: Dictionary) -> void:
-	var team_slot: int = int(command.get("team", -1))
-	var unit_name: String = RwVanillaBuildings.name_for_index(int(command.get("build_unit_index", -1)))
+	var team_slot: int = _command_source_team(command)
+	var allowed_mask: int = int(command.get("allowed_team_mask", 0))
+	var unit_name: String = RwVanillaBuildings.name_for_network_type(int(command.get("build_unit_index", -1)), str(command.get("custom_build_unit_name", "")))
 	var definition: RwUnitDefinition = _unit_registry.find_definition("vanilla", unit_name)
 	if definition == null:
 		return
@@ -759,7 +854,7 @@ func _apply_build_command(command: Dictionary) -> void:
 	var builder_ids: Array[int] = []
 	for object_id: int in command.get("unit_ids", []):
 		var builder: RwUnitState = _unit_states.get(object_id) as RwUnitState
-		if builder == null or builder.is_dead or builder.team != str(team_slot) or _find_action(builder, unit_name) == null:
+		if builder == null or builder.is_dead or _unit_orders == null or not _unit_orders.can_apply_to_unit(builder, team_slot, allowed_mask) or _find_action(builder, unit_name) == null:
 			continue
 		builder_ids.append(object_id)
 	if builder_ids.is_empty():
@@ -769,7 +864,7 @@ func _apply_build_command(command: Dictionary) -> void:
 	_next_build_site_id += 1
 	_build_sites.append({
 		"id": site_id,
-		"team": team_slot,
+		"team": (_unit_states[builder_ids[0]] as RwUnitState).team.to_int(),
 		"definition": definition,
 		"position": _position,
 		"builders": builder_ids,
@@ -788,6 +883,8 @@ func _apply_build_command(command: Dictionary) -> void:
 			_builder_site_queues[object_id] = pending_sites
 		else:
 			_builder_site_queues.erase(object_id)
+			if _unit_orders != null:
+				_unit_orders.clear_pending(object_id)
 			_start_builder_site(builder, site_id, _position, definition)
 
 
@@ -881,8 +978,6 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 		if building == null:
 			if frame < int(site["next_attempt_frame"]):
 				return
-			var candidate_object_id: int = _next_object_id
-			_next_object_id += 1
 			var definition: RwUnitDefinition = site["definition"]
 			if not _path_grid.get_placement_error(site_position, definition).is_empty():
 				site["finished"] = true
@@ -892,6 +987,8 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 			if not RwRoomClient.battle_economy.try_spend_credits(int(site["team"]), float(site["cost"])):
 				site["next_attempt_frame"] = frame + BUILD_RETRY_FRAMES
 				return
+			var candidate_object_id: int = _next_object_id
+			_next_object_id += 1
 			building = _create_building_site(site, candidate_object_id)
 			if building == null:
 				return
@@ -960,10 +1057,14 @@ func _create_building_site(site: Dictionary, object_id: int) -> RwUnitState:
 	unit_layer.add_child(visual)
 	_unit_states[building.object_id] = building
 	_unit_visuals[building.object_id] = visual
+	if _combat != null:
+		_combat.register_unit(building)
 	site["object_id"] = building.object_id
 	if building.unit_name == "extractor":
 		_animated_extractors.append(building)
 		RwRoomClient.battle_economy.register_extractor(building)
+	if definition.needs_visual_ticks():
+		_animated_visual_units.append(building)
 	_path_grid.block_structure(building.world_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	_path_grid.finalize_obstacles()
 	hud_layer.minimap.refresh_units()
@@ -1035,8 +1136,20 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	unit_layer.add_child(visual)
 	_unit_states[unit_state.object_id] = unit_state
 	_unit_visuals[unit_state.object_id] = visual
+	if _combat != null:
+		_combat.register_unit(unit_state)
 	if unit_state.movement_speed > 0.0:
 		_mobile_unit_states.append(unit_state)
+	if definition.needs_visual_ticks():
+		_animated_visual_units.append(unit_state)
+	if _unit_orders != null and _factory_rally_points.has(factory.object_id):
+		_unit_orders.apply_command({
+			"team": factory.team.to_int(),
+			"order_type": "move",
+			"target": _factory_rally_points[factory.object_id],
+			"unit_ids": [unit_state.object_id,],
+			"is_queued": true,
+		})
 	_refresh_fog_visibility()
 	hud_layer.minimap.refresh_units()
 	if factory.team == str(RwRoomClient.local_slot):

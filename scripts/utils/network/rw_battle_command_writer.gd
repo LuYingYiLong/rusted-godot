@@ -30,7 +30,8 @@ static func write_move(team_slot: int, unit_ids: Array[int], target: Vector2) ->
 	command.put_32(unit_ids.size())
 	for unit_id: int in unit_ids:
 		command.put_64(unit_id)
-	command.put_u8(0)
+	command.put_u8(1)
+	command.put_8(team_slot)
 	command.put_u8(0)
 	command.put_64(-1)
 	RwBinary.write_utf(command, "-1")
@@ -59,7 +60,8 @@ static func write_action(team_slot: int, unit_ids: Array[int], action_id: String
 	command.put_32(unit_ids.size())
 	for unit_id: int in unit_ids:
 		command.put_64(unit_id)
-	command.put_u8(0)
+	command.put_u8(1)
+	command.put_8(team_slot)
 	command.put_u8(0)
 	command.put_64(-1)
 	RwBinary.write_utf(command, action_id)
@@ -77,10 +79,13 @@ static func write_action(team_slot: int, unit_ids: Array[int], action_id: String
 
 static func write_build(team_slot: int, unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool) -> PackedByteArray:
 	var command: StreamPeerBuffer = RwBinary.writer()
+	var custom_name: String = RwVanillaBuildings.custom_name_for_index(unit_type_index)
 	command.put_8(team_slot)
 	command.put_u8(1)
 	command.put_32(2)
-	command.put_32(unit_type_index)
+	command.put_32(-2 if not custom_name.is_empty() else unit_type_index)
+	if not custom_name.is_empty():
+		RwBinary.write_utf(command, custom_name)
 	command.put_float(target.x)
 	command.put_float(target.y)
 	command.put_64(-1)
@@ -100,7 +105,8 @@ static func write_build(team_slot: int, unit_ids: Array[int], unit_type_index: i
 	command.put_32(unit_ids.size())
 	for unit_id: int in unit_ids:
 		command.put_64(unit_id)
-	command.put_u8(0)
+	command.put_u8(1)
+	command.put_8(team_slot)
 	command.put_u8(0)
 	command.put_64(-1)
 	RwBinary.write_utf(command, "-1")

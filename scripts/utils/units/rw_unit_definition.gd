@@ -1,3 +1,4 @@
+## 统一保存单位的外观、移动、生产和战斗定义
 class_name RwUnitDefinition
 extends Resource
 
@@ -12,9 +13,15 @@ enum SelectionShape {
 @export_multiline var description: String
 @export var body_image: String
 @export var body_images_by_level: Dictionary
+## 可复用的高度、护盾和附加层表现配置
+@export var visual_profile: RwUnitVisualProfile
 @export var back_image: String
 @export var turret_image: String
 @export var weapon_parts: Array[RwUnitWeaponDefinition]
+## 可开火武器列表，索引不必与绘制挂件相同
+@export var combat_weapons: Array[RwWeaponDefinition]
+## 每同步帧执行的单位行为，可由原版单位或模组提供
+@export var behavior: RwUnitBehavior
 @export var shadow_image: String
 @export var dead_image: String
 @export var body_region: Rect2i
@@ -24,6 +31,8 @@ enum SelectionShape {
 @export var draw_layer: int = 2
 @export var dead_draw_layer: int = -1
 @export var max_health: float = 1.0
+## 护盾最大值，由单位行为负责吸收伤害和恢复
+@export var max_shield: float
 @export var movement_speed: float
 @export var water_movement_speed: float
 @export var movement_type: String = "LAND"
@@ -56,6 +65,15 @@ enum SelectionShape {
 
 func key() -> String:
 	return "%s:%s" % [source_id, unit_name]
+
+
+## 判断单位是否需要按同步帧更新外观动画
+func needs_visual_ticks() -> bool:
+	return (
+		animation_step_frames > 0 and body_frames > 1
+		or visual_profile != null and visual_profile.is_animated()
+		or max_shield > 0.0
+	)
 
 
 func configure_visual(visual: RwUnitVisual, provider: RwUnitAssetProvider, color: Color, _spawn: Dictionary) -> void:

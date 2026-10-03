@@ -93,6 +93,7 @@ static func create_registry() -> RwUnitRegistry:
 	tank.movement_acceleration = 0.07
 	tank.movement_deceleration = 0.17
 	tank.collision_radius = 11.0
+	RwVanillaCombatDefinitions.configure_tank(tank)
 	registry.register_definition(tank, assets)
 	var hovercraft: RwUnitDefinition = RwUnitDefinition.new()
 	hovercraft.unit_name = "hovercraft"
@@ -102,6 +103,11 @@ static func create_registry() -> RwUnitRegistry:
 	hovercraft.shadow_image = "hovercraft_shadow.png"
 	hovercraft.render_rotation_offset_degrees = 90.0
 	hovercraft.dead_image = "hovercraft_dead.png"
+	var hover_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
+	hover_profile.spawn_altitude = 3.0
+	hover_profile.bob_amplitude = 1.5
+	hover_profile.bob_speed_degrees = 4.0
+	hovercraft.visual_profile = hover_profile
 	hovercraft.draw_layer = 3
 	hovercraft.dead_draw_layer = 0
 	hovercraft.max_health = 450.0
@@ -116,6 +122,76 @@ static func create_registry() -> RwUnitRegistry:
 	hovercraft.collision_radius = 15.0
 	hovercraft.push_mass = 12000.0
 	registry.register_definition(hovercraft, assets)
+	var helicopter: RwUnitDefinition = RwUnitDefinition.new()
+	helicopter.unit_name = "helicopter"
+	helicopter.display_name = "Helicopter"
+	helicopter.description = "Airborne combat unit."
+	helicopter.body_image = "helicopter.png"
+	helicopter.render_rotation_offset_degrees = 90.0
+	helicopter.shadow_image = "helicopter_shadow.png"
+	helicopter.dead_image = "helicopter_dead.png"
+	helicopter.dead_draw_layer = 0
+	helicopter.max_health = 150.0
+	helicopter.movement_type = "AIR"
+	helicopter.movement_speed = 2.2
+	helicopter.collision_radius = 13.0
+	var helicopter_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
+	helicopter_profile.spawn_altitude = 20.0
+	helicopter_profile.bob_amplitude = 1.5
+	helicopter_profile.bob_speed_degrees = 2.0
+	var rotor: RwVisualOverlayDefinition = RwVisualOverlayDefinition.new()
+	rotor.image = "helicopter_blades.png"
+	rotor.rotation_speed_degrees = 35.0
+	var rotor_shadow: RwVisualOverlayDefinition = RwVisualOverlayDefinition.new()
+	rotor_shadow.image = "helicopter_shadow_blades.png"
+	rotor_shadow.ground_shadow = true
+	rotor_shadow.draw_order = -1
+	rotor_shadow.rotation_speed_degrees = 35.0
+	rotor_shadow.opacity = 0.5
+	helicopter_profile.overlays = [rotor, rotor_shadow,]
+	helicopter.visual_profile = helicopter_profile
+	registry.register_definition(helicopter, assets)
+	var submarine: RwUnitDefinition = RwUnitDefinition.new()
+	submarine.unit_name = "attackSubmarine"
+	submarine.display_name = "Attack submarine"
+	submarine.description = "Naval unit that can dive below the surface."
+	submarine.body_image = "attack_submarine.png"
+	submarine.render_rotation_offset_degrees = 90.0
+	submarine.dead_image = "attack_submarine_dead.png"
+	submarine.dead_draw_layer = 0
+	submarine.max_health = 260.0
+	submarine.movement_type = "WATER"
+	submarine.movement_speed = 0.8
+	submarine.collision_radius = 15.0
+	var submarine_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
+	submarine_profile.spawn_altitude = -8.0
+	submarine.visual_profile = submarine_profile
+	registry.register_definition(submarine, assets)
+	var shield_tank: RwUnitDefinition = RwUnitDefinition.new()
+	shield_tank.unit_name = "experimentalHoverTank"
+	shield_tank.display_name = "Experimental hover tank"
+	shield_tank.description = "Heavy hover tank with a regenerating shield."
+	shield_tank.body_image = "experimental_hovertank.png"
+	shield_tank.render_rotation_offset_degrees = 90.0
+	shield_tank.dead_image = "experimental_hovertank_dead.png"
+	shield_tank.dead_draw_layer = 0
+	shield_tank.max_health = 3500.0
+	shield_tank.max_shield = 5000.0
+	shield_tank.movement_type = "HOVER"
+	shield_tank.movement_speed = 0.6
+	shield_tank.collision_radius = 31.0
+	shield_tank.behavior = RwShieldBehavior.new()
+	var shield_tank_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
+	shield_tank_profile.spawn_altitude = 4.0
+	shield_tank_profile.bob_amplitude = 2.0
+	shield_tank_profile.bob_speed_degrees = 4.0
+	shield_tank_profile.shield_image = "experimental_hovertank_shield.png"
+	shield_tank.visual_profile = shield_tank_profile
+	var shield_tank_turret: RwUnitWeaponDefinition = RwUnitWeaponDefinition.new()
+	shield_tank_turret.image = "experimental_hovertank_turret.png"
+	shield_tank_turret.rotation_offset_degrees = 90.0
+	shield_tank.weapon_parts = [shield_tank_turret,]
+	registry.register_definition(shield_tank, assets)
 	var sea_factory: RwUnitDefinition = RwUnitDefinition.new()
 	sea_factory.unit_name = "seaFactory"
 	sea_factory.display_name = "Sea factory"

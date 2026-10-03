@@ -1,22 +1,22 @@
-## Plays looping music, player feedback, and pooled battlefield sounds.
-## Add its scene as the AudioManager autoload to share voice pools across scenes.
 class_name RwAudioManager
 extends Node
+## 播放循环音乐、玩家反馈和战场音效池
+## 将其场景添加为 AudioManager 自动加载，以便在场景之间共享语音池
 
-## Emitted after a music track starts playing.
+## 在音乐开始播放后触发
 signal music_started(track_id: StringName)
-## Emitted when the active music track finishes or is stopped.
+## 当前音乐曲目播放完或被停止时触发
 signal music_stopped()
 
-## Maximum simultaneous UI sounds; the oldest voice is reused when full.
+## 最大同时 UI 声音数量；达到上限时会重用最旧的声音
 @export_range(1, 32, 1) var ui_voice_limit: int
-## Maximum simultaneous unit sounds; the oldest voice is reused when full.
+## 最大同时发声单元；当达到上限时，会重复使用最旧的声音
 @export_range(1, 64, 1) var unit_voice_limit: int
-## Base volume for music, in decibels.
+## 音乐的基础音量，单位为分贝
 @export var music_volume_db: float
-## Base volume for UI feedback, in decibels.
+## 用户界面反馈的基础音量，单位为分贝
 @export var ui_volume_db: float
-## Base volume for battlefield sounds, in decibels.
+## 战场声音的基础音量，单位是分贝
 @export var unit_volume_db: float
 
 @onready var music_player: AudioStreamPlayer = %MusicPlayer
@@ -48,8 +48,8 @@ func _exit_tree() -> void:
 		voice.stream = null
 
 
-## Plays a catalogued track with a short fade-in.
-## Returns [code]false[/code] if [param track_id] is unknown.
+## 播放一个已编目的曲目，并带有短暂的淡入效果
+## 如果 [param track_id] 未知，则返回 [code]false[/code]
 func play_music(track_id: StringName, fade_seconds: float = 0.4) -> bool:
 	var stream: AudioStream = RwAudioCatalog.music_track(track_id)
 	if stream == null:
@@ -57,8 +57,8 @@ func play_music(track_id: StringName, fade_seconds: float = 0.4) -> bool:
 	return play_music_stream(stream, track_id, true, fade_seconds)
 
 
-## Plays any music stream. Ogg streams are duplicated to keep their loop flag local.
-## Returns [code]false[/code] when [param stream] is null.
+## 播放任何音乐流，Ogg 流会被复制以保持它们的循环标志本地化
+## 当 [param stream] 为 null 时返回 [code]false[/code]
 func play_music_stream(stream: AudioStream, track_id: StringName = &"", loop: bool = true, fade_seconds: float = 0.4) -> bool:
 	if stream == null:
 		return false
@@ -85,7 +85,7 @@ func play_music_stream(stream: AudioStream, track_id: StringName = &"", loop: bo
 	return true
 
 
-## Stops music immediately or fades it out over [param fade_seconds].
+## 立即停止音乐或在 [param fade_seconds] 秒内淡出
 func stop_music(fade_seconds: float = 0.4) -> void:
 	_cancel_music_tween()
 	if not music_player.playing:
@@ -99,35 +99,35 @@ func stop_music(fade_seconds: float = 0.4) -> void:
 	_music_tween.finished.connect(_finish_music_stop)
 
 
-## Plays a catalogued player feedback sound, such as a move order cue.
-## Returns [code]false[/code] if [param sound_id] is unknown.
+## 播放已归档的玩家反馈声音，例如移动指令提示音
+## 如果 [param sound_id] 未知，则返回 [code]false[/code]
 func play_ui(sound_id: StringName, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	return play_ui_stream(RwAudioCatalog.ui_sound(sound_id), volume_offset_db, pitch_scale)
 
 
-## Plays an arbitrary stream through the UI voice pool.
+## 通过界面语音池播放任意音流
 func play_ui_stream(stream: AudioStream, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	return _play_sound(_ui_voices, stream, ui_volume_db + volume_offset_db, pitch_scale)
 
 
-## Plays a catalogued non-positional battlefield sound.
+## 播放已编目的非定位战场音效
 func play_unit(sound_id: StringName, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	return play_unit_stream(RwAudioCatalog.unit_sound(sound_id), volume_offset_db, pitch_scale)
 
 
-## Plays an arbitrary stream through the unit voice pool.
+## 通过设备的声音池播放任意音频流
 func play_unit_stream(stream: AudioStream, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	return _play_sound(_unit_voices, stream, unit_volume_db + volume_offset_db, pitch_scale)
 
 
-## Plays a catalogued battlefield sound attenuated by listener distance.
-## Returns [code]false[/code] when outside [param hearing_radius].
+## 播放经过听者距离衰减的已归档战场声音
+## 当在[param hearing_radius]之外时返回[code]false[/code]
 func play_unit_at(sound_id: StringName, world_position: Vector2, listener_position: Vector2, hearing_radius: float = 900.0, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	return play_unit_stream_at(RwAudioCatalog.unit_sound(sound_id), world_position, listener_position, hearing_radius, volume_offset_db, pitch_scale)
 
 
-## Plays an arbitrary battlefield stream attenuated by listener distance.
-## Returns [code]false[/code] if the stream is null or inaudible.
+## 播放一个根据听者距离衰减的任意战场流
+## 如果流为空或无法听到，则返回 [code]false[/code]
 func play_unit_stream_at(stream: AudioStream, world_position: Vector2, listener_position: Vector2, hearing_radius: float = 900.0, volume_offset_db: float = 0.0, pitch_scale: float = 1.0) -> bool:
 	if stream == null or hearing_radius <= 0.0:
 		return false
@@ -138,7 +138,7 @@ func play_unit_stream_at(stream: AudioStream, world_position: Vector2, listener_
 	return play_unit_stream(stream, volume_offset_db + linear_to_db(gain), pitch_scale)
 
 
-## Sets the current and future music volume in decibels.
+## 设置当前和未来的音乐音量（分贝）
 func set_music_volume_db(value: float) -> void:
 	music_volume_db = value
 	if music_player.playing:
@@ -146,32 +146,32 @@ func set_music_volume_db(value: float) -> void:
 		music_player.volume_db = value
 
 
-## Sets the base volume for future UI sounds in decibels.
+## 设置未来 UI 声音的基础音量（分贝）
 func set_ui_volume_db(value: float) -> void:
 	ui_volume_db = value
 
 
-## Sets the base volume for future unit sounds in decibels.
+## 为未来单位的声音设置基础音量（分贝）
 func set_unit_volume_db(value: float) -> void:
 	unit_volume_db = value
 
 
-## Returns whether the music player is active.
+## 返回音乐播放器是否处于活动状态
 func is_music_playing() -> bool:
 	return music_player.playing
 
 
-## Returns the catalog ID of the current track, if one was supplied.
+## 返回当前曲目的目录 ID，如果有提供的话
 func get_music_track_id() -> StringName:
 	return _music_track_id
 
 
-## Returns the number of UI voices currently playing.
+## 返回当前正在播放的 UI 语音数量
 func get_active_ui_voice_count() -> int:
 	return _count_active_voices(_ui_voices)
 
 
-## Returns the number of unit voices currently playing.
+## 返回当前正在播放的单位声音数量
 func get_active_unit_voice_count() -> int:
 	return _count_active_voices(_unit_voices)
 
@@ -218,7 +218,7 @@ func _choose_voice(voices: Array[AudioStreamPlayer]) -> AudioStreamPlayer:
 
 
 func _count_active_voices(voices: Array[AudioStreamPlayer]) -> int:
-	var count: int
+	var count: int = 0
 	for voice: AudioStreamPlayer in voices:
 		if voice.playing:
 			count += 1

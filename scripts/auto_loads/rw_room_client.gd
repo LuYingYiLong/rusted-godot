@@ -38,6 +38,7 @@ var _connecting: bool
 var _connected: bool
 var _joined: bool
 var _has_player_update: bool
+var _battle_view_ready: bool
 var _connect_started_at: int
 var _register_started_at: int
 
@@ -88,7 +89,7 @@ func _process(delta: float) -> void:
 		return
 	if not _connected:
 		return
-	if not battle_map_info.is_empty():
+	if _battle_view_ready:
 		battle_timeline.advance(delta)
 	var available: int = _peer.get_available_bytes()
 	if available <= 0:
@@ -190,6 +191,7 @@ func is_active() -> bool:
 func mark_battle_map_loaded() -> void:
 	if battle_map_info.is_empty() or not _connected:
 		return
+	_battle_view_ready = true
 	_send_client_status(true)
 
 
@@ -227,6 +229,7 @@ func _disconnect(report: bool) -> void:
 	settings.clear()
 	players.clear()
 	battle_map_info.clear()
+	_battle_view_ready = false
 	battle_timeline.reset()
 	battle_economy.clear()
 	chat_log.clear()
@@ -261,6 +264,7 @@ func _handle_packet(packet_type: int, payload: PackedByteArray) -> void:
 		30:
 			_reply_checksum_unavailable(payload)
 		35:
+			_battle_view_ready = false
 			connection_changed.emit("Server sent a resync save; live state restore is not implemented")
 		106:
 			_read_server_settings(payload)
@@ -303,6 +307,7 @@ func _read_start_game(payload: PackedByteArray) -> void:
 		"mode": game_mode,
 		"map": map_name,
 	}
+	_battle_view_ready = false
 	battle_timeline.reset()
 	var starting_credits: int = _starting_credits_amount(int(settings.get("credits", 0)))
 	for player: Dictionary in players:
@@ -453,6 +458,9 @@ func _read_players(payload: PackedByteArray) -> void:
 	_read_player_settings_footer(stream)
 	if not battle_map_info.is_empty():
 		battle_economy.set_income_multiplier(float(settings.get("income_multiplier", 1.0)))
+		if _battle_view_ready and not partial_update:
+			for player: Dictionary in updated_players:
+				battle_economy.reconcile_credits(int(player["slot"]), float(player["credits"]))
 	if not _has_player_update:
 		_has_player_update = true
 		_send_client_status()
@@ -479,6 +487,12 @@ func _read_player_settings_footer(stream: StreamPeerBuffer) -> void:
 		settings["income_multiplier"] = stream.get_float()
 		settings["no_nukes"] = stream.get_u8() != 0
 		stream.get_u8()
+	if settings_version >= 3 and stream.get_available_bytes() >= 1:
+		stream.get_u8()
+	if settings_version >= 4 and stream.get_available_bytes() >= 1:
+		settings["shared_control"] = stream.get_u8() != 0
+	if settings_version >= 5 and stream.get_available_bytes() >= 1:
+		settings["game_paused"] = stream.get_u8() != 0
 
 
 func _confirm_join() -> void:
@@ -492,11 +506,7 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 	stream.get_8()
 	var credits: int = stream.get_32()
 	var balances: Dictionary = _find_player(slot).get("team_resources", {}).duplicate()
-	if not battle_map_info.is_empty() and battle_economy.has_team(slot):
-		balances["credits"] = battle_economy.get_balance(slot, "credits")
-		credits = floori(float(balances["credits"]))
-	else:
-		balances["credits"] = float(credits)
+	balances["credits"] = float(credits)
 	var color: int = stream.get_32()
 	var _name: String = RwBinary.read_nullable_utf(stream)
 	stream.get_u8()

@@ -1,8 +1,8 @@
-## Maps stable vanilla audio IDs to imported streams.
 class_name RwAudioCatalog
 extends RefCounted
+## 将稳定的原版音频 ID 映射到导入的流
 
-## Player feedback sounds, including the move order acknowledgement.
+## 玩家反馈声音，包括移动顺序确认
 const UI_SOUNDS: Dictionary = {
 	&"click": preload("uid://chiuni33ydda6"),
 	&"add": preload("uid://cah3cmaf2bbgv"),
@@ -14,28 +14,28 @@ const UI_SOUNDS: Dictionary = {
 	&"move": preload("uid://bf50j5lngiuj6"),
 }
 
-## Sounds emitted by units or the battlefield.
+## 单位或战场发出的声音
 const UNIT_SOUNDS: Dictionary = {
 	&"explode": preload("uid://qiosplwo0uoy"),
 }
 
-## Looping background tracks used by the menu and battle scenes.
+## 菜单和战斗场景使用的循环背景音乐
 const MUSIC_TRACKS: Dictionary = {
 	&"menu": preload("uid://bq4a2vrs343ht"),
 	&"battle": preload("uid://c82rpe2csas0e"),
 }
 
 
-## Returns a UI stream for [param sound_id], or [code]null[/code] if unknown.
+## 返回 [param sound_id] 的 UI 流，如果未知则返回 [code]null[/code]
 static func ui_sound(sound_id: StringName) -> AudioStream:
 	return UI_SOUNDS.get(sound_id) as AudioStream
 
 
-## Returns a unit stream for [param sound_id], or [code]null[/code] if unknown.
+## 返回 [param sound_id] 的音单元流，如果未知则返回 [code]null[/code]
 static func unit_sound(sound_id: StringName) -> AudioStream:
 	return UNIT_SOUNDS.get(sound_id) as AudioStream
 
 
-## Returns a music stream for [param track_id], or [code]null[/code] if unknown.
+## 返回 [param track_id] 的音乐流，如果未知则返回 [code]null[/code]
 static func music_track(track_id: StringName) -> AudioStream:
 	return MUSIC_TRACKS.get(track_id) as AudioStream

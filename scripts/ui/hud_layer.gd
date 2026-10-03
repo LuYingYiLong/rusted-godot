@@ -373,7 +373,7 @@ func _emit_focused_action(action_id: String) -> void:
 	for unit_state: RwUnitState in group:
 		unit_ids.append(unit_state.object_id)
 	if not unit_ids.is_empty():
-		AudioManager.play_ui(&"click")
+		AudioManager.play_ui(&"add")
 		unit_action_chosen.emit(action_id, unit_ids)
 
 

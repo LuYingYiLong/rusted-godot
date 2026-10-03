@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://cedhf2f4htp67" path="res://scripts/maps/battle_map.gd" id="1_battle"]
 [ext_resource type="PackedScene" uid="uid://6to008vqjoss" path="res://scenes/ui/hud_layer.tscn" id="2_1it3o"]
 [ext_resource type="Script" uid="uid://dfo57mjs7o7hi" path="res://scripts/maps/rw_battle_vfx_layer.gd" id="3_vfx"]
+[ext_resource type="Script" uid="uid://cpdn75vtxt6w1" path="res://scripts/maps/rw_battle_projectile_layer.gd" id="4_projectiles"]
 
 [node name="BattleMap" type="Control" unique_id=151832150]
 layout_mode = 3
@@ -44,6 +45,11 @@ z_index = 45
 unique_name_in_owner = true
 z_index = 50
 y_sort_enabled = true
+
+[node name="ProjectileLayer" type="Node2D" parent="MapRoot"]
+unique_name_in_owner = true
+z_index = 53
+script = ExtResource("4_projectiles")
 
 [node name="BattleVfxLayer" type="Node2D" parent="MapRoot"]
 unique_name_in_owner = true

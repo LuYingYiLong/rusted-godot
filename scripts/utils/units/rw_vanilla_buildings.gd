@@ -15,6 +15,15 @@ const SPECS: Dictionary = {
 	"experimentalLandFactory": {"index": 32, "cost": 11000.0, "rate": 0.00035, "image": "experimental_unit_factory_base.png", "dead": "experimental_unit_factory_dead.png", "health": 3200.0, "radius": 50.0, "min": Vector2i(-2, -2), "max": Vector2i(2, 2),},
 	"fabricator": {"index": 35, "cost": 1500.0, "rate": 0.0006, "image": "power.png", "dead": "power_dead.png", "health": 900.0, "radius": 25.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
 }
+## 原版内置自定义单位对原生建筑类型的替换名称
+const BUILTIN_CUSTOM_REPLACEMENTS: Dictionary = {
+	"extractor": "extractorT1",
+	"fabricator": "fabricatorT1",
+	"turret": "c_turret_t1",
+	"antiAirTurret": "c_antiAirTurret",
+	"NukeLaucher": "nukeLauncherC",
+	"AntiNukeLaucher": "antiNukeLauncherC",
+}
 const DISPLAY_NAMES: Dictionary = {
 	"extractor": "Extractor",
 	"landFactory": "Land factory",
@@ -40,6 +49,21 @@ static func name_for_index(unit_type_index: int) -> String:
 		if int(SPECS[unit_name].get("index", -1)) == unit_type_index:
 			return unit_name
 	return ""
+
+
+## 将网络中的原生索引或内置自定义单位名称解析为建筑定义
+static func name_for_network_type(unit_type_index: int, custom_name: String) -> String:
+	if unit_type_index != -2:
+		return name_for_index(unit_type_index)
+	for unit_name: String in BUILTIN_CUSTOM_REPLACEMENTS:
+		if BUILTIN_CUSTOM_REPLACEMENTS[unit_name] == custom_name:
+			return unit_name
+	return ""
+
+
+## 返回原版会用于序列化该建筑的内置自定义单位名称
+static func custom_name_for_index(unit_type_index: int) -> String:
+	return str(BUILTIN_CUSTOM_REPLACEMENTS.get(name_for_index(unit_type_index), ""))
 
 
 static func configure_action(action: RwUnitActionDefinition) -> void:
@@ -68,6 +92,9 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 			turret_top.image = turret_image
 			turret_top.mount_offset = Vector2(0.0, -5.0)
 			turret_top.mount_follows_body = false
+			turret_top.rotation_offset_degrees = 90.0
+			if unit_name == "turret":
+				turret_top.images_by_level = {2: "turret_top_l2.png", 3: "turret_top_l3.png",}
 			definition.weapon_parts = [turret_top,]
 		definition.dead_image = str(spec.get("dead", ""))
 		match unit_name:
@@ -95,6 +122,8 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 		definition.structure_footprint_max = spec["max"]
 		definition.placement_requires_resource_pool = bool(spec.get("pool", false))
 		definition.placement_requires_water = bool(spec.get("water", false))
+		if unit_name == "turret":
+			RwVanillaCombatDefinitions.configure_turret(definition)
 		registry.register_definition(definition, assets)
 
 

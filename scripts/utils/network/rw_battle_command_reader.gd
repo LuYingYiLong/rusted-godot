@@ -1,3 +1,4 @@
+## 读取原版同步帧中的命令和每单位目标数据
 class_name RwBattleCommandReader
 extends RefCounted
 
@@ -45,10 +46,14 @@ static func read_frame_packet(payload: PackedByteArray) -> Dictionary:
 		if block_name != "c" or block_length < 0 or block_length > MAX_COMMAND_BYTES or block_length > stream.get_available_bytes():
 			return {"error": "Sync command block is invalid",}
 		var block_result: Array = stream.get_data(block_length)
+		if block_result[0] != OK:
+			return {"error": "Could not read sync command block",}
 		var command: Dictionary = _read_command(block_result[1])
 		if not str(command.get("error", "")).is_empty():
 			return command
 		commands.append(command)
+	if stream.get_available_bytes() != 0:
+		return {"error": "Sync frame contains unexpected trailing data",}
 	return {"error": "", "next_blocking_frame": next_frame, "commands": commands,}
 
 
@@ -63,6 +68,13 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	var custom_build_unit_name: String
 	var target: Vector2
 	var target_id: int = -1
+	var build_queue_size: int
+	var attack_move_range: float
+	var max_waypoint_surviving_time: float
+	var order_is_repeating: bool
+	var order_is_queued: bool
+	var force_move: bool
+	var order_action_id: String
 	if has_order:
 		if stream.get_available_bytes() < 8:
 			return {"error": "Unit order is incomplete",}
@@ -74,13 +86,13 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 			return {"error": "Unit order target is incomplete",}
 		target = Vector2(stream.get_float(), stream.get_float())
 		target_id = stream.get_64()
-		stream.get_8()
-		stream.get_float()
-		stream.get_float()
-		stream.get_u8()
-		stream.get_u8()
-		stream.get_u8()
-		RwBinary.read_nullable_utf(stream)
+		build_queue_size = stream.get_8()
+		attack_move_range = stream.get_float()
+		max_waypoint_surviving_time = stream.get_float()
+		order_is_repeating = stream.get_u8() != 0
+		order_is_queued = stream.get_u8() != 0
+		force_move = stream.get_u8() != 0
+		order_action_id = RwBinary.read_nullable_utf(stream)
 		if type_index >= 0 and type_index < COMMAND_TYPES.size():
 			order_type = COMMAND_TYPES[type_index]
 	if stream.get_available_bytes() < 16:
@@ -88,13 +100,13 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	var is_queued: bool = stream.get_u8() != 0
 	var stop_current_action: bool = stream.get_u8() != 0
 	stream.get_32()
-	stream.get_32()
+	var attack_mode: int = stream.get_32()
+	var rally_point: Variant
 	if stream.get_u8() != 0:
 		if stream.get_available_bytes() < 8:
 			return {"error": "Command rally point is incomplete",}
-		stream.get_float()
-		stream.get_float()
-	stream.get_u8()
+		rally_point = Vector2(stream.get_float(), stream.get_float())
+	var clear_existing_orders: bool = stream.get_u8() != 0
 	var selection_count: int = stream.get_32()
 	if selection_count < 0 or selection_count > MAX_SELECTED_UNITS or stream.get_available_bytes() < selection_count * 8:
 		return {"error": "Command selection is invalid",}
@@ -103,42 +115,53 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		unit_ids.append(stream.get_64())
 	if stream.get_available_bytes() < 2:
 		return {"error": "Command target header is incomplete",}
+	var source_team: int = -1
 	if stream.get_u8() != 0:
 		if stream.get_available_bytes() < 1:
 			return {"error": "Command source team is incomplete",}
-		stream.get_8()
+		source_team = stream.get_8()
+	var command_target_point: Variant
 	if stream.get_u8() != 0:
 		if stream.get_available_bytes() < 8:
 			return {"error": "Command target point is incomplete",}
-		stream.get_float()
-		stream.get_float()
+		command_target_point = Vector2(stream.get_float(), stream.get_float())
 	if stream.get_available_bytes() < 17:
 		return {"error": "Command metadata is incomplete",}
-	stream.get_64()
+	var command_target_id: int = stream.get_64()
 	var action_id: String = RwBinary.read_utf(stream)
-	stream.get_u8()
-	stream.get_u16()
+	var is_instant_command: bool = stream.get_u8() != 0
+	var allowed_team_mask: int = stream.get_u16()
 	var is_system_action: bool = stream.get_u8() != 0
+	var game_speed_change: float
+	var system_float: float
+	var system_action_type: int
 	if is_system_action:
 		if stream.get_available_bytes() < 13:
 			return {"error": "System action is incomplete",}
 		stream.get_u8()
-		stream.get_float()
-		stream.get_float()
-		stream.get_32()
+		game_speed_change = stream.get_float()
+		system_float = stream.get_float()
+		system_action_type = stream.get_32()
 	if stream.get_available_bytes() < 4:
 		return {"error": "Command target count is incomplete",}
 	var target_count: int = stream.get_32()
 	if target_count < 0 or target_count > MAX_COMMAND_TARGETS:
 		return {"error": "Command target count is invalid",}
 	var paths: Dictionary = {}
+	var command_targets: Dictionary = {}
 	for index: int in target_count:
 		var target_result: Dictionary = _read_command_target(stream)
 		if not str(target_result.get("error", "")).is_empty():
 			return target_result
 		var path_points: Array[Vector2i] = target_result["path"]
+		command_targets[int(target_result["unit_id"])] = target_result
 		if not path_points.is_empty():
 			paths[int(target_result["unit_id"])] = path_points
+	if stream.get_available_bytes() < 1:
+		return {"error": "Command priority flag is incomplete",}
+	var is_high_priority: bool = stream.get_u8() != 0
+	if stream.get_available_bytes() != 0:
+		return {"error": "Command contains unexpected trailing data",}
 	return {
 		"error": "",
 		"team": team,
@@ -150,8 +173,29 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		"stop_current_action": stop_current_action,
 		"target": target,
 		"target_id": target_id,
+		"build_queue_size": build_queue_size,
+		"attack_move_range": attack_move_range,
+		"max_waypoint_surviving_time": max_waypoint_surviving_time,
+		"order_is_repeating": order_is_repeating,
+		"order_is_queued": order_is_queued,
+		"force_move": force_move,
+		"order_action_id": order_action_id,
 		"unit_ids": unit_ids,
 		"paths": paths,
+		"command_targets": command_targets,
+		"attack_mode": attack_mode,
+		"rally_point": rally_point,
+		"clear_existing_orders": clear_existing_orders,
+		"source_team": source_team,
+		"command_target_point": command_target_point,
+		"command_target_id": command_target_id,
+		"is_instant_command": is_instant_command,
+		"allowed_team_mask": allowed_team_mask,
+		"is_system_action": is_system_action,
+		"game_speed_change": game_speed_change,
+		"system_float": system_float,
+		"system_action_type": system_action_type,
+		"is_high_priority": is_high_priority,
 	}
 
 
@@ -159,12 +203,10 @@ static func _read_command_target(stream: StreamPeerBuffer) -> Dictionary:
 	if stream.get_available_bytes() < 33:
 		return {"error": "Command target is incomplete",}
 	var unit_id: int = stream.get_64()
-	stream.get_float()
-	stream.get_float()
-	stream.get_float()
-	stream.get_float()
-	stream.get_32()
-	stream.get_32()
+	var start_position: Vector2 = Vector2(stream.get_float(), stream.get_float())
+	var target_position: Vector2 = Vector2(stream.get_float(), stream.get_float())
+	var created_tick: int = stream.get_32()
+	var movement_type: int = stream.get_32()
 	var path_points: Array[Vector2i] = []
 	if stream.get_u8() != 0:
 		if stream.get_available_bytes() < 1:
@@ -198,4 +240,12 @@ static func _read_command_target(stream: StreamPeerBuffer) -> Dictionary:
 							return {"error": "Compressed command path jump is incomplete",}
 						cell = Vector2i(path_stream.get_16(), path_stream.get_16())
 					path_points.append(cell)
-	return {"error": "", "unit_id": unit_id, "path": path_points,}
+	return {
+		"error": "",
+		"unit_id": unit_id,
+		"start_position": start_position,
+		"target_position": target_position,
+		"created_tick": created_tick,
+		"movement_type": movement_type,
+		"path": path_points,
+	}

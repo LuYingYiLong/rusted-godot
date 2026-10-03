@@ -10,6 +10,8 @@ const MAX_FRAME_LEAD: int = 18_000
 
 var current_frame: int
 var next_blocking_frame: int
+## 原版同步步长，数值为 2.0 时每秒推进约 30 帧
+var step_rate: float = 1.0
 
 var _fractional_frames: float
 var _pending_commands: Dictionary
@@ -18,6 +20,7 @@ var _pending_commands: Dictionary
 func reset() -> void:
 	current_frame = 0
 	next_blocking_frame = 0
+	step_rate = 1.0
 	_fractional_frames = 0.0
 	_pending_commands.clear()
 	frame_advanced.emit(current_frame, next_blocking_frame)
@@ -43,7 +46,7 @@ func advance(delta: float) -> void:
 	if current_frame >= next_blocking_frame:
 		_fractional_frames = 0.0
 		return
-	_fractional_frames += minf(delta, 0.25) * TICKS_PER_SECOND
+	_fractional_frames += minf(delta, 0.25) * TICKS_PER_SECOND / step_rate
 	var steps: int = 0
 	while _fractional_frames >= 1.0 and current_frame < next_blocking_frame and steps < MAX_STEPS_PER_UPDATE:
 		if _pending_commands.has(current_frame):
@@ -54,3 +57,9 @@ func advance(delta: float) -> void:
 		_fractional_frames -= 1.0
 		steps += 1
 		frame_advanced.emit(current_frame, next_blocking_frame)
+
+
+## 应用服务器同步命令中的步长变化
+func set_step_rate(value: float) -> void:
+	if value >= 0.1:
+		step_rate = value

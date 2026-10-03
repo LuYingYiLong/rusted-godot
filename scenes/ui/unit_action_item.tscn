@@ -13,7 +13,6 @@ script = ExtResource("1_ul0cg")
 
 [node name="Button" type="Button" parent="." unique_id=306079163]
 layout_mode = 2
-button_mask = 1
 
 [node name="ProgressBar" type="ProgressBar" parent="." unique_id=1237424826]
 unique_name_in_owner = true
@@ -40,7 +39,6 @@ stretch_mode = 5
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
-mouse_filter = 2
 theme_type_variation = &"UnitLabel"
 text = "UnitName"
 horizontal_alignment = 1
@@ -53,7 +51,7 @@ layout_mode = 2
 mouse_filter = 2
 color = Color(1, 0, 0, 0.23529412)
 
+[connection signal="gui_input" from="Button" to="." method="_on_button_gui_input"]
 [connection signal="mouse_entered" from="Button" to="." method="_on_button_mouse_entered"]
 [connection signal="mouse_exited" from="Button" to="." method="_on_button_mouse_exited"]
-[connection signal="gui_input" from="Button" to="." method="_on_button_gui_input"]
 [connection signal="pressed" from="Button" to="." method="_on_button_pressed"]

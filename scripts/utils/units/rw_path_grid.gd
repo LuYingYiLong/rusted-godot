@@ -120,6 +120,19 @@ func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_
 	_water_clearance.clear()
 
 
+## 建筑被摧毁后清除对应格子的动态阻挡
+func unblock_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
+	var center: Vector2i = world_to_cell(world_position)
+	for y: int in range(center.y + minimum_offset.y, center.y + maximum_offset.y + 1):
+		for x: int in range(center.x + minimum_offset.x, center.x + maximum_offset.x + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if _is_in_bounds(cell):
+				_structure_blocks[_cell_index(cell)] = 0
+	_land_clearance.clear()
+	_hover_clearance.clear()
+	_water_clearance.clear()
+
+
 func finalize_obstacles() -> void:
 	_land_clearance = _build_clearance(_land_costs)
 	_hover_clearance = _build_clearance(_hover_costs)

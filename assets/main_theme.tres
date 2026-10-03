@@ -4,6 +4,48 @@
 [ext_resource type="FontVariation" uid="uid://b7yfknp6y8e66" path="res://assets/fonts/bold_italics_font.tres" id="2_0arac"]
 [ext_resource type="FontVariation" uid="uid://chdxmh2gevyga" path="res://assets/fonts/italics_font.tres" id="3_611f8"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_611f8"]
+bg_color = Color(1, 1, 1, 0.39215687)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pefyd"]
+bg_color = Color(0, 0, 0, 0.39215687)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_upuy7"]
+bg_color = Color(0, 0, 0, 0.39215687)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2jsj3"]
+bg_color = Color(0, 0, 0, 0.49019608)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2est8"]
+bg_color = Color(0, 0, 0, 0.3137255)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7ojh6"]
+bg_color = Color(0, 0, 0, 0.49019608)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0arac"]
 bg_color = Color(0, 0, 0, 0.49019608)
 
@@ -23,6 +65,12 @@ border_width_bottom = 1
 border_color = Color(0.5370113, 0.5370114, 0.5370111, 1)
 
 [resource]
+Button/styles/disabled = SubResource("StyleBoxFlat_611f8")
+Button/styles/focus = SubResource("StyleBoxFlat_pefyd")
+Button/styles/hover = SubResource("StyleBoxFlat_upuy7")
+Button/styles/hover_pressed = SubResource("StyleBoxFlat_2jsj3")
+Button/styles/normal = SubResource("StyleBoxFlat_2est8")
+Button/styles/pressed = SubResource("StyleBoxFlat_7ojh6")
 DescriptionLabel/base_type = &"Label"
 DescriptionLabel/colors/font_color = Color(0.29219002, 0.29219005, 0.29219002, 1)
 DescriptionLabel/font_sizes/font_size = 12

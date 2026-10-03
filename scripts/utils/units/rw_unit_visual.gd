@@ -1,3 +1,4 @@
+## 根据单位状态绘制主体、阴影、武器和附加视觉层
 class_name RwUnitVisual
 extends Node2D
 
@@ -10,8 +11,15 @@ var relation: RwUnitTeamColors.Relation = RwUnitTeamColors.Relation.NEUTRAL
 var _provider: RwUnitAssetProvider
 var _alive_body_texture: Texture2D
 var _body_textures_by_level: Dictionary
+var _sprite_root: Node2D
+var _body_sprite: Sprite2D
+var _shadow_sprite: Sprite2D
+var _back_sprite: Sprite2D
+var _shield_sprite: Sprite2D
 var _weapon_mounts: Array[Node2D]
 var _weapon_definitions: Array[RwUnitWeaponDefinition]
+var _weapon_textures_by_level: Array[Dictionary]
+var _overlay_sprites: Array[Sprite2D]
 
 
 func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider, color: Color) -> void:
@@ -19,32 +27,41 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 	team_color = color
 	_provider = provider
 	name = unit_definition.unit_name
+	var profile: RwUnitVisualProfile = unit_definition.visual_profile
+	var shadow_alpha: float = profile.shadow_alpha if profile != null else 0.5
 	if not unit_definition.shadow_image.is_empty():
-		var shadow: Sprite2D = _make_sprite(provider.load_cached_texture(unit_definition.shadow_image), "Shadow")
-		shadow.position = unit_definition.shadow_offset
-		shadow.modulate.a = 0.5
-		add_child(shadow)
+		_shadow_sprite = _make_sprite(provider.load_cached_texture(unit_definition.shadow_image), "Shadow")
+		_shadow_sprite.position = unit_definition.shadow_offset
+		_shadow_sprite.modulate.a = shadow_alpha
+		_shadow_sprite.z_index = -2
+		add_child(_shadow_sprite)
 	elif unit_definition.generates_shadow:
-		var generated_shadow: Sprite2D = _make_sprite(provider.load_cached_texture(unit_definition.body_image), "Shadow")
-		generated_shadow.hframes = unit_definition.body_frames
-		generated_shadow.position = Vector2(2.0, 2.0)
-		generated_shadow.modulate = Color(0.0, 0.0, 0.0, 0.4)
-		add_child(generated_shadow)
+		_shadow_sprite = _make_sprite(provider.load_cached_texture(unit_definition.body_image), "Shadow")
+		_shadow_sprite.hframes = unit_definition.body_frames
+		_shadow_sprite.position = Vector2(2.0, 2.0)
+		_shadow_sprite.modulate = Color(0.0, 0.0, 0.0, shadow_alpha)
+		_shadow_sprite.z_index = -2
+		add_child(_shadow_sprite)
+	_sprite_root = Node2D.new()
+	_sprite_root.name = "SpriteRoot"
+	add_child(_sprite_root)
 	if not unit_definition.back_image.is_empty():
-		add_child(_make_sprite(provider.load_cached_texture(unit_definition.back_image), "Back"))
+		_back_sprite = _make_sprite(provider.load_cached_texture(unit_definition.back_image), "Back")
+		_back_sprite.z_index = -1
+		_sprite_root.add_child(_back_sprite)
 	var body_texture: Texture2D = provider.load_team_texture(unit_definition.body_image, color) if unit_definition.body_team_colored else provider.load_cached_texture(unit_definition.body_image)
 	_alive_body_texture = body_texture
 	_body_textures_by_level.clear()
 	for level: int in unit_definition.body_images_by_level:
 		var image_name: String = str(unit_definition.body_images_by_level[level])
 		_body_textures_by_level[level] = provider.load_team_texture(image_name, color) if unit_definition.body_team_colored else provider.load_cached_texture(image_name)
-	var body: Sprite2D = _make_sprite(body_texture, "Body")
-	body.hframes = unit_definition.body_frames
-	body.scale = unit_definition.body_scale
+	_body_sprite = _make_sprite(body_texture, "Body")
+	_body_sprite.hframes = unit_definition.body_frames
+	_body_sprite.scale = unit_definition.body_scale
 	if unit_definition.body_region.size != Vector2i.ZERO:
-		body.region_enabled = true
-		body.region_rect = Rect2(unit_definition.body_region)
-	add_child(body)
+		_body_sprite.region_enabled = true
+		_body_sprite.region_rect = Rect2(unit_definition.body_region)
+	_sprite_root.add_child(_body_sprite)
 	_weapon_definitions.clear()
 	for weapon_part: RwUnitWeaponDefinition in unit_definition.weapon_parts:
 		if weapon_part != null:
@@ -64,8 +81,34 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 		var weapon_sprite: Sprite2D = _make_sprite(weapon_texture, "Sprite")
 		weapon_sprite.position = weapon.sprite_offset
 		mount.add_child(weapon_sprite)
-		add_child(mount)
+		_sprite_root.add_child(mount)
 		_weapon_mounts.append(mount)
+		var level_textures: Dictionary
+		for level: int in weapon.images_by_level:
+			var level_image: String = str(weapon.images_by_level[level])
+			level_textures[level] = provider.load_team_texture(level_image, color) if weapon.team_colored else provider.load_cached_texture(level_image)
+		_weapon_textures_by_level.append(level_textures)
+	if profile != null:
+		for index: int in profile.overlays.size():
+			var overlay: RwVisualOverlayDefinition = profile.overlays[index]
+			if overlay == null:
+				continue
+			var texture: Texture2D = provider.load_team_texture(overlay.image, color) if overlay.team_colored else provider.load_cached_texture(overlay.image)
+			var overlay_sprite: Sprite2D = _make_sprite(texture, "Overlay%d" % index)
+			overlay_sprite.position = overlay.offset
+			overlay_sprite.z_index = overlay.draw_order
+			overlay_sprite.hframes = maxi(overlay.frames, 1)
+			overlay_sprite.modulate.a = overlay.opacity
+			if overlay.ground_shadow:
+				add_child(overlay_sprite)
+			else:
+				_sprite_root.add_child(overlay_sprite)
+			_overlay_sprites.append(overlay_sprite)
+		if not profile.shield_image.is_empty():
+			_shield_sprite = _make_sprite(provider.load_cached_texture(profile.shield_image), "Shield")
+			_shield_sprite.scale = profile.shield_scale
+			_shield_sprite.z_index = 5
+			_sprite_root.add_child(_shield_sprite)
 	if body_texture == null:
 		configure_placeholder(unit_definition.unit_name, color)
 
@@ -87,7 +130,7 @@ func set_relation(value: RwUnitTeamColors.Relation) -> void:
 
 
 func get_hit_radius() -> float:
-	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
+	var body: Sprite2D = _body_sprite
 	if body == null or body.texture == null:
 		return 10.0
 	var body_size: Vector2 = body.get_rect().size * body.scale
@@ -95,7 +138,7 @@ func get_hit_radius() -> float:
 
 
 func get_icon_texture() -> Texture2D:
-	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
+	var body: Sprite2D = _body_sprite
 	if body == null or body.texture == null:
 		return null
 	var region: Rect2
@@ -127,7 +170,7 @@ func configure_placeholder(unit_name: String, color: Color) -> void:
 
 
 func _draw() -> void:
-	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
+	var body: Sprite2D = _body_sprite
 	if body == null or body.texture == null:
 		draw_circle(Vector2.ZERO, 5.0, team_color)
 		draw_arc(Vector2.ZERO, 6.0, 0.0, TAU, 16, Color.BLACK, 1.0)
@@ -147,7 +190,7 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, selection_radius, 0.0, TAU, 32, selection_color)
 	if not state.is_dead and (state.health < state.max_health or state.build_progress < 1.0):
 		var bar_width: float = clampf(body_size.x, 24.0, 70.0)
-		var bar_y: float = maxf(body_size.y * 0.5, 8.0) + 5.0
+		var bar_y: float = maxf(body_size.y * 0.5, 8.0) + 5.0 - _get_visual_height()
 		draw_set_transform(Vector2.ZERO, -rotation, Vector2.ONE)
 		if state.health < state.max_health:
 			var health_ratio: float = state.health / state.max_health if state.max_health > 0.0 else 0.0
@@ -157,21 +200,26 @@ func _draw() -> void:
 		if state.build_progress < 1.0:
 			draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 5.0), Color(0.0, 0.0, 0.55, 0.47), false)
 			draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * state.build_progress, 3.0), Color(0.0, 0.0, 0.59, 0.78))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _on_state_changed(unit_state: RwUnitState) -> void:
 	position = unit_state.world_position
-	modulate = Color.WHITE
+	var profile: RwUnitVisualProfile = definition.visual_profile if definition != null else null
 	var build_tint: Color = Color.WHITE
 	if not unit_state.is_dead and unit_state.build_progress < 1.0:
 		build_tint = Color(140.0 / 255.0, 1.0, 140.0 / 255.0, (20.0 + unit_state.build_progress * 220.0) / 255.0)
+	if profile != null and not unit_state.is_dead and (unit_state.submerged or unit_state.altitude < profile.submerged_below):
+		build_tint *= profile.submerged_tint
 	var render_rotation_offset: float = definition.render_rotation_offset_degrees if definition != null else 0.0
 	rotation_degrees = unit_state.body_rotation_degrees + render_rotation_offset
 	if definition != null:
 		z_index = definition.dead_draw_layer if unit_state.is_dead and definition.dead_draw_layer >= 0 else definition.draw_layer
-	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
+	if _sprite_root != null:
+		_sprite_root.position = Vector2(0.0, -_get_visual_height()).rotated(-rotation)
+		_sprite_root.modulate = build_tint
+	var body: Sprite2D = _body_sprite
 	if body != null and definition != null:
-		body.modulate = build_tint
 		if unit_state.is_dead and not definition.dead_image.is_empty():
 			body.texture = _provider.load_cached_texture(definition.dead_image)
 			body.hframes = 1
@@ -190,15 +238,42 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 		mount.rotation_degrees = weapon_angle + weapon.rotation_offset_degrees - rotation_degrees
 		var weapon_sprite: Sprite2D = mount.get_node_or_null("Sprite") as Sprite2D
 		if weapon_sprite != null:
-			weapon_sprite.modulate = build_tint
-	var shadow: Sprite2D = get_node_or_null("Shadow") as Sprite2D
-	if shadow != null:
-		shadow.visible = not unit_state.is_dead
-	var back: Sprite2D = get_node_or_null("Back") as Sprite2D
-	if back != null:
-		back.visible = not unit_state.is_dead
-		back.modulate = build_tint
+			var level_textures: Dictionary = _weapon_textures_by_level[index]
+			if level_textures.has(unit_state.tech_level):
+				weapon_sprite.texture = level_textures[unit_state.tech_level]
+			else:
+				weapon_sprite.texture = _provider.load_team_texture(weapon.image, team_color) if weapon.team_colored else _provider.load_cached_texture(weapon.image)
+	if _shadow_sprite != null:
+		_shadow_sprite.visible = not unit_state.is_dead and not unit_state.submerged and (profile == null or unit_state.altitude >= profile.submerged_below)
+	if _back_sprite != null:
+		_back_sprite.visible = not unit_state.is_dead
+	if profile != null:
+		var overlay_index: int = 0
+		for overlay: RwVisualOverlayDefinition in profile.overlays:
+			if overlay == null:
+				continue
+			var overlay_sprite: Sprite2D = _overlay_sprites[overlay_index]
+			overlay_index += 1
+			overlay_sprite.visible = not unit_state.is_dead and not unit_state.submerged and unit_state.altitude >= profile.submerged_below
+			overlay_sprite.rotation_degrees = float(unit_state.visual_frame) * overlay.rotation_speed_degrees
+			if overlay.frames > 1 and overlay.frame_step_frames > 0:
+				overlay_sprite.frame = floori(float(unit_state.visual_frame) / float(overlay.frame_step_frames)) % overlay.frames
+	if _shield_sprite != null and profile != null:
+		_shield_sprite.visible = not unit_state.is_dead and unit_state.max_shield > 0.0 and (unit_state.shield > 0.0 or unit_state.shield_flash_frames > 0)
+		var shield_ratio: float = unit_state.shield / unit_state.max_shield if unit_state.max_shield > 0.0 else 0.0
+		var flash_alpha: float = float(unit_state.shield_flash_frames) / 12.0
+		_shield_sprite.modulate.a = clampf(profile.shield_alpha_at_full * shield_ratio + flash_alpha * 0.45, 0.0, 1.0)
 	queue_redraw()
+
+
+func _get_visual_height() -> float:
+	if state == null or state.is_dead:
+		return 0.0
+	var height: float = state.altitude
+	var profile: RwUnitVisualProfile = definition.visual_profile if definition != null else null
+	if profile != null and profile.bob_amplitude != 0.0:
+		height += sin(deg_to_rad(float(state.visual_frame) * profile.bob_speed_degrees)) * profile.bob_amplitude
+	return height
 
 
 func _make_sprite(texture: Texture2D, sprite_name: String) -> Sprite2D:

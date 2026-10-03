@@ -1,7 +1,24 @@
+## 保存单位在同步帧中可变化的状态
 class_name RwUnitState
 extends Resource
 
 signal state_changed(state: RwUnitState)
+
+const NAVIGATION_ORDER_TYPES: Array[String] = [
+	"move",
+	"attackMove",
+	"patrol",
+	"guardAt",
+	"unloadAt",
+	"attack",
+	"repair",
+	"reclaim",
+	"loadInto",
+	"loadUp",
+	"guard",
+	"touchTarget",
+	"follow",
+]
 
 @export var object_id: int
 @export var source_id: String
@@ -12,8 +29,16 @@ signal state_changed(state: RwUnitState)
 @export var turret_rotation_degrees: float
 @export var weapon_rotations_degrees: PackedFloat32Array
 @export var altitude: float
+## 是否处于水下，未指定时按高度推断
+@export var submerged: bool
 @export var health: float
 @export var max_health: float
+## 当前护盾值
+@export var shield: float
+## 护盾最大值
+@export var max_shield: float
+## 护盾受击闪烁剩余同步帧数
+@export var shield_flash_frames: int
 @export var build_progress: float = 1.0
 @export var movement_speed: float
 @export var water_movement_speed: float
@@ -27,10 +52,17 @@ signal state_changed(state: RwUnitState)
 @export var push_mass: float = 3000.0
 @export var sight_range: int
 @export var animation_frame: int
+## 附加视觉层所用的同步帧计数
+@export var visual_frame: int
 @export var tech_level: int = 1
 @export var is_dead: bool
 @export var order_type: String
 @export var order_target: Vector2
+@export var order_target_id: int = -1
+## 当前同步命令携带的单位动作编号
+@export var order_action_id: String
+## 原版攻击模式编号
+@export var attack_mode: int = -1
 @export var resource_balances: Dictionary
 
 var _path_waypoints: Array[Vector2]
@@ -45,6 +77,8 @@ var _animation_ping_pong: bool
 var _animation_speed_follows_tech_level: bool
 var _animation_tick: float
 var _animation_step: int
+var _has_visual_clock: bool
+var _submerged_below: float = -1.0
 
 
 func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> void:
@@ -53,6 +87,11 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	unit_name = str(spawn.get("unit_name", ""))
 	team = str(spawn.get("team", ""))
 	world_position = spawn.get("position", Vector2.ZERO)
+	var visual_profile: RwUnitVisualProfile = definition.visual_profile if definition != null else null
+	var spawn_altitude: float = visual_profile.spawn_altitude if visual_profile != null else 0.0
+	_submerged_below = visual_profile.submerged_below if visual_profile != null else -1.0
+	altitude = float(spawn.get("altitude", spawn_altitude))
+	submerged = bool(spawn.get("submerged", altitude < _submerged_below))
 	body_rotation_degrees = float(spawn.get("rotation_degrees", 0.0))
 	if definition != null and not definition.applies_spawn_rotation:
 		body_rotation_degrees = 0.0
@@ -63,11 +102,16 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 		for weapon: RwUnitWeaponDefinition in definition.weapon_parts:
 			if weapon != null:
 				rotation_count = maxi(rotation_count, weapon.rotation_state_index + 1)
+		for weapon: RwWeaponDefinition in definition.combat_weapons:
+			if weapon != null:
+				rotation_count = maxi(rotation_count, weapon.rotation_state_index + 1)
 	for index: int in rotation_count:
 		weapon_rotations_degrees.append(turret_rotation_degrees)
 	if spawn.has("weapon_rotations_degrees"):
 		_apply_weapon_rotations(spawn["weapon_rotations_degrees"])
 	max_health = definition.max_health if definition != null else 1.0
+	max_shield = maxf(definition.max_shield, 0.0) if definition != null else 0.0
+	shield = clampf(float(spawn.get("shield", max_shield)), 0.0, max_shield)
 	build_progress = clampf(float(spawn.get("build_progress", 1.0)), 0.0, 1.0)
 	movement_speed = definition.movement_speed if definition != null else 0.0
 	water_movement_speed = definition.water_movement_speed if definition != null else 0.0
@@ -81,12 +125,14 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	push_mass = definition.push_mass if definition != null else 3000.0
 	sight_range = definition.sight_range if definition != null else 15
 	tech_level = maxi(int(spawn.get("tech_level", 1)), 1)
+	visual_frame = maxi(int(spawn.get("visual_frame", 0)), 0)
 	_animation_step_frames = definition.animation_step_frames if definition != null else 0
 	_animation_frame_count = definition.body_frames if definition != null else 1
 	_animation_ping_pong = definition.animation_ping_pong if definition != null else false
 	_animation_speed_follows_tech_level = definition.animation_speed_follows_tech_level if definition != null else false
 	_animation_tick = 0.0
 	_animation_step = 0
+	_has_visual_clock = visual_profile.is_animated() if visual_profile != null else false
 	health = clampf(float(spawn.get("health", max_health)), 0.0, max_health)
 	state_changed.emit(self)
 
@@ -106,18 +152,36 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		_apply_weapon_rotations(snapshot["weapon_rotations_degrees"])
 	if snapshot.has("altitude"):
 		altitude = float(snapshot["altitude"])
+		if not snapshot.has("submerged"):
+			submerged = altitude < _submerged_below
+	if snapshot.has("submerged"):
+		submerged = bool(snapshot["submerged"])
 	if snapshot.has("max_health"):
 		max_health = maxf(float(snapshot["max_health"]), 0.0)
+	if snapshot.has("max_shield"):
+		max_shield = maxf(float(snapshot["max_shield"]), 0.0)
+		shield = minf(shield, max_shield)
+	if snapshot.has("shield"):
+		var next_shield: float = clampf(float(snapshot["shield"]), 0.0, max_shield)
+		if next_shield < shield:
+			shield_flash_frames = 12
+		shield = next_shield
+	if snapshot.has("shield_flash_frames"):
+		shield_flash_frames = maxi(int(snapshot["shield_flash_frames"]), 0)
 	if snapshot.has("build_progress"):
 		build_progress = clampf(float(snapshot["build_progress"]), 0.0, 1.0)
 	if snapshot.has("health"):
 		health = clampf(float(snapshot["health"]), 0.0, max_health)
 	if snapshot.has("animation_frame"):
 		animation_frame = maxi(int(snapshot["animation_frame"]), 0)
+	if snapshot.has("visual_frame"):
+		visual_frame = maxi(int(snapshot["visual_frame"]), 0)
 	if snapshot.has("tech_level"):
 		tech_level = maxi(int(snapshot["tech_level"]), 1)
 	if snapshot.has("resource_balances"):
 		resource_balances = (snapshot["resource_balances"] as Dictionary).duplicate()
+	if snapshot.has("attack_mode"):
+		attack_mode = int(snapshot["attack_mode"])
 	if snapshot.has("is_dead"):
 		is_dead = bool(snapshot["is_dead"])
 	elif health <= 0.0:
@@ -125,35 +189,83 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	state_changed.emit(self)
 
 
+## 读取指定炮塔的世界朝向，越界时返回主炮塔朝向
 func get_weapon_rotation(index: int) -> float:
 	if index >= 0 and index < weapon_rotations_degrees.size():
 		return weapon_rotations_degrees[index]
 	return turret_rotation_degrees
 
 
-func advance_visual_animation(frame_count: int) -> void:
-	if frame_count <= 0 or is_dead or build_progress < 1.0 or _animation_step_frames <= 0 or _animation_frame_count <= 1:
+## 修改炮塔朝向并通知绘制层，角度使用世界坐标
+func set_weapon_rotation(index: int, angle_degrees: float) -> void:
+	if index < 0:
 		return
-	var cycle_length: int = _animation_frame_count * 2 if _animation_ping_pong else _animation_frame_count
+	while weapon_rotations_degrees.size() <= index:
+		weapon_rotations_degrees.append(turret_rotation_degrees)
+	var normalized_angle: float = wrapf(angle_degrees, -180.0, 180.0)
+	if is_equal_approx(weapon_rotations_degrees[index], normalized_angle):
+		return
+	weapon_rotations_degrees[index] = normalized_angle
+	if index == 0:
+		turret_rotation_degrees = normalized_angle
+	state_changed.emit(self)
+
+
+## 扣除生命值，首次死亡时返回 true
+func apply_damage(amount: float) -> bool:
+	if amount <= 0.0 or is_dead:
+		return false
+	health = maxf(health - amount, 0.0)
+	if health <= 0.0:
+		is_dead = true
+	state_changed.emit(self)
+	return is_dead
+
+
+## 修改护盾值，受击时短暂增强护盾贴图亮度
+func set_shield(value: float) -> void:
+	var next_shield: float = clampf(value, 0.0, max_shield)
+	if is_equal_approx(next_shield, shield):
+		return
+	if next_shield < shield:
+		shield_flash_frames = 12
+	shield = next_shield
+	state_changed.emit(self)
+
+
+func advance_visual_animation(frame_count: int) -> void:
+	if frame_count <= 0 or is_dead or build_progress < 1.0:
+		return
 	var is_changed: bool
-	for frame: int in frame_count:
-		var animation_speed: float = float(tech_level) if _animation_speed_follows_tech_level else 1.0
-		_animation_tick = maxf(_animation_tick - animation_speed, 0.0)
-		if _animation_tick > 0.0:
-			continue
-		_animation_tick = float(_animation_step_frames)
-		_animation_step = (_animation_step + 1) % cycle_length
-		var next_frame: int = mini(_animation_step, cycle_length - 1 - _animation_step) if _animation_ping_pong else _animation_step
-		if animation_frame != next_frame:
-			animation_frame = next_frame
-			is_changed = true
+	if _has_visual_clock:
+		visual_frame += frame_count
+		is_changed = true
+	if shield_flash_frames > 0:
+		shield_flash_frames = maxi(shield_flash_frames - frame_count, 0)
+		is_changed = true
+	if _animation_step_frames > 0 and _animation_frame_count > 1:
+		var cycle_length: int = _animation_frame_count * 2 if _animation_ping_pong else _animation_frame_count
+		for frame: int in frame_count:
+			var animation_speed: float = float(tech_level) if _animation_speed_follows_tech_level else 1.0
+			_animation_tick = maxf(_animation_tick - animation_speed, 0.0)
+			if _animation_tick > 0.0:
+				continue
+			_animation_tick = float(_animation_step_frames)
+			_animation_step = (_animation_step + 1) % cycle_length
+			var next_frame: int = mini(_animation_step, cycle_length - 1 - _animation_step) if _animation_ping_pong else _animation_step
+			if animation_frame != next_frame:
+				animation_frame = next_frame
+				is_changed = true
 	if is_changed:
 		state_changed.emit(self)
 
 
-func apply_order(command_type: String, target: Vector2) -> void:
+## 应用同步命令并清除旧路径，目标单位编号可为空
+func apply_order(command_type: String, target: Vector2, target_id: int = -1, action_id: String = "") -> void:
 	order_type = command_type
 	order_target = target
+	order_target_id = target_id
+	order_action_id = action_id
 	_path_waypoints.clear()
 	_path_index = 0
 	_movement_velocity = 0.0
@@ -162,11 +274,13 @@ func apply_order(command_type: String, target: Vector2) -> void:
 	state_changed.emit(self)
 
 
-func apply_move_order(target: Vector2, waypoints: Array[Vector2], command_type: String = "move") -> void:
+func apply_move_order(target: Vector2, waypoints: Array[Vector2], command_type: String = "move", target_id: int = -1, action_id: String = "") -> void:
 	var pending_exit: bool = _is_exiting_factory and _path_index < _path_waypoints.size()
 	var exit_target: Vector2 = _path_waypoints[_path_index] if pending_exit else Vector2.ZERO
 	order_type = command_type
 	order_target = target
+	order_target_id = target_id
+	order_action_id = action_id
 	_path_waypoints = waypoints.duplicate()
 	if pending_exit and (_path_waypoints.is_empty() or _path_waypoints[0] != exit_target):
 		_path_waypoints.push_front(exit_target)
@@ -193,7 +307,7 @@ func get_factory_exit_target() -> Vector2:
 
 func get_navigation_path() -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
-	if is_dead or (order_type != "move" and order_type != "attackMove"):
+	if is_dead or not _is_navigation_order():
 		return points
 	if _path_index >= _path_waypoints.size():
 		return points
@@ -204,14 +318,18 @@ func get_navigation_path() -> PackedVector2Array:
 
 
 func advance_movement(frame_count: int, path_grid: RwPathGrid) -> void:
-	if frame_count <= 0 or is_dead or movement_speed <= 0.0 or (order_type != "move" and order_type != "attackMove"):
+	if frame_count <= 0 or is_dead or movement_speed <= 0.0 or not _is_navigation_order():
 		return
 	if _path_waypoints.is_empty():
 		return
 	var is_changed: bool
 	for frame: int in frame_count:
 		if _path_index >= _path_waypoints.size():
-			order_type = ""
+			if order_target_id <= 0:
+				order_type = ""
+			else:
+				_path_waypoints.clear()
+				_path_index = 0
 			_movement_velocity = 0.0
 			_is_exiting_factory = false
 			is_changed = true
@@ -250,6 +368,10 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid) -> void:
 		is_changed = true
 	if is_changed:
 		state_changed.emit(self)
+
+
+func _is_navigation_order() -> bool:
+	return NAVIGATION_ORDER_TYPES.has(order_type)
 
 
 func displace_from_collision(displacement: Vector2, path_grid: RwPathGrid) -> void:
