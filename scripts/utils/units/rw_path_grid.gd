@@ -55,6 +55,25 @@ func cell_to_world(cell: Vector2i) -> Vector2:
 	return (Vector2(cell) + Vector2(0.5, 0.5)) * Vector2(tile_size)
 
 
+## 按建筑占地的中心把放置位置吸附到地图格
+func snap_structure_position(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2:
+	var center_offset: Vector2 = _structure_center_offset(minimum_offset, maximum_offset)
+	var anchor: Vector2i = Vector2i(
+		roundi(world_position.x / float(tile_size.x) - center_offset.x),
+		roundi(world_position.y / float(tile_size.y) - center_offset.y),
+	)
+	return (Vector2(anchor) + center_offset) * Vector2(tile_size)
+
+
+## 返回建筑占地相对格子的锚点
+func structure_anchor_cell(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2i:
+	var center_offset: Vector2 = _structure_center_offset(minimum_offset, maximum_offset)
+	return Vector2i(
+		roundi(world_position.x / float(tile_size.x) - center_offset.x),
+		roundi(world_position.y / float(tile_size.y) - center_offset.y),
+	)
+
+
 func is_water_at(world_position: Vector2) -> bool:
 	var cell: Vector2i = world_to_cell(world_position)
 	return _is_in_bounds(cell) and _water_tiles[_cell_index(cell)] != 0
@@ -65,7 +84,7 @@ func is_passable(cell: Vector2i, movement_type: String) -> bool:
 
 
 func get_placement_error(world_position: Vector2, definition: RwUnitDefinition) -> String:
-	var center: Vector2i = world_to_cell(world_position)
+	var center: Vector2i = structure_anchor_cell(world_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	if not _is_in_bounds(center):
 		return "Cannot place here"
 	var center_index: int = _cell_index(center)
@@ -109,7 +128,7 @@ func cost_at(cell: Vector2i, movement_type: String) -> int:
 
 
 func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
-	var center: Vector2i = world_to_cell(world_position)
+	var center: Vector2i = structure_anchor_cell(world_position, minimum_offset, maximum_offset)
 	for y: int in range(center.y + minimum_offset.y, center.y + maximum_offset.y + 1):
 		for x: int in range(center.x + minimum_offset.x, center.x + maximum_offset.x + 1):
 			var cell: Vector2i = Vector2i(x, y)
@@ -122,7 +141,7 @@ func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_
 
 ## 建筑被摧毁后清除对应格子的动态阻挡
 func unblock_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
-	var center: Vector2i = world_to_cell(world_position)
+	var center: Vector2i = structure_anchor_cell(world_position, minimum_offset, maximum_offset)
 	for y: int in range(center.y + minimum_offset.y, center.y + maximum_offset.y + 1):
 		for x: int in range(center.x + minimum_offset.x, center.x + maximum_offset.x + 1):
 			var cell: Vector2i = Vector2i(x, y)
@@ -255,6 +274,13 @@ func has_clear_line(start_position: Vector2, end_position: Vector2, movement_typ
 				return false
 		previous_cell = cell
 	return true
+
+
+func _structure_center_offset(minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2:
+	return Vector2(
+		1.0 if minimum_offset.x == 0 and maximum_offset.x == 1 else 0.5,
+		1.0 if minimum_offset.y == 0 and maximum_offset.y == 1 else 0.5,
+	)
 
 
 func _smooth_points(start_position: Vector2, raw_points: Array[Vector2], movement_type: String) -> Array[Vector2]:

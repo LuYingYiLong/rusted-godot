@@ -263,6 +263,10 @@ func _draw() -> void:
 func _get_footprint_rect() -> Rect2:
 	var tile_size: Vector2 = Vector2(_footprint_tile_size)
 	var minimum: Vector2 = Vector2(definition.structure_footprint_min) - Vector2(0.5, 0.5)
+	if definition.structure_footprint_min.x == 0 and definition.structure_footprint_max.x == 1:
+		minimum.x = -1.0
+	if definition.structure_footprint_min.y == 0 and definition.structure_footprint_max.y == 1:
+		minimum.y = -1.0
 	var tile_count: Vector2 = Vector2(definition.structure_footprint_max - definition.structure_footprint_min + Vector2i.ONE)
 	return Rect2(minimum * tile_size, tile_count * tile_size)
 

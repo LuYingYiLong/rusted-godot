@@ -99,6 +99,7 @@ func _ready() -> void:
 	_unit_orders.order_applied.connect(_on_unit_order_applied)
 	_combat = RwBattleCombat.new()
 	_combat.projectile_fired.connect(_on_projectile_fired)
+	_combat.projectile_impacted.connect(projectile_layer.show_impact)
 	_combat.unit_destroyed.connect(_on_combat_unit_destroyed)
 	_combat.configure(_unit_states, _unit_registry, RwRoomClient.players)
 	projectile_layer.set_projectiles(_combat.projectiles)
@@ -382,7 +383,7 @@ func _draw_navigation_overlay() -> void:
 	if _placement_action != null and _path_grid != null:
 		var definition: RwUnitDefinition = _unit_registry.find_definition(_placement_action.target_source_id, _placement_action.target_unit_name)
 		if definition != null:
-			var cell: Vector2i = _path_grid.world_to_cell(_placement_position)
+			var cell: Vector2i = _path_grid.structure_anchor_cell(_placement_position, definition.structure_footprint_min, definition.structure_footprint_max)
 			var placement_color: Color = Color(0.1, 1.0, 0.2, 0.3) if _placement_error.is_empty() else Color(1.0, 0.15, 0.1, 0.4)
 			for y: int in range(cell.y + definition.structure_footprint_min.y, cell.y + definition.structure_footprint_max.y + 1):
 				for x: int in range(cell.x + definition.structure_footprint_min.x, cell.x + definition.structure_footprint_max.x + 1):
@@ -633,9 +634,10 @@ func _update_placement_preview() -> void:
 	if _placement_action == null or _path_grid == null:
 		return
 	var world_position: Vector2 = _screen_to_world(get_viewport().get_mouse_position())
-	var cell: Vector2i = _path_grid.world_to_cell(world_position)
-	_placement_position = _path_grid.cell_to_world(cell)
 	var definition: RwUnitDefinition = _unit_registry.find_definition(_placement_action.target_source_id, _placement_action.target_unit_name)
+	if definition == null:
+		return
+	_placement_position = _path_grid.snap_structure_position(world_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	_placement_error = _get_build_placement_error(_placement_position, definition)
 	if _placement_preview != null:
 		_placement_preview.state.apply_snapshot({"position": _placement_position,})
@@ -649,13 +651,13 @@ func _get_build_placement_error(world_position: Vector2, definition: RwUnitDefin
 	var error: String = _path_grid.get_placement_error(world_position, definition)
 	if not error.is_empty():
 		return error
-	var center: Vector2i = _path_grid.world_to_cell(world_position)
+	var center: Vector2i = _path_grid.structure_anchor_cell(world_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	var footprint: Rect2i = Rect2i(center + definition.structure_footprint_min, definition.structure_footprint_max - definition.structure_footprint_min + Vector2i.ONE)
 	for site: Dictionary in _build_sites:
 		if bool(site.get("finished", false)):
 			continue
 		var site_definition: RwUnitDefinition = site["definition"]
-		var site_center: Vector2i = _path_grid.world_to_cell(site["position"])
+		var site_center: Vector2i = _path_grid.structure_anchor_cell(site["position"], site_definition.structure_footprint_min, site_definition.structure_footprint_max)
 		var site_footprint: Rect2i = Rect2i(site_center + site_definition.structure_footprint_min, site_definition.structure_footprint_max - site_definition.structure_footprint_min + Vector2i.ONE)
 		if footprint.intersects(site_footprint):
 			return "Location is reserved"
@@ -768,7 +770,7 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 		_advance_service_orders()
 		_advance_unit_generation(first_frame + step)
 		if _combat != null:
-			_combat.advance_frame()
+			_combat.advance_frame(RwRoomClient.battle_timeline.step_rate)
 	if frame_delta > 0:
 		projectile_layer.queue_redraw()
 		_refresh_fog_visibility()
@@ -973,9 +975,9 @@ func _apply_build_command(command: Dictionary) -> void:
 	if definition == null:
 		return
 	var target: Vector2 = command.get("target", Vector2.ZERO)
-	var _position: Vector2 = _path_grid.cell_to_world(_path_grid.world_to_cell(target))
+	var _position: Vector2 = _path_grid.snap_structure_position(target, definition.structure_footprint_min, definition.structure_footprint_max)
 	var builder_ids: Array[int] = []
-	var build_action: RwUnitActionDefinition
+	var valid_actions: Array[RwUnitActionDefinition] = []
 	for object_id: int in command.get("unit_ids", []):
 		var builder: RwUnitState = _unit_states.get(object_id) as RwUnitState
 		if builder == null or builder.is_dead or _unit_orders == null or not _unit_orders.can_apply_to_unit(builder, team_slot, allowed_mask):
@@ -990,11 +992,12 @@ func _apply_build_command(command: Dictionary) -> void:
 						break
 		if candidate_action == null or candidate_action.kind != RwUnitActionDefinition.Kind.PLACE_BUILDING:
 			continue
-		if build_action == null:
-			build_action = candidate_action
+		if valid_actions.is_empty():
+			valid_actions.append(candidate_action)
 		builder_ids.append(object_id)
 	if builder_ids.is_empty():
 		return
+	var build_action: RwUnitActionDefinition = valid_actions[0]
 	var site_id: int = _next_build_site_id
 	_next_build_site_id += 1
 	_build_sites.append({
@@ -1007,6 +1010,7 @@ func _apply_build_command(command: Dictionary) -> void:
 		"cost": float(build_action.resource_costs.get("credits", 0.0)),
 		"object_id": 0,
 		"progress": 0.0,
+		"created_frame": -1,
 		"next_attempt_frame": 0,
 		"finished": false,
 	})
@@ -1024,7 +1028,7 @@ func _apply_build_command(command: Dictionary) -> void:
 
 
 func _find_build_approach(builder_position: Vector2, site_position: Vector2, definition: RwUnitDefinition) -> Vector2:
-	var center: Vector2i = _path_grid.world_to_cell(site_position)
+	var center: Vector2i = _path_grid.structure_anchor_cell(site_position, definition.structure_footprint_min, definition.structure_footprint_max)
 	var minimum: Vector2i = center + definition.structure_footprint_min - Vector2i.ONE
 	var maximum: Vector2i = center + definition.structure_footprint_max + Vector2i.ONE
 	var best_position: Vector2 = builder_position
@@ -1127,6 +1131,9 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 			building = _create_building_site(site, candidate_object_id)
 			if building == null:
 				return
+			site["created_frame"] = frame
+		if frame <= int(site["created_frame"]):
+			return
 		var progress: float = minf(float(site["progress"]) + float(site["rate"]), 1.0)
 		site["progress"] = progress
 		building.apply_snapshot({"build_progress": progress,})
@@ -1318,9 +1325,10 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	if definition == null:
 		return
 	var factory_definition: RwUnitDefinition = _unit_registry.find_definition(factory.source_id, factory.unit_name)
-	var exit_radius: float = factory_definition.collision_radius if factory_definition != null else 30.0
-	var exit_position: Vector2 = _find_factory_exit(factory.world_position, definition.movement_type, exit_radius * 3.0)
-	var spawn_position: Vector2 = factory.world_position + Vector2(0.0, 5.0)
+	var exit_move_away: float = factory_definition.factory_exit_move_away if factory_definition != null else 70.0
+	var exit_offset: Vector2 = factory_definition.factory_exit_offset if factory_definition != null else Vector2(0.0, 9.0)
+	var exit_position: Vector2 = _find_factory_exit(factory.world_position, definition.movement_type, exit_move_away)
+	var spawn_position: Vector2 = factory.world_position + exit_offset
 	if factory.unit_name == "seaFactory":
 		spawn_position.y = maxf(spawn_position.y, factory.world_position.y - 20.0 + definition.collision_radius)
 	var spawn: Dictionary = {
@@ -1339,7 +1347,7 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	var unit_state: RwUnitState = RwUnitState.new()
 	unit_state.initialize_from_spawn(spawn, definition)
 	if unit_state.movement_speed > 0.0 and factory_definition != null:
-		var factory_cell: Vector2i = _path_grid.world_to_cell(factory.world_position) if _path_grid != null else Vector2i.ZERO
+		var factory_cell: Vector2i = _path_grid.structure_anchor_cell(factory.world_position, factory_definition.structure_footprint_min, factory_definition.structure_footprint_max) if _path_grid != null else Vector2i.ZERO
 		unit_state.apply_factory_exit(
 			exit_position,
 			factory_cell,
@@ -1458,16 +1466,20 @@ func _separate_mobile_units() -> void:
 			continue
 		for second_index: int in range(first_index + 1, _mobile_unit_states.size()):
 			var second: RwUnitState = _mobile_unit_states[second_index]
-			if second.is_dead or second.collision_radius <= 0.0:
+			if second.is_dead or second.collision_radius <= 0.0 or first.team != second.team:
 				continue
 			var separation: Vector2 = second.world_position - first.world_position
 			var minimum_distance: float = first.collision_radius + second.collision_radius
 			if separation.length_squared() >= minimum_distance * minimum_distance:
 				continue
 			var distance: float = separation.length()
-			var direction: Vector2 = separation / distance if distance > 0.001 else Vector2.RIGHT
+			if first.is_exiting_factory() != second.is_exiting_factory() and absf(separation.x) < 0.01 and absf(separation.y) > 0.01:
+				separation.x = 2.0 if first.object_id < second.object_id else -2.0
+			var direction: Vector2 = separation.normalized() if separation.length_squared() > 0.000001 else Vector2.RIGHT
 			var overlap: float = minimum_distance - distance
-			var push_distance: float = overlap * 0.95
+			var priority: int = maxi(first.soft_collision_on_all, second.soft_collision_on_all)
+			var push_distance: float = overlap / float(priority) if priority > 0 else overlap
+			push_distance *= 0.95
 			if push_distance > 1.0:
 				push_distance *= 0.7
 			if push_distance > 3.0:

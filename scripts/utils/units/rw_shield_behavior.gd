@@ -6,9 +6,11 @@ extends RwUnitBehavior
 @export var regeneration_per_frame: float = 0.25
 
 
-func advance_frame(unit_state: RwUnitState, _definition: RwUnitDefinition, _context: RwCombatContext) -> void:
+func advance_frame(unit_state: RwUnitState, definition: RwUnitDefinition, context: RwCombatContext) -> void:
 	if unit_state.shield < unit_state.max_shield:
 		unit_state.set_shield(unit_state.shield + regeneration_per_frame)
+	if not definition.combat_weapons.is_empty():
+		context.advance_weapons(unit_state, definition)
 
 
 func filter_damage(unit_state: RwUnitState, incoming_damage: float, _context: RwCombatContext) -> float:

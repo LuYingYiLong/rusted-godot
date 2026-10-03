@@ -43,6 +43,9 @@ static func create_definition(unit_name: String, spec: Dictionary, source_id: St
 	definition.tech_level = int(spec.get("tech_level", 1))
 	definition.collision_radius = float(spec["radius"])
 	definition.push_mass = float(spec.get("mass", 3000.0))
+	definition.soft_collision_on_all = int(spec.get("soft_collision_on_all", 0))
+	definition.factory_exit_offset = Vector2(float(spec.get("exit_x", 0.0)), float(spec.get("exit_y", 9.0)))
+	definition.factory_exit_move_away = float(spec.get("exit_move_away", 70.0))
 	definition.sight_range = int(spec.get("sight", 15))
 	definition.movement_type = _movement_type(str(spec["movement_type"]))
 	definition.movement_speed = float(spec.get("speed", 0.0))
@@ -108,6 +111,10 @@ static func _configure_visual_parts(definition: RwUnitDefinition, spec: Dictiona
 		part.draw_order = int(part_info.get("draw_order", 1))
 		part.rotation_offset_degrees = 90.0
 		part.sprite_scale = Vector2(turret_scale, turret_scale)
+		part.idle_spin_degrees = float(part_info.get("idle_spin", 0.0))
+		part.idle_direction_degrees = float(part_info.get("idle_direction", 0.0))
+		part.reset_when_idle = bool(part_info.get("reset_when_idle", true))
+		part.idle_turn_speed_degrees = float(part_info.get("turn_speed", 0.0))
 		part.rotation_state_index = definition.weapon_parts.size()
 		turret_indices[str(part_info["name"])] = part.rotation_state_index
 		definition.weapon_parts.append(part)

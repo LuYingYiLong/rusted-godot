@@ -52,6 +52,7 @@ const NAVIGATION_ORDER_TYPES: Array[String] = [
 @export var movement_deceleration: float
 @export var collision_radius: float
 @export var push_mass: float = 3000.0
+@export var soft_collision_on_all: int
 @export var sight_range: int
 @export var animation_frame: int
 ## 附加视觉层所用的同步帧计数
@@ -108,6 +109,8 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	if definition != null and not definition.applies_spawn_rotation:
 		body_rotation_degrees = 0.0
 	turret_rotation_degrees = float(spawn.get("turret_rotation_degrees", body_rotation_degrees))
+	if definition != null and definition.randomize_initial_weapon_rotation and not spawn.has("turret_rotation_degrees") and object_id > 0:
+		turret_rotation_degrees = float(posmod(object_id * 1313, 360) - 180)
 	weapon_rotations_degrees = PackedFloat32Array()
 	var rotation_count: int = 1
 	if definition != null:
@@ -122,6 +125,7 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	if spawn.has("weapon_rotations_degrees"):
 		_apply_weapon_rotations(spawn["weapon_rotations_degrees"])
 	max_health = definition.max_health if definition != null else 1.0
+	soft_collision_on_all = definition.soft_collision_on_all if definition != null else 0
 	max_shield = maxf(definition.max_shield, 0.0) if definition != null else 0.0
 	shield = clampf(float(spawn.get("shield", max_shield)), 0.0, max_shield)
 	build_progress = clampf(float(spawn.get("build_progress", 1.0)), 0.0, 1.0)

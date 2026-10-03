@@ -71,6 +71,18 @@ func _run() -> void:
 	var upgraded_extractor: RwUnitState = units[extractor_id] as RwUnitState
 	assert(upgraded_extractor.object_id == extractor_id and upgraded_extractor.unit_name == "extractorT2")
 	assert(is_equal_approx(room.get("battle_economy").get_income_rate(1, "credits"), 30.0))
+	var turret_command: Dictionary = {
+		"team": 0,
+		"source_team": 0,
+		"allowed_team_mask": 3,
+		"unit_ids": [2,],
+		"order_type": "build",
+		"build_unit_index": 5,
+		"target": Vector2(957.0, 443.0),
+	}
+	map.call("_apply_build_command", turret_command)
+	var build_sites: Array = map.get("_build_sites")
+	assert((build_sites.back() as Dictionary)["position"] == Vector2(960.0, 440.0))
 	print("SHARED_BUILD_SCENE_CHECK_OK")
 	map.free()
 	quit()

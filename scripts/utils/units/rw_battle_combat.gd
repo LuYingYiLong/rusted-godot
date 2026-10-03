@@ -18,6 +18,7 @@ var _players: Array[Dictionary]
 var _weapon_runtime: Dictionary
 var _sorted_ids: Array[int]
 var _sorted_ids_dirty: bool = true
+var _simulation_delta: float = 1.0
 
 
 ## 绑定地图单位与定义，并注册已有单位
@@ -46,7 +47,7 @@ func register_unit(unit_state: RwUnitState) -> void:
 	var runtime: Dictionary = {}
 	if definition != null:
 		for weapon_index: int in definition.combat_weapons.size():
-			runtime[weapon_index] = 0
+			runtime[weapon_index] = {"cooldown": 0, "warmup": 0, "target_id": -1,}
 	_weapon_runtime[unit_state.object_id] = runtime
 	_sorted_ids_dirty = true
 	if definition != null and definition.behavior != null:
@@ -71,9 +72,10 @@ func notify_order(unit_state: RwUnitState, order_type: String, order: Dictionary
 
 
 ## 按固定顺序推进所有单位行为，然后推进弹体
-func advance_frame() -> void:
+func advance_frame(simulation_delta: float = 1.0) -> void:
 	if _registry == null:
 		return
+	_simulation_delta = maxf(simulation_delta, 0.0)
 	var unit_ids: Array[int] = _sorted_unit_ids()
 	for unit_id: int in unit_ids:
 		var unit_state: RwUnitState = _unit_states[unit_id] as RwUnitState
@@ -82,6 +84,8 @@ func advance_frame() -> void:
 		var definition: RwUnitDefinition = _registry.find_definition(unit_state.source_id, unit_state.unit_name)
 		if definition != null and definition.behavior != null:
 			definition.behavior.advance_frame(unit_state, definition, self)
+		if definition != null:
+			_advance_idle_visual_parts(unit_state, definition)
 	_advance_projectiles()
 
 
@@ -92,27 +96,41 @@ func advance_weapons(unit_state: RwUnitState, definition: RwUnitDefinition) -> v
 		var weapon: RwWeaponDefinition = definition.combat_weapons[weapon_index]
 		if weapon == null or weapon.projectile == null or weapon.attack_range <= 0.0:
 			continue
-		var cooldown: int = int(runtime.get(weapon_index, 0))
-		if cooldown > 0:
-			cooldown -= 1
-			runtime[weapon_index] = cooldown
+		var weapon_runtime: Dictionary = runtime.get(weapon_index, {"cooldown": 0, "warmup": 0, "target_id": -1,})
+		var cooldown: float = float(weapon_runtime["cooldown"])
+		if cooldown > 0.0:
+			cooldown = maxf(cooldown - _simulation_delta, 0.0)
+			weapon_runtime["cooldown"] = cooldown
 		var target: RwUnitState = _find_target(unit_state, weapon)
 		if target == null:
+			weapon_runtime["target_id"] = -1
+			weapon_runtime["warmup"] = 0
+			runtime[weapon_index] = weapon_runtime
 			continue
+		if int(weapon_runtime["target_id"]) != target.object_id:
+			weapon_runtime["target_id"] = target.object_id
+			weapon_runtime["warmup"] = 0
+		weapon_runtime["warmup"] = minf(float(weapon_runtime["warmup"]) + _simulation_delta, float(weapon.warmup_frames))
+		runtime[weapon_index] = weapon_runtime
 		var desired_angle: float = rad_to_deg((target.world_position - unit_state.world_position).angle())
 		var current_angle: float = unit_state.get_weapon_rotation(weapon.rotation_state_index)
 		var _angle_difference: float = wrapf(desired_angle - current_angle, -180.0, 180.0)
 		var turn_step: float = _angle_difference
 		if weapon.turn_speed_degrees > 0.0:
-			turn_step = clampf(_angle_difference, -weapon.turn_speed_degrees, weapon.turn_speed_degrees)
+			var turn_limit: float = weapon.turn_speed_degrees * _simulation_delta
+			turn_step = clampf(_angle_difference, -turn_limit, turn_limit)
 		var next_angle: float = wrapf(current_angle + turn_step, -180.0, 180.0)
 		unit_state.set_weapon_rotation(weapon.rotation_state_index, next_angle)
-		if cooldown > 0 or absf(wrapf(desired_angle - next_angle, -180.0, 180.0)) > weapon.aim_tolerance_degrees:
+		if cooldown > 0.0 or float(weapon_runtime["warmup"]) < float(weapon.warmup_frames) or absf(wrapf(desired_angle - next_angle, -180.0, 180.0)) > weapon.aim_tolerance_degrees:
 			continue
-		var projectile: RwProjectileState = spawn_projectile(unit_state, target, weapon, next_angle)
+		var projectile: RwProjectileState
+		if weapon.projectile.target_ground:
+			projectile = spawn_projectile_at(unit_state, target.world_position, weapon, next_angle)
+		else:
+			projectile = spawn_projectile(unit_state, target, weapon, next_angle)
 		if projectile == null:
 			continue
-		runtime[weapon_index] = maxi(weapon.reload_frames, 1)
+		weapon_runtime["cooldown"] = maxi(weapon.reload_frames, 1)
 	_weapon_runtime[unit_state.object_id] = runtime
 
 
@@ -168,7 +186,38 @@ func _sorted_unit_ids() -> Array[int]:
 	return _sorted_ids
 
 
+func _advance_idle_visual_parts(unit_state: RwUnitState, definition: RwUnitDefinition) -> void:
+	var runtime: Dictionary = _weapon_runtime.get(unit_state.object_id, {})
+	var active_indices: Dictionary = {}
+	for weapon_index: int in definition.combat_weapons.size():
+		var weapon: RwWeaponDefinition = definition.combat_weapons[weapon_index]
+		var weapon_runtime: Dictionary = runtime.get(weapon_index, {})
+		if weapon != null and int(weapon_runtime.get("target_id", -1)) >= 0:
+			active_indices[weapon.rotation_state_index] = true
+	for part: RwUnitWeaponDefinition in definition.weapon_parts:
+		if part == null:
+			continue
+		if active_indices.has(part.rotation_state_index):
+			continue
+		var current_angle: float = unit_state.get_weapon_rotation(part.rotation_state_index)
+		if part.idle_spin_degrees != 0.0:
+			unit_state.set_weapon_rotation(part.rotation_state_index, current_angle + part.idle_spin_degrees * _simulation_delta)
+		elif part.reset_when_idle:
+			var base_angle: float = unit_state.body_rotation_degrees
+			if part.parent_part_index >= 0:
+				base_angle = unit_state.get_weapon_rotation(part.parent_part_index)
+			var desired_angle: float = base_angle + part.idle_direction_degrees
+			var angular_delta: float = wrapf(desired_angle - current_angle, -180.0, 180.0)
+			var turn_step: float = angular_delta
+			if part.idle_turn_speed_degrees > 0.0:
+				var turn_limit: float = part.idle_turn_speed_degrees * _simulation_delta
+				turn_step = clampf(angular_delta, -turn_limit, turn_limit)
+			unit_state.set_weapon_rotation(part.rotation_state_index, current_angle + turn_step)
+
+
 func _find_target(source: RwUnitState, weapon: RwWeaponDefinition) -> RwUnitState:
+	if source.attack_mode == 3:
+		return null
 	if (source.order_type == "attack" or source.order_type == "setPassiveTarget") and source.order_target_id > 0:
 		var ordered_target: RwUnitState = _unit_states.get(source.order_target_id) as RwUnitState
 		return ordered_target if _can_target(source, ordered_target, weapon) else null
@@ -190,16 +239,14 @@ func _can_target(source: RwUnitState, target: RwUnitState, weapon: RwWeaponDefin
 		return false
 	if not _are_hostile(source.team, target.team):
 		return false
-	match target.movement_type:
-		"AIR":
-			if not weapon.can_target_air:
-				return false
-		"WATER":
-			if not weapon.can_target_water:
-				return false
-		_:
-			if not weapon.can_target_ground:
-				return false
+	if target.movement_type == "AIR":
+		if not weapon.can_target_air:
+			return false
+	elif target.submerged:
+		if not weapon.can_target_water:
+			return false
+	elif not weapon.can_target_ground:
+		return false
 	var distance_squared: float = source.world_position.distance_squared_to(target.world_position)
 	return (
 		distance_squared <= weapon.attack_range * weapon.attack_range
@@ -225,25 +272,53 @@ func _advance_projectiles() -> void:
 	for projectile_index: int in range(projectiles.size() - 1, -1, -1):
 		var projectile: RwProjectileState = projectiles[projectile_index]
 		var target: RwUnitState = _unit_states.get(projectile.target_id) as RwUnitState
-		var hit: bool = projectile.advance_frame(target)
+		var hit: bool = projectile.advance_frame(target, _simulation_delta)
 		if hit:
 			_resolve_impact(projectile, target)
 			projectile_impacted.emit(projectile, target)
-		if hit or projectile.remaining_frames <= 0:
+		if hit or projectile.remaining_frames <= 0.0:
 			projectiles.remove_at(projectile_index)
 
 
 func _resolve_impact(projectile: RwProjectileState, direct_target: RwUnitState) -> void:
-	var splash_radius: float = projectile.definition.splash_radius
-	if splash_radius <= 0.0:
-		_damage_unit(direct_target, projectile.definition.damage)
+	var definition: RwProjectileDefinition = projectile.definition
+	var splash_radius: float = definition.splash_radius
+	var splash_damage: float = definition.splash_damage
+	if splash_radius > 0.0 and splash_damage <= 0.0:
+		splash_damage = definition.damage
+	elif definition.damage > 0.0:
+		if direct_target == null:
+			direct_target = _find_impact_target(projectile)
+		if direct_target != null:
+			_damage_unit(direct_target, definition.damage)
+	if splash_radius <= 0.0 or splash_damage <= 0.0:
 		return
+	for unit_id: int in _sorted_unit_ids():
+		var candidate: RwUnitState = _unit_states[unit_id] as RwUnitState
+		if candidate == null or candidate.is_dead:
+			continue
+		if not definition.friendly_fire and not _are_hostile(projectile.team, candidate.team):
+			continue
+		var distance: float = candidate.world_position.distance_to(projectile.world_position)
+		if definition.area_radius_from_edge:
+			distance = maxf(distance - candidate.collision_radius, 0.0)
+		if distance > splash_radius or distance < definition.area_minimum_distance:
+			continue
+		var damage_factor: float = 1.0
+		if not definition.area_damage_no_falloff:
+			damage_factor = clampf(1.1 - distance / splash_radius, 0.0, 1.0)
+		_damage_unit(candidate, splash_damage * damage_factor)
+
+
+func _find_impact_target(projectile: RwProjectileState) -> RwUnitState:
 	for unit_id: int in _sorted_unit_ids():
 		var candidate: RwUnitState = _unit_states[unit_id] as RwUnitState
 		if candidate == null or candidate.is_dead or not _are_hostile(projectile.team, candidate.team):
 			continue
-		if candidate.world_position.distance_to(projectile.world_position) <= splash_radius + candidate.collision_radius:
-			_damage_unit(candidate, projectile.definition.damage)
+		var hit_radius: float = candidate.collision_radius + projectile.definition.hit_radius
+		if candidate.world_position.distance_squared_to(projectile.world_position) <= hit_radius * hit_radius:
+			return candidate
+	return null
 
 
 func _damage_unit(unit_state: RwUnitState, amount: float) -> void:

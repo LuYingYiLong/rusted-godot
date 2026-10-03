@@ -237,6 +237,7 @@ static func create_registry() -> RwUnitRegistry:
 	registry.register_definition(tree, assets)
 	RwVanillaNativeExtras.register_definitions(registry, assets)
 	RwVanillaCustomDefinitions.register_definitions(registry, assets)
+	RwBuiltinCombatDefinitions.register_weapons(registry)
 	RwVanillaProductionActions.register_actions(registry)
 	return registry
 

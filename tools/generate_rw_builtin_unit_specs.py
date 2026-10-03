@@ -165,6 +165,17 @@ def spec_for(path: Path) -> dict[str, object]:
             "x": number(entries.get("x", "")),
             "y": number(entries.get("y", "")),
         }
+        idle_spin = number(entries.get("idlespin", ""))
+        idle_direction = number(entries.get("idledir", ""))
+        turn_speed = number(entries.get("turnspeed", ""), number(attack.get("turretturnspeed", ""), 8.0))
+        if idle_spin != 0.0:
+            part["idle_spin"] = idle_spin
+        if idle_direction != 0.0:
+            part["idle_direction"] = idle_direction
+        if entries.get("shouldresetturret", "true").casefold() == "false":
+            part["reset_when_idle"] = False
+        if turn_speed > 0.0:
+            part["turn_speed"] = turn_speed
         attached_to = entries.get("attachedto", "").strip()
         if attached_to:
             part["parent"] = attached_to.removeprefix("turret_")
@@ -231,6 +242,10 @@ def spec_for(path: Path) -> dict[str, object]:
         "turret_team_colored": graphics.get("teamcolorsonturret", "false").casefold() == "true",
         "shield": number(core.get("maxshield", "")),
         "mass": number(core.get("mass", ""), 3000.0),
+        "soft_collision_on_all": integer(core.get("softcollisiononall", "")),
+        "exit_x": number(core.get("exit_x", "")),
+        "exit_y": number(core.get("exit_y", ""), 9.0),
+        "exit_move_away": number(core.get("exit_moveawayamount", ""), 70.0),
         "sight": integer(core.get("fogofwarsightrange", ""), 15),
         "speed": number(movement.get("movespeed", "")),
         "turn_speed": number(movement.get("maxturnspeed", "")),
@@ -253,7 +268,7 @@ def spec_for(path: Path) -> dict[str, object]:
     defaults: dict[str, object] = {
         "frames": 1, "scale": 1.0, "turret_scale": 1.0,
         "team_colored": True, "mass": 3000.0, "sight": 15,
-        "tech_level": 1,
+        "tech_level": 1, "exit_y": 9.0, "exit_move_away": 70.0,
     }
     spec.update({key: value for key, value in optional.items() if value != defaults.get(key, None) and value not in ("", [], False, 0, 0.0)})
     if spec.get("building") and spec.get("footprint"):

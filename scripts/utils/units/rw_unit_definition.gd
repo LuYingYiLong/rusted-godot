@@ -32,6 +32,8 @@ enum SelectionShape {
 @export var body_scale: Vector2 = Vector2.ONE
 @export var render_rotation_offset_degrees: float
 @export var applies_spawn_rotation: bool = true
+## 原生炮塔创建时为炮口指定一次稳定的初始角度
+@export var randomize_initial_weapon_rotation: bool
 @export var draw_layer: int = 2
 @export var dead_draw_layer: int = -1
 @export var max_health: float = 1.0
@@ -50,6 +52,11 @@ enum SelectionShape {
 @export var movement_deceleration: float
 @export var collision_radius: float
 @export var push_mass: float = 3000.0
+## 原版软碰撞优先级，数值越大推开速度越慢
+@export var soft_collision_on_all: int
+## 工厂生产单位时的出生偏移和离厂目标距离
+@export var factory_exit_offset: Vector2 = Vector2(0.0, 9.0)
+@export var factory_exit_move_away: float = 70.0
 @export var blocks_movement: bool
 @export var structure_footprint_min: Vector2i
 @export var structure_footprint_max: Vector2i

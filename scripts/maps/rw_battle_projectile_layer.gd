@@ -4,15 +4,23 @@ class_name RwBattleProjectileLayer
 
 var _projectiles: Array[RwProjectileState]
 var _texture_cache: Dictionary
+var _beam_flashes: Array[Dictionary]
 
 
-## 接收当前弹体列表并请求重绘
-func set_projectiles(projectiles: Array[RwProjectileState]) -> void:
-	_projectiles = projectiles
+func _process(delta: float) -> void:
+	if _beam_flashes.is_empty():
+		return
+	for index: int in range(_beam_flashes.size() - 1, -1, -1):
+		_beam_flashes[index]["time"] = float(_beam_flashes[index]["time"]) - delta
+		if float(_beam_flashes[index]["time"]) <= 0.0:
+			_beam_flashes.remove_at(index)
 	queue_redraw()
 
 
 func _draw() -> void:
+	for beam: Dictionary in _beam_flashes:
+		var beam_color: Color = beam["color"]
+		draw_line(beam["origin"], beam["target"], beam_color, 3.0, false)
 	for projectile: RwProjectileState in _projectiles:
 		var definition: RwProjectileDefinition = projectile.definition
 		if definition == null:
@@ -30,6 +38,25 @@ func _draw() -> void:
 		var size: Vector2 = Vector2(region.size)
 		var destination: Rect2 = Rect2(projectile.world_position - size * 0.5, size)
 		draw_texture_rect_region(texture, destination, Rect2(region), definition.visual_color)
+
+
+## 接收当前弹体列表并请求重绘
+func set_projectiles(projectiles: Array[RwProjectileState]) -> void:
+	_projectiles = projectiles
+	queue_redraw()
+
+
+## 将即时弹体的光束保留一小段可见时间
+func show_impact(projectile: RwProjectileState, _target: RwUnitState) -> void:
+	if projectile.definition == null or not projectile.definition.instant or not projectile.definition.beam:
+		return
+	_beam_flashes.append({
+		"origin": projectile.origin_position,
+		"target": projectile.world_position,
+		"color": projectile.definition.visual_color,
+		"time": 0.08,
+	})
+	queue_redraw()
 
 
 func _get_texture(image_name: String) -> Texture2D:

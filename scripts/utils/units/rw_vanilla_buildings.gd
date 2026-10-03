@@ -94,6 +94,11 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 			turret_top.mount_follows_body = false
 			turret_top.rotation_offset_degrees = 90.0
 			if unit_name == "turret":
+				turret_top.reset_when_idle = false
+			elif unit_name == "antiAirTurret":
+				turret_top.reset_when_idle = false
+				turret_top.idle_spin_degrees = 0.6
+			if unit_name == "turret":
 				turret_top.images_by_level = {2: "turret_top_l2.png", 3: "turret_top_l3.png",}
 			definition.weapon_parts = [turret_top,]
 		definition.dead_image = str(spec.get("dead", ""))
@@ -114,6 +119,7 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 			"fabricator":
 				definition.body_frames = 3
 		definition.applies_spawn_rotation = false
+		definition.randomize_initial_weapon_rotation = unit_name == "turret" or unit_name == "antiAirTurret"
 		definition.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 		definition.max_health = float(spec["health"])
 		definition.collision_radius = float(spec["radius"])

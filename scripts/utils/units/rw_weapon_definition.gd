@@ -8,6 +8,8 @@ extends Resource
 @export var attack_range: float
 @export var minimum_range: float
 @export var reload_frames: int = 60
+## 首次锁定目标后的预热同步帧数
+@export var warmup_frames: int
 ## 每个同步帧可旋转的角度；零表示立即对准目标
 @export var turn_speed_degrees: float
 @export var aim_tolerance_degrees: float = 5.0
