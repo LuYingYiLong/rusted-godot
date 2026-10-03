@@ -1,6 +1,11 @@
 class_name RwUnitDefinition
 extends Resource
 
+enum SelectionShape {
+	CIRCLE,
+	RECTANGLE,
+}
+
 @export var source_id: String = "vanilla"
 @export var unit_name: String
 @export var body_image: String
@@ -24,6 +29,11 @@ extends Resource
 @export var movement_acceleration: float
 @export var movement_deceleration: float
 @export var collision_radius: float
+@export var attack_range: float
+@export var selection_shape: SelectionShape
+@export var sight_range: int = 15
+@export var can_reclaim: bool
+@export var build_actions: Array[RwUnitActionDefinition]
 @export_range(1, 32, 1) var body_frames: int = 1
 @export var shadow_offset: Vector2
 @export var body_team_colored: bool = true

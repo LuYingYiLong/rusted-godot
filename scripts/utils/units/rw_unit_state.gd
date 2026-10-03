@@ -22,6 +22,7 @@ signal state_changed(state: RwUnitState)
 @export var movement_acceleration: float
 @export var movement_deceleration: float
 @export var collision_radius: float
+@export var sight_range: int
 @export var animation_frame: int
 @export var is_dead: bool
 @export var order_type: String
@@ -53,6 +54,7 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	movement_acceleration = definition.movement_acceleration if definition != null else 0.0
 	movement_deceleration = definition.movement_deceleration if definition != null else 0.0
 	collision_radius = definition.collision_radius if definition != null else 0.0
+	sight_range = definition.sight_range if definition != null else 15
 	health = max_health
 	state_changed.emit(self)
 
@@ -95,6 +97,18 @@ func apply_move_order(target: Vector2, waypoints: Array[Vector2], command_type: 
 	_path_waypoints = waypoints.duplicate()
 	_path_index = 0
 	state_changed.emit(self)
+
+
+func get_navigation_path() -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	if is_dead or (order_type != "move" and order_type != "attackMove"):
+		return points
+	if _path_index >= _path_waypoints.size():
+		return points
+	points.append(world_position)
+	for index: int in range(_path_index, _path_waypoints.size()):
+		points.append(_path_waypoints[index])
+	return points
 
 
 func advance_movement(frame_count: int, path_grid: RwPathGrid) -> void:

@@ -33,6 +33,13 @@ enabled=PackedStringArray("res://addons/rw_map_importer/plugin.cfg")
 theme/custom="uid://chfdmp0bm4o62"
 theme/custom_font="uid://77w7fgak0238"
 
+[input]
+
+send_message={
+"deadzone": 0.2,
+"events": []
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

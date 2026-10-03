@@ -1,61 +1,240 @@
 class_name RwHudLayer
 extends CanvasLayer
 
+signal minimap_position_chosen(world_position: Vector2)
+signal unit_action_chosen(action_id: String, unit_ids: Array[int])
+
 const JOIN_SCENE_UID: String = "uid://c75kjomieop5w"
 const RESOURCE_LABEL_SCENE: PackedScene = preload("uid://mb863ppm1pam")
-const SELECTED_UNIT_ITEM_SCENE: PackedScene = preload("uid://mb863ppm1pam")
-const UNIT_ACTION_ITEM_SCENE: PackedScene = preload("uid://wh8q385lnnig")
+const SELECTED_UNIT_ITEM_SCENE: PackedScene = preload("uid://wh8q385lnnig")
+const UNIT_ACTION_ITEM_SCENE: PackedScene = preload("uid://bmw3cmgk62apu")
+const MINIMAP_REFRESH_SECONDS: float = 0.2
 
-@onready var message_label: RichTextLabel = %MessageLabel
-@onready var unit_info_label: Label = %UnitInfoLabel
-@onready var chat_history: RichTextLabel = %ChatHistory
-@onready var chat_input: LineEdit = %ChatInput
-@onready var send_button: Button = %SendButton
+@onready var chat_panel: RwChatPanel = %ChatPanel
 @onready var resource_container: VBoxContainer = %ResourceContainer
+@onready var minimap: RwMinimap = %Minimap
+@onready var unit_info_container: GridContainer = %UnitInfoContainer
+@onready var health_label: Label = %HealthLabel
+@onready var unit_action_scroll_container: ScrollContainer = %UnitActionScrollContainer
+@onready var unit_action_container: GridContainer = %UnitActionContainer
+@onready var selected_unit_scroll_container: ScrollContainer = %SelectedUnitScrollContainer
+@onready var selected_unit_container: GridContainer = %SelectedUnitContainer
+@onready var reclaim_button: Button = %ReclaimButton
 
-var _chat_lines: Array[String]
 var _resource_labels: Dictionary
 var _resource_catalog: RwResourceCatalog = RwResourceCatalog.create_vanilla()
+var _unit_asset_provider: RwVanillaUnitAssets = RwVanillaUnitAssets.new()
+var _unit_registry: RwUnitRegistry
+var _unit_states: Dictionary
+var _unit_visuals: Dictionary
+var _players: Array[Dictionary]
+var _local_slot: int = -1
+var _selected_units: Array[RwUnitState]
+var _selected_ids: Array[int]
+var _selected_groups: Dictionary
+var _focused_unit_key: String
+var _minimap_refresh_timer: float
 
 
 func _ready() -> void:
-	RwRoomClient.connection_changed.connect(_on_connection_changed)
 	RwRoomClient.room_updated.connect(_on_room_updated)
-	RwRoomClient.chat_received.connect(_on_chat_received)
 	RwRoomClient.team_resource_changed.connect(_on_team_resource_changed)
-	chat_input.text_submitted.connect(_on_chat_submitted)
-	send_button.pressed.connect(_on_send_button_pressed)
-	var credits_label: RwResourceLabel = resource_container.get_node("ResourceLabel") as RwResourceLabel
-	_resource_labels[credits_label.resource_id] = credits_label
-	for entry: Dictionary in RwRoomClient.chat_log:
-		_on_chat_received(str(entry.get("sender", "System")), str(entry.get("message", "")))
+	_clear_children(resource_container)
+	_clear_dynamic_items(unit_info_container)
+	_clear_dynamic_items(unit_action_container)
+	_clear_children(selected_unit_container)
 	_on_room_updated(RwRoomClient.settings, RwRoomClient.players, RwRoomClient.local_slot)
+	_refresh_selection_details()
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("send_message") and not event.is_echo():
+		chat_panel.toggle_chat()
+		get_viewport().set_input_as_handled()
+
+
+func _process(delta: float) -> void:
+	_minimap_refresh_timer -= delta
+	if _minimap_refresh_timer <= 0.0:
+		_minimap_refresh_timer = MINIMAP_REFRESH_SECONDS
+		minimap.refresh_units()
+		_refresh_selection_details()
 
 
 func show_status(message: String) -> void:
-	message_label.text = message
+	chat_panel.show_status(message)
 
 
-func show_selected_unit(unit_state: RwUnitState, relation_name: String = "") -> void:
-	if unit_state == null:
-		unit_info_label.text = "Select a unit or drag to select your units"
+func configure_battle(map_name: String, world_size: Vector2, unit_states: Dictionary, unit_registry: RwUnitRegistry) -> String:
+	_unit_states = unit_states
+	_unit_registry = unit_registry
+	return minimap.configure(map_name, world_size, unit_states, _players, _local_slot)
+
+
+func set_fog(fog: RwFogOfWar) -> void:
+	minimap.set_fog(fog)
+
+
+func update_camera_view(camera_position: Vector2, camera_zoom: float, viewport_size: Vector2) -> void:
+	minimap.update_view(camera_position, camera_zoom, viewport_size)
+
+
+func show_selection(selected_units: Array[RwUnitState], unit_visuals: Dictionary) -> void:
+	var selected_ids: Array[int] = []
+	for unit_state: RwUnitState in selected_units:
+		selected_ids.append(unit_state.object_id)
+	if selected_ids == _selected_ids:
+		_refresh_selection_details()
 		return
-	var order_text: String = " · Order: %s" % unit_state.order_type if not unit_state.order_type.is_empty() else ""
-	unit_info_label.text = "%s · %s #%d · Team %s · HP %.0f/%.0f · (%.0f, %.0f)%s" % [
-		relation_name,
-		unit_state.unit_name,
-		unit_state.object_id,
-		unit_state.team,
-		unit_state.health,
-		unit_state.max_health,
-		unit_state.world_position.x,
-		unit_state.world_position.y,
-		order_text,
-	]
+	_selected_ids = selected_ids
+	_selected_units = selected_units.duplicate()
+	_unit_visuals = unit_visuals
+	_selected_groups.clear()
+	_focused_unit_key = ""
+	for unit_state: RwUnitState in _selected_units:
+		var unit_key: String = "%s:%s" % [unit_state.source_id, unit_state.unit_name]
+		if not _selected_groups.has(unit_key):
+			_selected_groups[unit_key] = []
+		(_selected_groups[unit_key] as Array).append(unit_state)
+	_render_selection()
 
 
-func show_selected_count(count: int) -> void:
-	unit_info_label.text = "%d own units selected · Right-click the map to move" % count
+func _render_selection() -> void:
+	_clear_dynamic_items(unit_info_container)
+	_clear_dynamic_items(unit_action_container)
+	_clear_children(selected_unit_container)
+	unit_info_container.hide()
+	unit_action_scroll_container.hide()
+	selected_unit_scroll_container.hide()
+	reclaim_button.hide()
+	if _selected_units.is_empty():
+		_refresh_selection_details()
+		return
+	if _selected_groups.size() > 1 and _focused_unit_key.is_empty():
+		selected_unit_scroll_container.show()
+		for unit_key: String in _selected_groups:
+			var group: Array = _selected_groups[unit_key]
+			var first_unit: RwUnitState = group[0] as RwUnitState
+			var item: RwSelectedUnitItem = SELECTED_UNIT_ITEM_SCENE.instantiate() as RwSelectedUnitItem
+			selected_unit_container.add_child(item)
+			item.configure(unit_key, first_unit.unit_name, group.size(), _icon_for_unit(first_unit))
+			item.selected.connect(_on_unit_type_selected)
+		_refresh_selection_details()
+		return
+	if _focused_unit_key.is_empty():
+		_focused_unit_key = str(_selected_groups.keys()[0])
+	var focused_group: Array = _selected_groups.get(_focused_unit_key, [])
+	if focused_group.is_empty():
+		return
+	var focused_unit: RwUnitState = focused_group[0] as RwUnitState
+	var definition: RwUnitDefinition = _unit_registry.find_definition(focused_unit.source_id, focused_unit.unit_name) if _unit_registry != null else null
+	var info_item: RwSelectedUnitItem = SELECTED_UNIT_ITEM_SCENE.instantiate() as RwSelectedUnitItem
+	unit_info_container.add_child(info_item)
+	unit_info_container.move_child(info_item, 0)
+	info_item.configure(_focused_unit_key, focused_unit.unit_name, focused_group.size(), _icon_for_unit(focused_unit))
+	info_item.set_focused(_selected_groups.size() > 1)
+	info_item.selected.connect(_on_focused_item_selected)
+	var can_control: bool = focused_unit.team == str(_local_slot)
+	var can_move: bool = definition != null and definition.movement_speed > 0.0 and can_control
+	($HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/SetPatrolAreaButton as Button).visible = can_move
+	($HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/EscortUnitButton as Button).visible = can_move
+	if definition != null and can_control:
+		reclaim_button.visible = definition.can_reclaim
+		for action: RwUnitActionDefinition in definition.build_actions:
+			var action_item: RwUnitActionItem = UNIT_ACTION_ITEM_SCENE.instantiate() as RwUnitActionItem
+			unit_action_container.add_child(action_item)
+			action_item.configure(action, _icon_for_action(action, focused_unit.team))
+			action_item.activated.connect(_on_unit_action_activated)
+	unit_info_container.show()
+	unit_action_scroll_container.show()
+	_refresh_selection_details()
+
+
+func _refresh_selection_details() -> void:
+	if _selected_units.is_empty() or _focused_unit_key.is_empty():
+		return
+	var group: Array = _selected_groups.get(_focused_unit_key, [])
+	if group.is_empty():
+		return
+	var total_health: float = 0.0
+	var total_max_health: float = 0.0
+	for unit_state: RwUnitState in group:
+		total_health += unit_state.health
+		total_max_health += unit_state.max_health
+	health_label.text = "%.0f/%.0f" % [total_health, total_max_health]
+
+
+func _icon_for_unit(unit_state: RwUnitState) -> Texture2D:
+	var visual: RwUnitVisual = _unit_visuals.get(unit_state.object_id) as RwUnitVisual
+	if visual != null:
+		return visual.get_icon_texture()
+	return RwDrawableCatalog.load_texture("error.png")
+
+
+func _icon_for_action(action: RwUnitActionDefinition, team: String) -> Texture2D:
+	var team_color: Color = RwUnitTeamColors.for_team(team, _players)
+	var source_texture: Texture2D = _unit_asset_provider.load_team_texture(action.icon_image, team_color)
+	if source_texture == null:
+		return RwDrawableCatalog.load_texture("error.png")
+	if action.icon_frames <= 1:
+		return source_texture
+	var atlas: AtlasTexture = AtlasTexture.new()
+	atlas.atlas = source_texture
+	atlas.region = Rect2(Vector2.ZERO, Vector2(float(source_texture.get_width()) / float(action.icon_frames), float(source_texture.get_height())))
+	return atlas
+
+
+func _clear_children(container: Node) -> void:
+	for child: Node in container.get_children():
+		container.remove_child(child)
+		child.queue_free()
+
+
+func _clear_dynamic_items(container: Node) -> void:
+	for child: Node in container.get_children():
+		if child is RwSelectedUnitItem or child is RwUnitActionItem:
+			container.remove_child(child)
+			child.queue_free()
+
+
+func _on_unit_type_selected(unit_key: String) -> void:
+	_focused_unit_key = unit_key
+	_render_selection()
+
+
+func _on_focused_item_selected(_unit_key: String) -> void:
+	if _selected_groups.size() > 1:
+		_focused_unit_key = ""
+		_render_selection()
+
+
+func _on_unit_action_activated(action_id: String) -> void:
+	_emit_focused_action(action_id)
+
+
+func _on_reclaim_button_pressed() -> void:
+	_emit_focused_action("reclaim")
+
+
+func _on_patrol_button_pressed() -> void:
+	_emit_focused_action("patrol")
+
+
+func _on_escort_button_pressed() -> void:
+	_emit_focused_action("guard")
+
+
+func _emit_focused_action(action_id: String) -> void:
+	var group: Array = _selected_groups.get(_focused_unit_key, [])
+	var unit_ids: Array[int] = []
+	for unit_state: RwUnitState in group:
+		unit_ids.append(unit_state.object_id)
+	if not unit_ids.is_empty():
+		unit_action_chosen.emit(action_id, unit_ids)
+
+
+func _on_minimap_position_chosen(world_position: Vector2) -> void:
+	minimap_position_chosen.emit(world_position)
 
 
 func _on_leave_button_pressed() -> void:
@@ -63,22 +242,21 @@ func _on_leave_button_pressed() -> void:
 	get_tree().change_scene_to_file(JOIN_SCENE_UID)
 
 
-func _on_connection_changed(message: String) -> void:
-	message_label.append_text("\n%s" % message)
-	_update_chat_availability()
-
-
 func _on_room_updated(_settings: Dictionary, players: Array[Dictionary], local_slot: int) -> void:
-	_update_chat_availability()
+	_players = players
+	_local_slot = local_slot
+	minimap.update_team_view(players, local_slot)
 	for player: Dictionary in players:
 		if int(player.get("slot", -1)) != local_slot:
 			continue
 		var balances: Dictionary = player.get("team_resources", {})
+		if balances.is_empty():
+			_set_resource_balance("credits", 0.0, RwRoomClient.battle_economy.get_income_rate(local_slot, "credits"))
 		for resource_id: String in balances:
 			_set_resource_balance(
 				resource_id,
 				float(balances[resource_id]),
-				RwRoomClient.battle_economy.get_income_rate(local_slot, resource_id)
+				RwRoomClient.battle_economy.get_income_rate(local_slot, resource_id),
 			)
 		return
 	_set_resource_balance("credits", 0.0, 0.0)
@@ -87,30 +265,6 @@ func _on_room_updated(_settings: Dictionary, players: Array[Dictionary], local_s
 func _on_team_resource_changed(team_slot: int, resource_id: String, balance: float, growth: float) -> void:
 	if team_slot == RwRoomClient.local_slot:
 		_set_resource_balance(resource_id, balance, growth)
-
-
-func _on_chat_received(sender: String, message: String) -> void:
-	_chat_lines.append("%s: %s" % [sender, message])
-	if _chat_lines.size() > 80:
-		_chat_lines.remove_at(0)
-	chat_history.text = "\n".join(_chat_lines)
-
-
-func _on_chat_submitted(_text: String) -> void:
-	_on_send_button_pressed()
-
-
-func _on_send_button_pressed() -> void:
-	var message: String = chat_input.text.strip_edges()
-	if message.is_empty() or not RwRoomClient.is_joined():
-		return
-	RwRoomClient.send_chat(message)
-	chat_input.clear()
-
-
-func _update_chat_availability() -> void:
-	chat_input.editable = RwRoomClient.is_joined()
-	send_button.disabled = not RwRoomClient.is_joined()
 
 
 func _set_resource_balance(resource_id: String, balance: float, growth: float) -> void:

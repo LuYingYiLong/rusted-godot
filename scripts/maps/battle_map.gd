@@ -6,9 +6,13 @@ const ZOOM_STEP: float = 1.2
 const ZOOM_SMOOTHING: float = 12.0
 const SELECTION_DRAG_PIXELS: float = 8.0
 const KEYBOARD_PAN_SPEED: float = 600.0
+const NAVIGATION_COLOR: Color = Color("11c608")
 
 @onready var map_root: Node2D = %MapRoot
 @onready var map_camera: Camera2D = %MapCamera
+@onready var fog_sprite: Sprite2D = %FogOverlay
+@onready var navigation_overlay: Node2D = %NavigationOverlay
+@onready var unit_layer: Node2D = %InitialUnits
 @onready var selection_overlay: Control = %SelectionOverlay
 @onready var hud_layer: RwHudLayer = $HudLayer
 
@@ -25,6 +29,8 @@ var _zoom_anchor_world: Vector2
 var _last_simulated_frame: int
 var _unit_states: Dictionary
 var _unit_visuals: Dictionary
+var _unit_registry: RwUnitRegistry
+var _fog: RwFogOfWar
 var _path_grid: RwPathGrid
 var _mobile_unit_states: Array[RwUnitState]
 var _animated_command_centers: Array[RwUnitState]
@@ -32,9 +38,9 @@ var _selected_unit_ids: Array[int]
 
 
 func _ready() -> void:
-	selection_overlay.draw.connect(_draw_selection_overlay)
 	RwRoomClient.battle_frame_advanced.connect(_on_battle_frame_advanced)
 	RwRoomClient.battle_commands_reached.connect(_on_battle_commands_reached)
+	RwRoomClient.room_updated.connect(_on_room_updated)
 	_on_battle_frame_advanced(RwRoomClient.battle_timeline.current_frame, RwRoomClient.battle_timeline.next_blocking_frame)
 	if RwRoomClient.battle_map_info.is_empty():
 		hud_layer.show_status("No start-game map received")
@@ -63,8 +69,12 @@ func _ready() -> void:
 	_block_initial_structures()
 	_path_grid.finalize_obstacles()
 	_focus_on_local_start()
+	_initialize_fog(map_size, tile_size)
+	var minimap_error: String = hud_layer.configure_battle(map_name, _world_size, _unit_states, _unit_registry)
+	hud_layer.set_fog(_fog)
+	hud_layer.update_camera_view(map_camera.position, map_camera.zoom.x, get_viewport_rect().size)
 	RwRoomClient.set_initial_command_centers(unit_result["command_center_counts"])
-	var warning: String
+	var warning: String = " Minimap: %s." % minimap_error if not minimap_error.is_empty() else ""
 	if int(RwRoomClient.settings.get("starting_units", 1)) != 1:
 		warning = " The room uses a starting-unit preset that is not simulated."
 	for player: Dictionary in RwRoomClient.players:
@@ -85,16 +95,11 @@ func _render_initial_units(map_name: String) -> Dictionary:
 	var parsed: Dictionary = RwTmxUnitReader.read_spawns(map_name)
 	if not str(parsed.get("error", "")).is_empty():
 		return parsed
-	var registry: RwUnitRegistry = RwVanillaUnitDefinitions.create_registry()
+	_unit_registry = RwVanillaUnitDefinitions.create_registry()
 	var total: int = 0
 	var defined: int = 0
 	var placeholder: int = 0
 	var command_center_counts: Dictionary
-	var unit_layer: Node2D = Node2D.new()
-	unit_layer.name = "InitialUnits"
-	unit_layer.z_index = 50
-	unit_layer.y_sort_enabled = true
-	map_root.add_child(unit_layer)
 	for spawn: Dictionary in parsed["spawns"]:
 		var team: String = str(spawn["team"])
 		if not _is_active_team(team):
@@ -103,9 +108,9 @@ func _render_initial_units(map_name: String) -> Dictionary:
 		var unit_name: String = str(spawn["unit_name"])
 		var object_id: int = _unit_states.size() + 1
 		spawn["object_id"] = object_id
-		var definition: RwUnitDefinition = registry.find_definition(source_id, unit_name)
+		var definition: RwUnitDefinition = _unit_registry.find_definition(source_id, unit_name)
 		var color: Color = RwUnitTeamColors.for_team(team, RwRoomClient.players)
-		var visual: RwUnitVisual = registry.create_visual(spawn, color)
+		var visual: RwUnitVisual = _unit_registry.create_visual(spawn, color)
 		visual.set_relation(RwUnitTeamColors.relation_for_team(team, RwRoomClient.players, RwRoomClient.local_slot))
 		var unit_state: RwUnitState = RwUnitState.new()
 		unit_state.initialize_from_spawn(spawn, definition)
@@ -154,13 +159,40 @@ func _block_initial_structures() -> void:
 				_path_grid.block_structure(unit_state.world_position, Vector2i(-1, -1), Vector2i(1, 2))
 
 
+func _initialize_fog(map_size: Vector2i, tile_size: Vector2i) -> void:
+	_fog = RwFogOfWar.new()
+	var fog_mode: int = int(RwRoomClient.settings.get("fog", RwFogOfWar.Mode.LOS_FOG))
+	if RwRoomClient.local_slot < 0:
+		fog_mode = RwFogOfWar.Mode.NO_FOG
+	_fog.configure(map_size, tile_size, fog_mode, bool(RwRoomClient.settings.get("revealed", true)))
+	fog_sprite.scale = Vector2(tile_size)
+	_refresh_fog_visibility()
+
+
+func _refresh_fog_visibility() -> void:
+	if _fog == null:
+		return
+	var fog_changed: bool = _fog.update_visibility(_unit_states, RwRoomClient.players, RwRoomClient.local_slot)
+	fog_sprite.texture = _fog.texture
+	fog_sprite.visible = _fog.texture != null
+	for object_id: int in _unit_states:
+		var unit_state: RwUnitState = _unit_states[object_id]
+		var visual: RwUnitVisual = _unit_visuals[object_id]
+		visual.visible = _fog.is_unit_visible(unit_state, RwRoomClient.local_slot)
+	if fog_changed:
+		hud_layer.minimap.refresh_units()
+
+
 func _process(delta: float) -> void:
 	if _world_size == Vector2.ZERO:
 		return
 	_update_keyboard_pan(delta)
 	_update_smooth_zoom(delta)
+	hud_layer.update_camera_view(map_camera.position, map_camera.zoom.x, get_viewport_rect().size)
 	if _selection_pressed and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		_finish_selection(get_viewport().get_mouse_position())
+	if not _selected_unit_ids.is_empty():
+		navigation_overlay.queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -276,12 +308,24 @@ func _world_to_screen(world_position: Vector2) -> Vector2:
 	return (world_position - map_camera.position) * map_camera.zoom.x + get_viewport_rect().size * 0.5
 
 
+func _draw_navigation_overlay() -> void:
+	for object_id: int in _selected_unit_ids:
+		var unit_state: RwUnitState = _unit_states.get(object_id) as RwUnitState
+		if unit_state == null:
+			continue
+		var points: PackedVector2Array = unit_state.get_navigation_path()
+		if points.size() < 2:
+			continue
+		navigation_overlay.draw_polyline(points, NAVIGATION_COLOR, 1.0, false)
+		navigation_overlay.draw_circle(points[points.size() - 1], 2.0, NAVIGATION_COLOR)
+
+
 func _draw_selection_overlay() -> void:
 	if not _selection_dragging:
 		return
 	var selection_rect: Rect2 = Rect2(_selection_start_screen, _selection_end_screen - _selection_start_screen).abs()
-	selection_overlay.draw_rect(selection_rect, Color(0.3, 0.9, 0.4, 0.15), true)
-	selection_overlay.draw_rect(selection_rect, Color(0.3, 0.9, 0.4, 0.9), false, 1.5)
+	selection_overlay.draw_rect(selection_rect, Color(0.2, 1.0, 0.2, 0.1), true)
+	selection_overlay.draw_rect(selection_rect.grow(-0.5), Color(0.45, 1.0, 0.45), false, 1.0, false)
 
 
 func _finish_selection(screen_position: Vector2) -> void:
@@ -316,6 +360,8 @@ func _find_unit_at(world_position: Vector2) -> int:
 		if unit_state.is_dead:
 			continue
 		var visual: RwUnitVisual = _unit_visuals[object_id]
+		if not visual.visible:
+			continue
 		var hit_radius: float = maxf(visual.get_hit_radius(), 8.0 / map_camera.zoom.x)
 		var distance: float = unit_state.world_position.distance_to(world_position)
 		if distance < hit_radius and distance < nearest_distance:
@@ -344,18 +390,28 @@ func _set_selection(unit_ids: Array[int], additive: bool) -> void:
 	for object_id: int in _selected_unit_ids:
 		if _unit_visuals.has(object_id):
 			(_unit_visuals[object_id] as RwUnitVisual).set_selected(true)
+	navigation_overlay.queue_redraw()
 	_show_selection()
 
 
 func _show_selection() -> void:
-	if _selected_unit_ids.is_empty():
-		hud_layer.show_selected_unit(null)
-	elif _selected_unit_ids.size() == 1:
-		var unit_state: RwUnitState = _unit_states.get(_selected_unit_ids[0]) as RwUnitState
-		var relation: RwUnitTeamColors.Relation = RwUnitTeamColors.relation_for_team(unit_state.team, RwRoomClient.players, RwRoomClient.local_slot)
-		hud_layer.show_selected_unit(unit_state, RwUnitTeamColors.relation_name(relation))
-	else:
-		hud_layer.show_selected_count(_selected_unit_ids.size())
+	var selected_units: Array[RwUnitState] = []
+	for object_id: int in _selected_unit_ids:
+		var unit_state: RwUnitState = _unit_states.get(object_id) as RwUnitState
+		if unit_state != null:
+			selected_units.append(unit_state)
+	hud_layer.show_selection(selected_units, _unit_visuals)
+
+
+func _on_minimap_position_chosen(world_position: Vector2) -> void:
+	map_camera.position = world_position
+	_clamp_camera_position()
+	_zoom_anchor_world = _screen_to_world(_zoom_anchor_screen)
+	hud_layer.update_camera_view(map_camera.position, map_camera.zoom.x, get_viewport_rect().size)
+
+
+func _on_unit_action_chosen(action_id: String, _unit_ids: Array[int]) -> void:
+	hud_layer.show_status("%s is not available in the current battle simulation" % action_id)
 
 
 func _request_move(screen_position: Vector2) -> void:
@@ -373,6 +429,10 @@ func _request_move(screen_position: Vector2) -> void:
 		hud_layer.show_status("Could not send move order; check the room connection")
 
 
+func _on_room_updated(_settings: Dictionary, _players: Array[Dictionary], _local_slot: int) -> void:
+	_refresh_fog_visibility()
+
+
 func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	var frame_delta: int = maxi(frame - _last_simulated_frame, 0)
 	_last_simulated_frame = frame
@@ -380,6 +440,8 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 		for unit_state: RwUnitState in _mobile_unit_states:
 			unit_state.advance_movement(1, _path_grid)
 		_separate_mobile_units()
+	if frame_delta > 0:
+		_refresh_fog_visibility()
 	var animation_frame: int = _command_center_frame(frame)
 	for unit_state: RwUnitState in _animated_command_centers:
 		if unit_state.animation_frame != animation_frame and not unit_state.is_dead:

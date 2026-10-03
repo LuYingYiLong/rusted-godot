@@ -14,7 +14,13 @@ static func create_registry() -> RwUnitRegistry:
 	command_center.draw_layer = 3
 	command_center.dead_draw_layer = 0
 	command_center.body_frames = 4
+	command_center.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
+	command_center.attack_range = 280.0
 	command_center.max_health = 4000.0
+	command_center.sight_range = 20
+	command_center.build_actions = [
+		_action("builder", "Builder", "builder.png"),
+	]
 	registry.register_definition(command_center, assets)
 	var builder: RwUnitDefinition = RwUnitDefinition.new()
 	builder.unit_name = "builder"
@@ -32,6 +38,21 @@ static func create_registry() -> RwUnitRegistry:
 	builder.movement_acceleration = 0.04
 	builder.movement_deceleration = 0.1
 	builder.collision_radius = 10.0
+	builder.can_reclaim = true
+	builder.build_actions = [
+		_action("extractor", "Extractor", "extractor.png", 4),
+		_action("turret", "Turret", "turret_base.png"),
+		_action("antiAirTurret", "Anti-air turret", "anti_air_top.png"),
+		_action("landFactory", "Land factory", "land_factory.png"),
+		_action("airFactory", "Air factory", "air_factory.png", 5),
+		_action("seaFactory", "Sea factory", "sea_factory.png"),
+		_action("laserDefence", "Laser defence", "laser_defence.png"),
+		_action("repairbay", "Repair bay", "repair_bay.png"),
+		_action("fabricator", "Fabricator", "power.png", 3),
+		_action("experimentalLandFactory", "Experimental factory", "experimental_unit_factory_base.png"),
+		_action("NukeLaucher", "Nuke launcher", "nuke_launcher.png"),
+		_action("AntiNukeLaucher", "Anti-nuke launcher", "antinuke_launcher.png"),
+	]
 	registry.register_definition(builder, assets)
 	var tank: RwUnitDefinition = RwUnitDefinition.new()
 	tank.unit_name = "tank"
@@ -42,6 +63,7 @@ static func create_registry() -> RwUnitRegistry:
 	tank.dead_image = "tank2_dead.png"
 	tank.dead_draw_layer = 0
 	tank.body_frames = 3
+	tank.attack_range = 130.0
 	tank.shadow_offset = Vector2(3.0, 3.0)
 	tank.max_health = 210.0
 	tank.movement_speed = 1.0
@@ -76,7 +98,16 @@ static func create_registry() -> RwUnitRegistry:
 	sea_factory.dead_image = "sea_factory_dead.png"
 	sea_factory.applies_spawn_rotation = false
 	sea_factory.dead_draw_layer = 0
+	sea_factory.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 	sea_factory.max_health = 1000.0
+	sea_factory.build_actions = [
+		_action("builderShip", "Builder ship", "builder_ship.png"),
+		_action("gunBoat", "Gun boat", "gun_boat.png"),
+		_action("missileShip", "Missile ship", "ship.png"),
+		_action("hovercraft", "Hovercraft", "hovercraft.png"),
+		_action("battleShip", "Battleship", "battle_ship2.png"),
+		_action("attackSubmarine", "Attack submarine", "attack_submarine.png"),
+	]
 	registry.register_definition(sea_factory, assets)
 	var tree: RwTreeDefinition = RwTreeDefinition.new()
 	tree.unit_name = "tree"
@@ -86,5 +117,15 @@ static func create_registry() -> RwUnitRegistry:
 	tree.draw_layer = 3
 	tree.dead_draw_layer = 0
 	tree.max_health = 100.0
+	tree.sight_range = 0
 	registry.register_definition(tree, assets)
 	return registry
+
+
+static func _action(action_id: String, display_name: String, icon_image: String, icon_frames: int = 1) -> RwUnitActionDefinition:
+	var action: RwUnitActionDefinition = RwUnitActionDefinition.new()
+	action.action_id = action_id
+	action.display_name = display_name
+	action.icon_image = icon_image
+	action.icon_frames = icon_frames
+	return action

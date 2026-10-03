@@ -135,11 +135,14 @@ func leave_room() -> void:
 	_disconnect(true)
 
 
-func send_chat(message: String) -> void:
+func send_chat(message: String, team_only: bool = false) -> void:
 	if not _joined or message.strip_edges().is_empty():
 		return
 	var stream: StreamPeerBuffer = RwBinary.writer()
-	RwBinary.write_utf(stream, message.strip_edges())
+	var outgoing_message: String = message.strip_edges()
+	if team_only:
+		outgoing_message = "-t " + outgoing_message
+	RwBinary.write_utf(stream, outgoing_message)
 	stream.put_u8(0)
 	_send_packet(140, stream.data_array)
 

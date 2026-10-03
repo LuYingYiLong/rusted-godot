@@ -15,16 +15,18 @@ layout_mode = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=423885349]
 layout_mode = 2
+mouse_filter = 2
 
 [node name="UnitTexture" type="TextureRect" parent="VBoxContainer" unique_id=1124841673]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
+mouse_filter = 2
 texture = ExtResource("1_wvvtm")
 expand_mode = 3
 stretch_mode = 5
 
-[node name="UnitLabel" type="Label" parent="VBoxContainer" unique_id=2082299515]
+[node name="UnitNameLabel" type="Label" parent="VBoxContainer" unique_id=2082299515]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
@@ -32,5 +34,11 @@ theme_type_variation = &"UnitLabel"
 text = "UnitName"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="DisabledColorRect" type="ColorRect" parent="." unique_id=140160779]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+color = Color(1, 0, 0, 0.23529412)
 
 [connection signal="pressed" from="Button" to="." method="_on_button_pressed"]

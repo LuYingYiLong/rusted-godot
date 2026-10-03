@@ -59,7 +59,6 @@ static func load_skirmish_map(parent: Node2D, map_name: String) -> Dictionary:
 		var layer: TileMapLayer = TileMapLayer.new()
 		layer.name = layer_name
 		layer.tile_set = tile_set
-		layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		layer.z_index = rendered_layers
 		layer.modulate.a = float(layer_info.get("opacity", 1.0))
 		parent.add_child(layer)

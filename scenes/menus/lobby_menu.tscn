@@ -61,4 +61,5 @@ layout_mode = 2
 text = "Exit"
 
 [connection signal="pressed" from="MarginContainer/VBoxContainer/ChatRow/SendButton" to="." method="_on_send_button_pressed"]
+[connection signal="text_submitted" from="MarginContainer/VBoxContainer/ChatRow/ChatInput" to="." method="_on_chat_submitted"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/ExitButton" to="." method="_on_exit_button_pressed"]

@@ -3,5 +3,6 @@
 [ext_resource type="Script" uid="uid://sklij02557lc" path="res://scripts/ui/resource_label.gd" id="1_il2uu"]
 
 [node name="ResourceLabel" type="Label" unique_id=1126945700]
+theme_type_variation = &"ResourceLabel"
 text = "999(+9)"
 script = ExtResource("1_il2uu")

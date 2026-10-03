@@ -15,7 +15,6 @@ func _ready() -> void:
 	RwRoomClient.room_updated.connect(_on_room_updated)
 	RwRoomClient.chat_received.connect(_on_chat_received)
 	RwRoomClient.game_started.connect(_on_game_started)
-	chat_input.text_submitted.connect(_on_chat_submitted)
 	_on_room_updated(RwRoomClient.settings, RwRoomClient.players, RwRoomClient.local_slot)
 	_refresh_actions()
 	status_label.text = "Joined a vanilla room"

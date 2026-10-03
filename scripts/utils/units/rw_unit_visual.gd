@@ -16,7 +16,6 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 	team_color = color
 	_provider = provider
 	name = unit_definition.unit_name
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if not unit_definition.shadow_image.is_empty():
 		var shadow: Sprite2D = _make_sprite(provider.load_cached_texture(unit_definition.shadow_image), "Shadow")
 		shadow.position = unit_definition.shadow_offset
@@ -70,6 +69,24 @@ func get_hit_radius() -> float:
 	return maxf(body_size.x, body_size.y) * 0.5
 
 
+func get_icon_texture() -> Texture2D:
+	var body: Sprite2D = get_node_or_null("Body") as Sprite2D
+	if body == null or body.texture == null:
+		return null
+	var region: Rect2
+	if body.region_enabled:
+		region = body.region_rect
+	elif body.hframes > 1 or body.vframes > 1:
+		var frame_size: Vector2 = Vector2(body.texture.get_size()) / Vector2(body.hframes, body.vframes)
+		region = Rect2(Vector2(body.frame_coords) * frame_size, frame_size)
+	else:
+		return body.texture
+	var icon: AtlasTexture = AtlasTexture.new()
+	icon.atlas = body.texture
+	icon.region = region
+	return icon
+
+
 func configure_placeholder(unit_name: String, color: Color) -> void:
 	name = unit_name
 	team_color = color
@@ -93,8 +110,16 @@ func _draw() -> void:
 		return
 	var body_size: Vector2 = body.get_rect().size * body.scale if body != null and body.texture != null else Vector2(16.0, 16.0)
 	if selected:
-		var selection_radius: float = maxf(body_size.x, body_size.y) * 0.5 + 4.0
-		draw_arc(Vector2.ZERO, selection_radius, 0.0, TAU, 32, RwUnitTeamColors.relation_color(relation), 1.5)
+		if definition != null and definition.attack_range > 0.0 and not state.is_dead:
+			draw_circle(Vector2.ZERO, definition.attack_range, Color(1.0, 1.0, 1.0, 0.05))
+			draw_arc(Vector2.ZERO, definition.attack_range, 0.0, TAU, 96, Color(1.0, 1.0, 1.0, 0.45), 1.0)
+		var selection_color: Color = RwUnitTeamColors.relation_color(relation)
+		if definition != null and definition.selection_shape == RwUnitDefinition.SelectionShape.RECTANGLE:
+			var half_size: Vector2 = body_size * 0.5 + Vector2(4.0, 4.0)
+			draw_rect(Rect2(-half_size, half_size * 2.0), selection_color, false, 1.5)
+		else:
+			var selection_radius: float = maxf(body_size.x, body_size.y) * 0.5 + 4.0
+			draw_arc(Vector2.ZERO, selection_radius, 0.0, TAU, 32, selection_color, 1.5)
 	if not state.is_dead and state.health < state.max_health:
 		var health_ratio: float = state.health / state.max_health if state.max_health > 0.0 else 0.0
 		var bar_width: float = clampf(body_size.x, 24.0, 70.0)
