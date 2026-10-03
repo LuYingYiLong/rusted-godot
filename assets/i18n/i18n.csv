@@ -1,0 +1,16 @@
+id,en,zh
+FOG_NAME,Fog,迷雾
+SEND_NAME,Send,发送
+TEAM_NAME,Team,团队
+JOIN_NAME,Join,加入
+EXIT_NAME,Exit,退出
+LEAVE_NAME,Leave,离开
+BACK_NAME,Back,返回
+CLOSE_NAME,Close,关闭
+CANCEL_NAME,Cancel,取消
+KICK_NAME,Kick,踢出
+CHAT_NAME,Chat,聊天
+OK_NAME,OK,确定
+MESSAGE_NAME,Message,消息
+ROOM_ID_NAME,Room ID,房间ID
+NICKNAME_NAME,Nickname,昵称

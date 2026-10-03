@@ -23,8 +23,6 @@ func _draw() -> void:
 		draw_texture_rect(_fog.minimap_texture, Rect2(Vector2.ZERO, size), false)
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.39, 0.39, 0.39), false, 1.0)
 	for world_position: Vector2 in _resource_points:
-		if _fog != null and not _fog.is_visible_at(world_position):
-			continue
 		var point: Vector2 = _world_to_local(world_position).floor()
 		draw_rect(Rect2(point, Vector2(2.0, 2.0)), Color(1.0, 1.0, 1.0, 0.82))
 	for unit_state: RwUnitState in _unit_states.values():
@@ -259,7 +257,7 @@ func _find_resource_points(parsed: Dictionary) -> Array[Vector2]:
 			seen_cells[cell_index] = true
 			@warning_ignore("integer_division")
 			var cell: Vector2i = Vector2i(cell_index % map_size.x, int(cell_index / map_size.x))
-			resource_points.append((Vector2(cell) + Vector2(0.5, 0.5)) * Vector2(tile_size))
+			resource_points.append(Vector2(cell) * Vector2(tile_size))
 	return resource_points
 
 

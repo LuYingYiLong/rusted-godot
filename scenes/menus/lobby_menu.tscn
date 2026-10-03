@@ -18,10 +18,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1321880273]
 layout_mode = 2
@@ -49,17 +45,17 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Message"
+placeholder_text = "CHAT_NAME"
 
 [node name="SendButton" type="Button" parent="MarginContainer/VBoxContainer/ChatRow" unique_id=360158052]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Send"
+text = "SEND_NAME"
 
 [node name="ExitButton" type="Button" parent="MarginContainer/VBoxContainer" unique_id=1955608744]
 layout_mode = 2
-text = "Exit"
+text = "EXIT_NAME"
 
-[connection signal="pressed" from="MarginContainer/VBoxContainer/ChatRow/SendButton" to="." method="_on_send_button_pressed"]
 [connection signal="text_submitted" from="MarginContainer/VBoxContainer/ChatRow/ChatInput" to="." method="_on_chat_submitted"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/ChatRow/SendButton" to="." method="_on_send_button_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/ExitButton" to="." method="_on_exit_button_pressed"]

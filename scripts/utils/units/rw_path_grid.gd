@@ -26,6 +26,7 @@ var _land_costs: PackedInt32Array
 var _hover_costs: PackedInt32Array
 var _water_costs: PackedInt32Array
 var _water_tiles: PackedByteArray
+var _resource_pool_tiles: PackedByteArray
 var _structure_blocks: PackedByteArray
 var _land_clearance: PackedByteArray
 var _hover_clearance: PackedByteArray
@@ -61,6 +62,33 @@ func is_water_at(world_position: Vector2) -> bool:
 
 func is_passable(cell: Vector2i, movement_type: String) -> bool:
 	return cost_at(cell, movement_type) >= 0
+
+
+func get_placement_error(world_position: Vector2, definition: RwUnitDefinition) -> String:
+	var center: Vector2i = world_to_cell(world_position)
+	if not _is_in_bounds(center):
+		return "Cannot place here"
+	var center_index: int = _cell_index(center)
+	if definition.placement_requires_resource_pool and _resource_pool_tiles[center_index] == 0:
+		return "Requires a resource pool"
+	if definition.placement_requires_water and _water_tiles[center_index] == 0:
+		return "Requires water"
+	for y: int in range(center.y + definition.structure_footprint_min.y, center.y + definition.structure_footprint_max.y + 1):
+		for x: int in range(center.x + definition.structure_footprint_min.x, center.x + definition.structure_footprint_max.x + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if not _is_in_bounds(cell):
+				return "Cannot place here"
+			var index: int = _cell_index(cell)
+			if _structure_blocks[index] != 0:
+				return "Location is occupied"
+			if definition.placement_requires_resource_pool and cell == center:
+				continue
+			if definition.placement_requires_water:
+				if _hover_costs[index] < 0:
+					return "Cannot place here"
+			elif _land_costs[index] < 0:
+				return "Cannot place here"
+	return ""
 
 
 func cost_at(cell: Vector2i, movement_type: String) -> int:
@@ -283,6 +311,7 @@ func _initialize(parsed: Dictionary) -> bool:
 	_hover_costs.resize(cell_count)
 	_water_costs.resize(cell_count)
 	_water_tiles.resize(cell_count)
+	_resource_pool_tiles.resize(cell_count)
 	_structure_blocks.resize(cell_count)
 	for index: int in cell_count:
 		var ground_info: Vector2i = _tile_info.get(ground_gids[index], Vector2i.ZERO)
@@ -293,6 +322,7 @@ func _initialize(parsed: Dictionary) -> bool:
 		if overlay_gids.size() == cell_count:
 			overlay_info = _tile_info.get(overlay_gids[index], Vector2i.ZERO)
 		_water_tiles[index] = 1 if ground_info.x & WATER else 0
+		_resource_pool_tiles[index] = 1 if items_info.x & RESOURCE_POOL or ground_info.x & RESOURCE_POOL else 0
 		var has_overlay: bool = overlay_gids.size() == cell_count and overlay_gids[index] != 0
 		_land_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "LAND")
 		_hover_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "HOVER")

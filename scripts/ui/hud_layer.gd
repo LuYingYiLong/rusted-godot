@@ -3,6 +3,7 @@ extends CanvasLayer
 
 signal minimap_position_chosen(world_position: Vector2)
 signal unit_action_chosen(action_id: String, unit_ids: Array[int])
+signal unit_action_cancelled(action_id: String, unit_ids: Array[int])
 signal unit_group_selected(unit_ids: Array[int])
 
 const JOIN_SCENE_UID: String = "uid://c75kjomieop5w"
@@ -12,7 +13,6 @@ const UNIT_ACTION_ITEM_SCENE: PackedScene = preload("uid://bmw3cmgk62apu")
 const MINIMAP_REFRESH_SECONDS: float = 0.2
 
 @onready var chat_panel: RwChatPanel = %ChatPanel
-@onready var sidebar: HBoxContainer = %Sidebar
 @onready var unit_description_panel: RwUnitDescriptionPanel = %UnitDescriptionPanel
 @onready var resource_container: VBoxContainer = %ResourceContainer
 @onready var minimap: RwMinimap = %Minimap
@@ -107,6 +107,19 @@ func show_selection(selected_units: Array[RwUnitState], unit_visuals: Dictionary
 	_render_selection()
 
 
+func set_production_status(status: Dictionary) -> void:
+	for child: Node in unit_action_container.get_children():
+		var item: RwUnitActionItem = child as RwUnitActionItem
+		if item == null:
+			continue
+		var entry: Dictionary = status.get(item.action_id, {})
+		item.set_production_status(
+			int(entry.get("count", 0)),
+			float(entry.get("progress", 0.0)),
+			bool(entry.get("active", false)),
+		)
+
+
 func _render_selection() -> void:
 	_hide_description()
 	_clear_dynamic_items(unit_info_container)
@@ -158,8 +171,10 @@ func _render_selection() -> void:
 			unit_action_container.add_child(action_item)
 			action_item.configure(action, _icon_for_action(action, focused_unit.team))
 			action_item.activated.connect(_on_unit_action_activated)
+			action_item.cancelled.connect(_on_unit_action_cancelled)
 			action_item.hovered.connect(_on_action_item_hovered)
 			action_item.unhovered.connect(_on_description_item_unhovered)
+	_refresh_action_affordability()
 	unit_info_container.show()
 	unit_action_scroll_container.show()
 	_refresh_selection_details()
@@ -212,6 +227,28 @@ func _clear_dynamic_items(container: Node) -> void:
 			child.queue_free()
 
 
+func _refresh_action_affordability() -> void:
+	var balances: Dictionary = {}
+	for player: Dictionary in _players:
+		if int(player.get("slot", -1)) == _local_slot:
+			balances = player.get("team_resources", {})
+			break
+	for child: Node in unit_action_container.get_children():
+		var item: RwUnitActionItem = child as RwUnitActionItem
+		if item == null or item.action_definition == null:
+			continue
+		var is_affordable: bool = true
+		for resource_id: String in item.action_definition.resource_costs:
+			var cost: float = float(item.action_definition.resource_costs[resource_id])
+			var balance: float = float(balances.get(resource_id, 0.0))
+			if resource_id == "credits":
+				balance = RwRoomClient.battle_economy.get_balance(_local_slot, resource_id)
+			if balance < cost:
+				is_affordable = false
+				break
+		item.set_affordable(is_affordable)
+
+
 func _on_selected_item_hovered(item: RwSelectedUnitItem) -> void:
 	var group: Array = _selected_groups.get(item.unit_key, [])
 	if group.is_empty():
@@ -241,6 +278,11 @@ func _on_action_item_hovered(item: RwUnitActionItem) -> void:
 	if description.is_empty():
 		var verb: String = "Build" if _focused_unit_key.ends_with(":builder") else "Produce"
 		description = "%s %s" % [verb, action.display_name]
+	var credit_cost: float = float(action.resource_costs.get("credits", 0.0))
+	if credit_cost > 0.0:
+		description += "\nCost: %.0f credits" % credit_cost
+	if action.build_rate_per_frame > 0.0:
+		description += "\nTime: %.1f s" % (1.0 / action.build_rate_per_frame / 60.0)
 	_show_description(item, item.unit_texture.texture, action.display_name, description)
 
 
@@ -269,9 +311,9 @@ func _update_description_position() -> void:
 	var mouse_y: float = get_viewport().get_mouse_position().y
 	var viewport_height: float = get_viewport().get_visible_rect().size.y
 	var max_y: float = maxf(0.0, viewport_height - unit_description_panel.size.y)
-	var sidebar_left: float = sidebar.get_global_rect().position.x
+	var action_left: float = unit_action_container.get_global_rect().position.x
 	unit_description_panel.global_position = Vector2(
-		sidebar_left - unit_description_panel.size.x,
+		action_left - unit_description_panel.size.x,
 		clampf(mouse_y, 0.0, max_y),
 	)
 
@@ -294,6 +336,15 @@ func _on_focused_item_selected(_unit_key: String) -> void:
 
 func _on_unit_action_activated(action_id: String) -> void:
 	_emit_focused_action(action_id)
+
+
+func _on_unit_action_cancelled(action_id: String) -> void:
+	var group: Array = _selected_groups.get(_focused_unit_key, [])
+	var unit_ids: Array[int] = []
+	for unit_state: RwUnitState in group:
+		unit_ids.append(unit_state.object_id)
+	if not unit_ids.is_empty():
+		unit_action_cancelled.emit(action_id, unit_ids)
 
 
 func _on_reclaim_button_pressed() -> void:
@@ -342,13 +393,16 @@ func _on_room_updated(_settings: Dictionary, players: Array[Dictionary], local_s
 				float(balances[resource_id]),
 				RwRoomClient.battle_economy.get_income_rate(local_slot, resource_id),
 			)
+		_refresh_action_affordability()
 		return
 	_set_resource_balance("credits", 0.0, 0.0)
+	_refresh_action_affordability()
 
 
 func _on_team_resource_changed(team_slot: int, resource_id: String, balance: float, growth: float) -> void:
 	if team_slot == RwRoomClient.local_slot:
 		_set_resource_balance(resource_id, balance, growth)
+		_refresh_action_affordability()
 
 
 func _set_resource_balance(resource_id: String, balance: float, growth: float) -> void:

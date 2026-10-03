@@ -6,10 +6,12 @@ signal balance_changed(team_slot: int, resource_id: String, balance: float, grow
 const INCOME_UPDATE_FRAMES: int = 10
 const INCOME_RATE_PERIOD: float = 40.0
 const COMMAND_CENTER_INCOME_RATE: float = 18.0
+const EXTRACTOR_INCOME_RATE: float = 8.0
 const MAX_CREDITS: float = 999_999_999.0
 
 var _balances: Dictionary
 var _command_center_counts: Dictionary
+var _extractor_counts: Dictionary
 var _income_multiplier: float = 1.0
 var _last_frame: int
 var _sources_ready: bool
@@ -18,6 +20,7 @@ var _sources_ready: bool
 func clear() -> void:
 	_balances.clear()
 	_command_center_counts.clear()
+	_extractor_counts.clear()
 	_income_multiplier = 1.0
 	_last_frame = 0
 	_sources_ready = false
@@ -34,6 +37,20 @@ func initialize(players: Array[Dictionary], income_multiplier: float) -> void:
 			continue
 		_balances[slot] = float(player.get("credits", 0))
 		_command_center_counts[slot] = 0
+		_extractor_counts[slot] = 0
+
+
+func set_extractors(counts: Dictionary) -> void:
+	for slot: int in _balances:
+		_extractor_counts[slot] = maxi(int(counts.get(slot, 0)), 0)
+
+
+func add_extractor(team_slot: int) -> void:
+	if not _balances.has(team_slot):
+		return
+	_extractor_counts[team_slot] = int(_extractor_counts.get(team_slot, 0)) + 1
+	if _sources_ready:
+		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
 
 
 func set_command_centers(counts: Dictionary) -> void:
@@ -66,10 +83,10 @@ func advance_to(frame: int) -> void:
 	if payout_count <= 0:
 		return
 	for slot: int in _balances:
-		var center_count: int = int(_command_center_counts.get(slot, 0))
-		if center_count <= 0:
+		var income_rate: float = _base_income_rate(slot)
+		if income_rate <= 0.0:
 			continue
-		var payout: float = COMMAND_CENTER_INCOME_RATE * center_count * _income_multiplier * float(INCOME_UPDATE_FRAMES) / INCOME_RATE_PERIOD
+		var payout: float = income_rate * _income_multiplier * float(INCOME_UPDATE_FRAMES) / INCOME_RATE_PERIOD
 		_balances[slot] = minf(float(_balances[slot]) + payout * payout_count, MAX_CREDITS)
 		balance_changed.emit(slot, "credits", float(_balances[slot]), get_income_rate(slot, "credits"))
 
@@ -84,8 +101,26 @@ func get_balance(team_slot: int, resource_id: String) -> float:
 	return float(_balances.get(team_slot, 0.0))
 
 
+func try_spend_credits(team_slot: int, amount: float) -> bool:
+	if amount < 0.0 or not _balances.has(team_slot) or float(_balances[team_slot]) < amount:
+		return false
+	_balances[team_slot] = float(_balances[team_slot]) - amount
+	balance_changed.emit(team_slot, "credits", float(_balances[team_slot]), get_income_rate(team_slot, "credits"))
+	return true
+
+
+func refund_credits(team_slot: int, amount: float) -> void:
+	if amount <= 0.0 or not _balances.has(team_slot):
+		return
+	_balances[team_slot] = minf(float(_balances[team_slot]) + amount, MAX_CREDITS)
+	balance_changed.emit(team_slot, "credits", float(_balances[team_slot]), get_income_rate(team_slot, "credits"))
+
+
 func get_income_rate(team_slot: int, resource_id: String) -> float:
 	if resource_id != "credits" or not _sources_ready:
 		return 0.0
-	var count: int = int(_command_center_counts.get(team_slot, 0))
-	return float(int(COMMAND_CENTER_INCOME_RATE * count * _income_multiplier))
+	return float(int(_base_income_rate(team_slot) * _income_multiplier))
+
+
+func _base_income_rate(team_slot: int) -> float:
+	return COMMAND_CENTER_INCOME_RATE * int(_command_center_counts.get(team_slot, 0)) + EXTRACTOR_INCOME_RATE * int(_extractor_counts.get(team_slot, 0))

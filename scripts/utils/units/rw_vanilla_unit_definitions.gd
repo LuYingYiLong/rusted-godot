@@ -19,9 +19,19 @@ static func create_registry() -> RwUnitRegistry:
 	command_center.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 	command_center.attack_range = 280.0
 	command_center.max_health = 4000.0
+	command_center.collision_radius = 30.0
+	command_center.blocks_movement = true
+	command_center.structure_footprint_min = Vector2i(-1, -1)
+	command_center.structure_footprint_max = Vector2i(1, 1)
 	command_center.sight_range = 20
+	var produce_builder: RwUnitActionDefinition = _action("builder", "Builder", "builder.png")
+	produce_builder.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
+	produce_builder.network_action_id = "u_builder"
+	produce_builder.target_unit_name = "builder"
+	produce_builder.resource_costs = {"credits": 500.0,}
+	produce_builder.build_rate_per_frame = 0.002
 	command_center.build_actions = [
-		_action("builder", "Builder", "builder.png"),
+		produce_builder,
 	]
 	registry.register_definition(command_center, assets)
 	var builder: RwUnitDefinition = RwUnitDefinition.new()
@@ -57,13 +67,18 @@ static func create_registry() -> RwUnitRegistry:
 		_action("NukeLaucher", "Nuke launcher", "nuke_launcher.png"),
 		_action("AntiNukeLaucher", "Anti-nuke launcher", "antinuke_launcher.png"),
 	]
+	for build_action: RwUnitActionDefinition in builder.build_actions:
+		RwVanillaBuildings.configure_action(build_action)
 	registry.register_definition(builder, assets)
 	var tank: RwUnitDefinition = RwUnitDefinition.new()
 	tank.unit_name = "tank"
 	tank.display_name = "Tank"
 	tank.description = "Ground combat unit."
 	tank.body_image = "tank2.png"
-	tank.turret_image = "tank2_turret.png"
+	var tank_turret: RwUnitWeaponDefinition = RwUnitWeaponDefinition.new()
+	tank_turret.image = "tank2_turret.png"
+	tank_turret.rotation_offset_degrees = 90.0
+	tank.weapon_parts = [tank_turret,]
 	tank.render_rotation_offset_degrees = 90.0
 	tank.shadow_image = "tank2_shadow.png"
 	tank.dead_image = "tank2_dead.png"
@@ -99,6 +114,7 @@ static func create_registry() -> RwUnitRegistry:
 	hovercraft.movement_acceleration = 0.03
 	hovercraft.movement_deceleration = 0.05
 	hovercraft.collision_radius = 15.0
+	hovercraft.push_mass = 12000.0
 	registry.register_definition(hovercraft, assets)
 	var sea_factory: RwUnitDefinition = RwUnitDefinition.new()
 	sea_factory.unit_name = "seaFactory"
@@ -110,15 +126,27 @@ static func create_registry() -> RwUnitRegistry:
 	sea_factory.dead_draw_layer = 0
 	sea_factory.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 	sea_factory.max_health = 1000.0
+	sea_factory.placement_requires_water = true
+	sea_factory.collision_radius = 45.0
+	sea_factory.blocks_movement = true
+	sea_factory.structure_footprint_min = Vector2i(-1, -1)
+	sea_factory.structure_footprint_max = Vector2i(1, 2)
+	var produce_hovercraft: RwUnitActionDefinition = _action("hovercraft", "Hovercraft", "hovercraft.png")
+	produce_hovercraft.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
+	produce_hovercraft.network_action_id = "u_hovercraft"
+	produce_hovercraft.target_unit_name = "hovercraft"
+	produce_hovercraft.resource_costs = {"credits": 600.0,}
+	produce_hovercraft.build_rate_per_frame = 0.003
 	sea_factory.build_actions = [
 		_action("builderShip", "Builder ship", "builder_ship.png"),
 		_action("gunBoat", "Gun boat", "gun_boat.png"),
 		_action("missileShip", "Missile ship", "ship.png"),
-		_action("hovercraft", "Hovercraft", "hovercraft.png"),
+		produce_hovercraft,
 		_action("battleShip", "Battleship", "battle_ship2.png"),
 		_action("attackSubmarine", "Attack submarine", "attack_submarine.png"),
 	]
 	registry.register_definition(sea_factory, assets)
+	RwVanillaBuildings.register_definitions(registry, assets)
 	var tree: RwTreeDefinition = RwTreeDefinition.new()
 	tree.unit_name = "tree"
 	tree.display_name = "Tree"

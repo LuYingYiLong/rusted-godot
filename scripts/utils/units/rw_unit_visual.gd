@@ -9,6 +9,8 @@ var relation: RwUnitTeamColors.Relation = RwUnitTeamColors.Relation.NEUTRAL
 
 var _provider: RwUnitAssetProvider
 var _alive_body_texture: Texture2D
+var _weapon_mounts: Array[Node2D]
+var _weapon_definitions: Array[RwUnitWeaponDefinition]
 
 
 func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider, color: Color) -> void:
@@ -38,9 +40,27 @@ func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider,
 		body.region_enabled = true
 		body.region_rect = Rect2(unit_definition.body_region)
 	add_child(body)
-	if not unit_definition.turret_image.is_empty():
-		var turret_texture: Texture2D = provider.load_team_texture(unit_definition.turret_image, color) if unit_definition.turret_team_colored else provider.load_cached_texture(unit_definition.turret_image)
-		add_child(_make_sprite(turret_texture, "Turret"))
+	_weapon_definitions.clear()
+	for weapon_part: RwUnitWeaponDefinition in unit_definition.weapon_parts:
+		if weapon_part != null:
+			_weapon_definitions.append(weapon_part)
+	if _weapon_definitions.is_empty() and not unit_definition.turret_image.is_empty():
+		var legacy_weapon: RwUnitWeaponDefinition = RwUnitWeaponDefinition.new()
+		legacy_weapon.image = unit_definition.turret_image
+		legacy_weapon.team_colored = unit_definition.turret_team_colored
+		legacy_weapon.rotation_offset_degrees = unit_definition.render_rotation_offset_degrees
+		_weapon_definitions.append(legacy_weapon)
+	for index: int in _weapon_definitions.size():
+		var weapon: RwUnitWeaponDefinition = _weapon_definitions[index]
+		var mount: Node2D = Node2D.new()
+		mount.name = "Weapon%d" % index
+		mount.z_index = weapon.draw_order
+		var weapon_texture: Texture2D = provider.load_team_texture(weapon.image, color) if weapon.team_colored else provider.load_cached_texture(weapon.image)
+		var weapon_sprite: Sprite2D = _make_sprite(weapon_texture, "Sprite")
+		weapon_sprite.position = weapon.sprite_offset
+		mount.add_child(weapon_sprite)
+		add_child(mount)
+		_weapon_mounts.append(mount)
 	if body_texture == null:
 		configure_placeholder(unit_definition.unit_name, color)
 
@@ -131,6 +151,7 @@ func _draw() -> void:
 
 func _on_state_changed(unit_state: RwUnitState) -> void:
 	position = unit_state.world_position
+	modulate.a = lerpf(0.55, 1.0, unit_state.build_progress)
 	var render_rotation_offset: float = definition.render_rotation_offset_degrees if definition != null else 0.0
 	rotation_degrees = unit_state.body_rotation_degrees + render_rotation_offset
 	if definition != null:
@@ -146,10 +167,13 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 			body.hframes = definition.body_frames
 			body.region_enabled = definition.body_region.size != Vector2i.ZERO
 			body.frame = mini(unit_state.animation_frame, body.hframes - 1)
-	var turret: Sprite2D = get_node_or_null("Turret") as Sprite2D
-	if turret != null:
-		turret.visible = not unit_state.is_dead
-		turret.rotation_degrees = unit_state.turret_rotation_degrees
+	for index: int in _weapon_mounts.size():
+		var mount: Node2D = _weapon_mounts[index]
+		var weapon: RwUnitWeaponDefinition = _weapon_definitions[index]
+		mount.visible = not unit_state.is_dead
+		mount.position = weapon.mount_offset if weapon.mount_follows_body else weapon.mount_offset.rotated(-rotation)
+		var weapon_angle: float = unit_state.body_rotation_degrees if weapon.aim_follows_body else unit_state.get_weapon_rotation(weapon.rotation_state_index)
+		mount.rotation_degrees = weapon_angle + weapon.rotation_offset_degrees - rotation_degrees
 	var shadow: Sprite2D = get_node_or_null("Shadow") as Sprite2D
 	if shadow != null:
 		shadow.visible = not unit_state.is_dead

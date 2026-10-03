@@ -40,6 +40,10 @@ send_message={
 "events": []
 }
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://assets/i18n/i18n.en.translation", "res://assets/i18n/i18n.zh.translation")
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

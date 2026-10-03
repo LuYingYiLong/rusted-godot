@@ -155,6 +155,30 @@ func send_move_order(unit_ids: Array[int], target: Vector2) -> bool:
 	return true
 
 
+func send_unit_action(unit_ids: Array[int], action_id: String) -> bool:
+	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty() or action_id.is_empty():
+		return false
+	var payload: PackedByteArray = RwBattleCommandWriter.write_action(local_slot, unit_ids, action_id)
+	_send_packet(20, payload)
+	return true
+
+
+func send_cancel_unit_action(unit_id: int, action_id: String) -> bool:
+	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_id <= 0 or action_id.is_empty():
+		return false
+	var payload: PackedByteArray = RwBattleCommandWriter.write_action(local_slot, [unit_id,], action_id, true)
+	_send_packet(20, payload)
+	return true
+
+
+func send_build_order(unit_ids: Array[int], unit_type_index: int, target: Vector2, is_queued: bool) -> bool:
+	if not _joined or _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED or battle_map_info.is_empty() or local_slot < 0 or unit_ids.is_empty() or unit_type_index < 0:
+		return false
+	var payload: PackedByteArray = RwBattleCommandWriter.write_build(local_slot, unit_ids, unit_type_index, target, is_queued)
+	_send_packet(20, payload)
+	return true
+
+
 func is_joined() -> bool:
 	return _joined
 
@@ -169,9 +193,10 @@ func mark_battle_map_loaded() -> void:
 	_send_client_status(true)
 
 
-func set_initial_command_centers(counts: Dictionary) -> void:
+func set_initial_command_centers(counts: Dictionary, extractor_counts: Dictionary = {}) -> void:
 	if battle_map_info.is_empty():
 		return
+	battle_economy.set_extractors(extractor_counts)
 	battle_economy.set_command_centers(counts)
 	battle_economy.advance_to(battle_timeline.current_frame)
 

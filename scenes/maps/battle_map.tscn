@@ -29,27 +29,26 @@ unique_name_in_owner = true
 [node name="MapCamera" type="Camera2D" parent="MapRoot" unique_id=366109962]
 unique_name_in_owner = true
 
-[node name="FogOverlay" type="Sprite2D" parent="MapRoot"]
+[node name="FogOverlay" type="Sprite2D" parent="MapRoot" unique_id=577037501]
 unique_name_in_owner = true
 z_index = 40
 texture_filter = 2
 centered = false
 
-[node name="NavigationOverlay" type="Node2D" parent="MapRoot"]
+[node name="NavigationOverlay" type="Node2D" parent="MapRoot" unique_id=56760741]
 unique_name_in_owner = true
 z_index = 45
 
-[node name="InitialUnits" type="Node2D" parent="MapRoot"]
+[node name="InitialUnits" type="Node2D" parent="MapRoot" unique_id=1115084356]
 unique_name_in_owner = true
 z_index = 50
 y_sort_enabled = true
 
-[node name="SelectionCanvasLayer" type="CanvasLayer" parent="."]
-layer = 1
+[node name="SelectionCanvasLayer" type="CanvasLayer" parent="." unique_id=1518443052]
 
 [node name="SelectionOverlay" type="Control" parent="SelectionCanvasLayer" unique_id=876323491]
 unique_name_in_owner = true
-layout_mode = 1
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -63,5 +62,6 @@ layer = 2
 [connection signal="draw" from="MapRoot/NavigationOverlay" to="." method="_draw_navigation_overlay"]
 [connection signal="draw" from="SelectionCanvasLayer/SelectionOverlay" to="." method="_draw_selection_overlay"]
 [connection signal="minimap_position_chosen" from="HudLayer" to="." method="_on_minimap_position_chosen"]
+[connection signal="unit_action_cancelled" from="HudLayer" to="." method="_on_unit_action_cancelled"]
 [connection signal="unit_action_chosen" from="HudLayer" to="." method="_on_unit_action_chosen"]
 [connection signal="unit_group_selected" from="HudLayer" to="." method="_on_unit_group_selected"]

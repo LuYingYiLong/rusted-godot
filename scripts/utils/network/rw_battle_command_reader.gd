@@ -59,15 +59,17 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	var team: int = stream.get_8()
 	var has_order: bool = stream.get_u8() != 0
 	var order_type: String
+	var build_unit_index: int = -1
+	var custom_build_unit_name: String
 	var target: Vector2
 	var target_id: int = -1
 	if has_order:
 		if stream.get_available_bytes() < 8:
 			return {"error": "Unit order is incomplete",}
 		var type_index: int = stream.get_32()
-		var build_unit_index: int = stream.get_32()
+		build_unit_index = stream.get_32()
 		if build_unit_index == -2:
-			RwBinary.read_utf(stream)
+			custom_build_unit_name = RwBinary.read_utf(stream)
 		if stream.get_available_bytes() < 29:
 			return {"error": "Unit order target is incomplete",}
 		target = Vector2(stream.get_float(), stream.get_float())
@@ -83,8 +85,8 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 			order_type = COMMAND_TYPES[type_index]
 	if stream.get_available_bytes() < 16:
 		return {"error": "Command selection is incomplete",}
-	stream.get_u8()
-	stream.get_u8()
+	var is_queued: bool = stream.get_u8() != 0
+	var stop_current_action: bool = stream.get_u8() != 0
 	stream.get_32()
 	stream.get_32()
 	if stream.get_u8() != 0:
@@ -113,7 +115,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	if stream.get_available_bytes() < 17:
 		return {"error": "Command metadata is incomplete",}
 	stream.get_64()
-	RwBinary.read_utf(stream)
+	var action_id: String = RwBinary.read_utf(stream)
 	stream.get_u8()
 	stream.get_u16()
 	var is_system_action: bool = stream.get_u8() != 0
@@ -141,6 +143,11 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		"error": "",
 		"team": team,
 		"order_type": order_type,
+		"build_unit_index": build_unit_index,
+		"custom_build_unit_name": custom_build_unit_name,
+		"action_id": action_id,
+		"is_queued": is_queued,
+		"stop_current_action": stop_current_action,
 		"target": target,
 		"target_id": target_id,
 		"unit_ids": unit_ids,

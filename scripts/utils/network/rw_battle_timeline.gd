@@ -53,5 +53,4 @@ func advance(delta: float) -> void:
 		current_frame += 1
 		_fractional_frames -= 1.0
 		steps += 1
-	if steps > 0:
 		frame_advanced.emit(current_frame, next_blocking_frame)

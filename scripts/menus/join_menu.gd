@@ -13,6 +13,9 @@ const LOBBY_SCENE_UID: String = "uid://kbqq6run7b25"
 func _ready() -> void:
 	RwRoomClient.name = "RwRoomClient"
 	RwRoomClient.connection_changed.connect(_on_connection_changed)
+	# 自动设置语言
+	var preferred_language = OS.get_locale_language()
+	TranslationServer.set_locale(preferred_language)
 	_update_join_button()
 
 

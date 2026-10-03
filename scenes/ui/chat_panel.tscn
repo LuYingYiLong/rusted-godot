@@ -89,7 +89,7 @@ theme_type_variation = &"MarginlessHBoxContainer"
 [node name="TeamCheckButton" type="CheckButton" parent="MainPanel/HBoxContainer" unique_id=2060375660]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Team"
+text = "TEAM_NAME"
 
 [node name="LineEdit" type="LineEdit" parent="MainPanel/HBoxContainer" unique_id=264218389]
 unique_name_in_owner = true
@@ -99,7 +99,7 @@ size_flags_horizontal = 3
 [node name="SendButton" type="Button" parent="MainPanel/HBoxContainer" unique_id=1867406866]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Send"
+text = "SEND_NAME"
 
 [node name="PreviewMessageLabel" type="RichTextLabel" parent="." unique_id=1897126354]
 unique_name_in_owner = true

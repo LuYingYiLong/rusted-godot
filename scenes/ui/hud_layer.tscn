@@ -20,7 +20,7 @@ mouse_filter = 2
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
-text = "Leave"
+text = "LEAVE_NAME"
 
 [node name="Sidebar" type="HBoxContainer" parent="." unique_id=565634510]
 unique_name_in_owner = true
@@ -33,6 +33,7 @@ grow_horizontal = 0
 grow_vertical = 2
 size_flags_horizontal = 8
 theme_type_variation = &"MarginlessHBoxContainer"
+alignment = 2
 
 [node name="ResourceContainer" type="VBoxContainer" parent="Sidebar" unique_id=763446041]
 unique_name_in_owner = true

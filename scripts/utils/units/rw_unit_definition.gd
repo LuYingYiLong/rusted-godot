@@ -13,6 +13,7 @@ enum SelectionShape {
 @export var body_image: String
 @export var back_image: String
 @export var turret_image: String
+@export var weapon_parts: Array[RwUnitWeaponDefinition]
 @export var shadow_image: String
 @export var dead_image: String
 @export var body_region: Rect2i
@@ -31,6 +32,12 @@ enum SelectionShape {
 @export var movement_acceleration: float
 @export var movement_deceleration: float
 @export var collision_radius: float
+@export var push_mass: float = 3000.0
+@export var blocks_movement: bool
+@export var structure_footprint_min: Vector2i
+@export var structure_footprint_max: Vector2i
+@export var placement_requires_resource_pool: bool
+@export var placement_requires_water: bool
 @export var attack_range: float
 @export var selection_shape: SelectionShape
 @export var sight_range: int = 15
