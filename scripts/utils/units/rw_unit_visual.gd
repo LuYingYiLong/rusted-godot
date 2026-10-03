@@ -1,6 +1,6 @@
-## 根据单位状态绘制主体、阴影、武器和附加视觉层
 class_name RwUnitVisual
 extends Node2D
+## 根据单位状态绘制主体、阴影、武器和附加视觉层
 
 const STATUS_BAR_HEIGHT: float = 4.0
 const STATUS_BAR_GAP: float = 2.0
