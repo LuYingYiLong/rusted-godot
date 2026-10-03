@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://rp807gjwttmu"
+path="res://.godot/imported/[p2]Two_cold_sides (2p).tmx-7ddf12850f591bc70419ed1213d5b739.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Two_cold_sides (2p).tmx"
+dest_files=["res://.godot/imported/[p2]Two_cold_sides (2p).tmx-7ddf12850f591bc70419ed1213d5b739.res"]
+
+[params]
+

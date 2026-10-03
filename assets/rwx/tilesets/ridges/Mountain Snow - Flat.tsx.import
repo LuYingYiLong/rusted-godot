@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://damurbk5faxlg"
+path="res://.godot/imported/Mountain Snow - Flat.tsx-08c98590ec58380ec4b8b595a8459890.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Snow - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain Snow - Flat.tsx-08c98590ec58380ec4b8b595a8459890.res"]
+
+[params]
+

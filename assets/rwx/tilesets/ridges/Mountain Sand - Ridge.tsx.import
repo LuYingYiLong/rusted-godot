@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://box7qh0csxadr"
+path="res://.godot/imported/Mountain Sand - Ridge.tsx-06108a545b0a469f3f5eb6682685e286.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Sand - Ridge.tsx"
+dest_files=["res://.godot/imported/Mountain Sand - Ridge.tsx-06108a545b0a469f3f5eb6682685e286.res"]
+
+[params]
+

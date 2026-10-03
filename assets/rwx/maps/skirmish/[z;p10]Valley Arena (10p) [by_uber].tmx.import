@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://ciy613ybdwy88"
+path="res://.godot/imported/[z;p10]Valley Arena (10p) [by_uber].tmx-a880a84cf8b5d1e1a08e6042e0fa3dcd.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Valley Arena (10p) [by_uber].tmx"
+dest_files=["res://.godot/imported/[z;p10]Valley Arena (10p) [by_uber].tmx-a880a84cf8b5d1e1a08e6042e0fa3dcd.res"]
+
+[params]
+

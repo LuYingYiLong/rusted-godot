@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bwqo2jbuicain"
+path="res://.godot/imported/Snow Snow - Hill.tsx-87f70d92e438a97fb0c99f9d20feb88a.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Snow Snow - Hill.tsx"
+dest_files=["res://.godot/imported/Snow Snow - Hill.tsx-87f70d92e438a97fb0c99f9d20feb88a.res"]
+
+[params]
+

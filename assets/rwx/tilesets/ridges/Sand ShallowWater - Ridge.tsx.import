@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://t684636cdgyp"
+path="res://.godot/imported/Sand ShallowWater - Ridge.tsx-cc8ecda11ab422175c4a9edafdc18b41.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Sand ShallowWater - Ridge.tsx"
+dest_files=["res://.godot/imported/Sand ShallowWater - Ridge.tsx-cc8ecda11ab422175c4a9edafdc18b41.res"]
+
+[params]
+

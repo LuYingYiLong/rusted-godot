@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c3xygax8ri23e"
+path="res://.godot/imported/Mountain.tsx-3e7f7acb9205762ea9a7c7e85b9497ca.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Mountain.tsx"
+dest_files=["res://.godot/imported/Mountain.tsx-3e7f7acb9205762ea9a7c7e85b9497ca.res"]
+
+[params]
+

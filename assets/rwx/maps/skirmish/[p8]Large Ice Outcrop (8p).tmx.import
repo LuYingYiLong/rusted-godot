@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://vx7jkgfxdule"
+path="res://.godot/imported/[p8]Large Ice Outcrop (8p).tmx-b6ee16c1282f558304f9f0dc49dd3771.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Large Ice Outcrop (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Large Ice Outcrop (8p).tmx-b6ee16c1282f558304f9f0dc49dd3771.res"]
+
+[params]
+

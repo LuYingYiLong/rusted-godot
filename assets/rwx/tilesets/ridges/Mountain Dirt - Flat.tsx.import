@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://12tsxcigv1s2"
+path="res://.godot/imported/Mountain Dirt - Flat.tsx-b7e7f7e77cc31cff4a61495712111f8d.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Dirt - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain Dirt - Flat.tsx-b7e7f7e77cc31cff4a61495712111f8d.res"]
+
+[params]
+

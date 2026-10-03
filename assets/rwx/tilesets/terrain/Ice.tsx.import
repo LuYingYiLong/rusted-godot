@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://buvduqoypiw1h"
+path="res://.godot/imported/Ice.tsx-7a6e769538e5d4e4a5e337e9ae49493a.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Ice.tsx"
+dest_files=["res://.godot/imported/Ice.tsx-7a6e769538e5d4e4a5e337e9ae49493a.res"]
+
+[params]
+

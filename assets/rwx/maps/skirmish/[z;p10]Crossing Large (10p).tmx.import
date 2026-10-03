@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://0bqwj4p3odf"
+path="res://.godot/imported/[z;p10]Crossing Large (10p).tmx-7b85d71cfc3e77c15fbc97d8810f7846.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Crossing Large (10p).tmx"
+dest_files=["res://.godot/imported/[z;p10]Crossing Large (10p).tmx-7b85d71cfc3e77c15fbc97d8810f7846.res"]
+
+[params]
+

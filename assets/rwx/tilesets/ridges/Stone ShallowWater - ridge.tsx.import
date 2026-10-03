@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://b5turcfrq8hrf"
+path="res://.godot/imported/Stone ShallowWater - ridge.tsx-74ba4a24d0949cb1b2276c933166b5e6.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Stone ShallowWater - ridge.tsx"
+dest_files=["res://.godot/imported/Stone ShallowWater - ridge.tsx-74ba4a24d0949cb1b2276c933166b5e6.res"]
+
+[params]
+

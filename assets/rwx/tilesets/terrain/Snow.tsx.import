@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cj6xdrlusxctf"
+path="res://.godot/imported/Snow.tsx-19941478ca7716be7ab0aedb6d50f55e.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Snow.tsx"
+dest_files=["res://.godot/imported/Snow.tsx-19941478ca7716be7ab0aedb6d50f55e.res"]
+
+[params]
+

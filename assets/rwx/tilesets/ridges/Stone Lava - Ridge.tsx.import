@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://kdv0imem0ic2"
+path="res://.godot/imported/Stone Lava - Ridge.tsx-d9065cb704d26abc47ee7642e1a5e3c9.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Stone Lava - Ridge.tsx"
+dest_files=["res://.godot/imported/Stone Lava - Ridge.tsx-d9065cb704d26abc47ee7642e1a5e3c9.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c7u2fc4ky6bdd"
+path="res://.godot/imported/[p4]Desert (4p).tmx-0cfbc0ac7e910482298b1ee8aeedb1aa.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Desert (4p).tmx"
+dest_files=["res://.godot/imported/[p4]Desert (4p).tmx-0cfbc0ac7e910482298b1ee8aeedb1aa.res"]
+
+[params]
+

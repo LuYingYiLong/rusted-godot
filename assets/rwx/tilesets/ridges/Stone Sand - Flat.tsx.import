@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dk4pl85f6r4wy"
+path="res://.godot/imported/Stone Sand - Flat.tsx-0b8879060dbb454955740e79ce9e10fb.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Stone Sand - Flat.tsx"
+dest_files=["res://.godot/imported/Stone Sand - Flat.tsx-0b8879060dbb454955740e79ce9e10fb.res"]
+
+[params]
+

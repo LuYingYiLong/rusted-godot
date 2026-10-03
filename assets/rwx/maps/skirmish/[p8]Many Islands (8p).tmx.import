@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://li7qhfaqaphd"
+path="res://.godot/imported/[p8]Many Islands (8p).tmx-e3980ca0f2d530ba326812e25ac89eb8.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Many Islands (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Many Islands (8p).tmx-e3980ca0f2d530ba326812e25ac89eb8.res"]
+
+[params]
+

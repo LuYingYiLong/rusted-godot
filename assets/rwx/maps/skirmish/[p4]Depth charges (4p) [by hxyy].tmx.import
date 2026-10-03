@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d1q7jg04h8roo"
+path="res://.godot/imported/[p4]Depth charges (4p) [by hxyy].tmx-720dab5a9a55c71d89be7f53ef8e2cb8.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Depth charges (4p) [by hxyy].tmx"
+dest_files=["res://.godot/imported/[p4]Depth charges (4p) [by hxyy].tmx-720dab5a9a55c71d89be7f53ef8e2cb8.res"]
+
+[params]
+

@@ -1,0 +1,19 @@
+[gd_resource type="Theme" format=3 uid="uid://chfdmp0bm4o62"]
+
+[resource]
+MarginlessGridContainer/base_type = &"GridContainer"
+MarginlessGridContainer/constants/h_separation = 0
+MarginlessGridContainer/constants/v_separation = 0
+MarginlessHBoxContainer/base_type = &"HBoxContainer"
+MarginlessHBoxContainer/constants/separation = 0
+MarginlessVBoxContainer/base_type = &"VBoxContainer"
+MarginlessVBoxContainer/constants/separation = 0
+SmallButton/base_type = &"Button"
+SmallButton/font_sizes/font_size = 12
+SmallLabel/base_type = &"Label"
+SmallLabel/font_sizes/font_size = 12
+UnitLabel/base_type = &"Label"
+UnitLabel/colors/font_color = Color(0.06666667, 0.7764706, 0.03137255, 1)
+UnitLabel/colors/font_outline_color = Color(0.06666667, 0.4, 0.03137255, 1)
+UnitLabel/constants/outline_size = 2
+UnitLabel/font_sizes/font_size = 12

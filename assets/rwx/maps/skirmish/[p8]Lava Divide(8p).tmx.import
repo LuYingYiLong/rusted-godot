@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cp56bre4ffwsf"
+path="res://.godot/imported/[p8]Lava Divide(8p).tmx-7cfe3d2f86263c31bf7faa9c9c0d6e3b.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Lava Divide(8p).tmx"
+dest_files=["res://.godot/imported/[p8]Lava Divide(8p).tmx-7cfe3d2f86263c31bf7faa9c9c0d6e3b.res"]
+
+[params]
+

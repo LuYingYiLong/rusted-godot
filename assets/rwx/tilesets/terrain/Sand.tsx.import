@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d2ve7aojcugbi"
+path="res://.godot/imported/Sand.tsx-156eeeba7967a9ddcc49103308619177.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Sand.tsx"
+dest_files=["res://.godot/imported/Sand.tsx-156eeeba7967a9ddcc49103308619177.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://vdrfeyx1ahj1"
+path="res://.godot/imported/Mountain Stone - Ridge.tsx-b2d1ca5e05ddf19937ad59be076c42cf.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Stone - Ridge.tsx"
+dest_files=["res://.godot/imported/Mountain Stone - Ridge.tsx-b2d1ca5e05ddf19937ad59be076c42cf.res"]
+
+[params]
+

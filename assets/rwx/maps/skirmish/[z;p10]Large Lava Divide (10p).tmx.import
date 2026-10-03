@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cawopnfh6damm"
+path="res://.godot/imported/[z;p10]Large Lava Divide (10p).tmx-f2c855d0d5595a66c98fab6fb5dabd09.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Large Lava Divide (10p).tmx"
+dest_files=["res://.godot/imported/[z;p10]Large Lava Divide (10p).tmx-f2c855d0d5595a66c98fab6fb5dabd09.res"]
+
+[params]
+

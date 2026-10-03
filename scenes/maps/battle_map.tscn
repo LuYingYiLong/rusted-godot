@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://c0w7n4afw43pa"]
+
+[ext_resource type="Script" uid="uid://cedhf2f4htp67" path="res://scripts/maps/battle_map.gd" id="1_battle"]
+[ext_resource type="PackedScene" uid="uid://6to008vqjoss" path="res://scenes/ui/hud_layer.tscn" id="2_1it3o"]
+
+[node name="BattleMap" type="Control" unique_id=151832150]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_battle")
+
+[node name="Background" type="ColorRect" parent="." unique_id=512517170]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="MapRoot" type="Node2D" parent="." unique_id=2139443760]
+unique_name_in_owner = true
+
+[node name="MapCamera" type="Camera2D" parent="MapRoot" unique_id=366109962]
+unique_name_in_owner = true
+
+[node name="SelectionOverlay" type="Control" parent="." unique_id=876323491]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HudLayer" parent="." unique_id=1635449708 instance=ExtResource("2_1it3o")]

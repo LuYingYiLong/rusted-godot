@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bl4bctdqsfwx1"
+path="res://.godot/imported/Mountain Stone - Flat.tsx-1a0fd75e7aa01d2ee83126cb68f81b4e.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Stone - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain Stone - Flat.tsx-1a0fd75e7aa01d2ee83126cb68f81b4e.res"]
+
+[params]
+

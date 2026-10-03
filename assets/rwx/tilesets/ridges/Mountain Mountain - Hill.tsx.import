@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bl884t5xemvdb"
+path="res://.godot/imported/Mountain Mountain - Hill.tsx-f88e8468a7e626b4e2d696545489d129.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Mountain - Hill.tsx"
+dest_files=["res://.godot/imported/Mountain Mountain - Hill.tsx-f88e8468a7e626b4e2d696545489d129.res"]
+
+[params]
+

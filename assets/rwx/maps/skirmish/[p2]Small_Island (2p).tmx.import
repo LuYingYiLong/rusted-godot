@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://ms03gey4bwmx"
+path="res://.godot/imported/[p2]Small_Island (2p).tmx-7b5776d9f60ed367f91c8ba8390ef4c0.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Small_Island (2p).tmx"
+dest_files=["res://.godot/imported/[p2]Small_Island (2p).tmx-7b5776d9f60ed367f91c8ba8390ef4c0.res"]
+
+[params]
+

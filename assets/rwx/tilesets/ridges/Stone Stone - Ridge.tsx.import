@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d37cyl3dhn516"
+path="res://.godot/imported/Stone Stone - Ridge.tsx-da6138dc0917ef7093fc48a4b79ac63d.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Stone Stone - Ridge.tsx"
+dest_files=["res://.godot/imported/Stone Stone - Ridge.tsx-da6138dc0917ef7093fc48a4b79ac63d.res"]
+
+[params]
+

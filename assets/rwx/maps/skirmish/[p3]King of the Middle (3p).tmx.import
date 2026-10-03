@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bac62x4ay5de2"
+path="res://.godot/imported/[p3]King of the Middle (3p).tmx-60725cc4415d0a27742115d835ea236a.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p3]King of the Middle (3p).tmx"
+dest_files=["res://.godot/imported/[p3]King of the Middle (3p).tmx-60725cc4415d0a27742115d835ea236a.res"]
+
+[params]
+

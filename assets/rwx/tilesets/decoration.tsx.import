@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c4kbqs8igw34"
+path="res://.godot/imported/decoration.tsx-cd65ae31b5b1e5d7a99f9b697076f02d.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/decoration.tsx"
+dest_files=["res://.godot/imported/decoration.tsx-cd65ae31b5b1e5d7a99f9b697076f02d.res"]
+
+[params]
+

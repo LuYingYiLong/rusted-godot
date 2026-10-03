@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cqyly1lqxo031"
+path="res://.godot/imported/Nothing Sand - Flat.tsx-3e4e84d8a13c38454b5f52f28f472d65.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Nothing Sand - Flat.tsx"
+dest_files=["res://.godot/imported/Nothing Sand - Flat.tsx-3e4e84d8a13c38454b5f52f28f472d65.res"]
+
+[params]
+

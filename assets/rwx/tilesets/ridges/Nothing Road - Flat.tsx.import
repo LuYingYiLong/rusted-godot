@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dqxs3pp4twu51"
+path="res://.godot/imported/Nothing Road - Flat.tsx-404f785155433aa3cf2345c25ea389d6.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Nothing Road - Flat.tsx"
+dest_files=["res://.godot/imported/Nothing Road - Flat.tsx-404f785155433aa3cf2345c25ea389d6.res"]
+
+[params]
+

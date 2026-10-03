@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://7vprysj71uxq"
+path="res://.godot/imported/Lava.tsx-7b367d39114603551919bc3381907f9c.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Lava.tsx"
+dest_files=["res://.godot/imported/Lava.tsx-7b367d39114603551919bc3381907f9c.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bbg1iqlpckbuv"
+path="res://.godot/imported/[p2]Lake (2p).tmx-f16c49019465164643e23afdf53dce7f.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Lake (2p).tmx"
+dest_files=["res://.godot/imported/[p2]Lake (2p).tmx-f16c49019465164643e23afdf53dce7f.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://r8b1sknork8q"
+path="res://.godot/imported/[p8]Two Sides (8p).tmx-62a73ec204b7660743cf3362c42bd7e2.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Two Sides (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Two Sides (8p).tmx-62a73ec204b7660743cf3362c42bd7e2.res"]
+
+[params]
+

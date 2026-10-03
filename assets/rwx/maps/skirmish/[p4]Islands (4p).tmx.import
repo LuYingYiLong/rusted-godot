@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dwd1x5au5keri"
+path="res://.godot/imported/[p4]Islands (4p).tmx-eae2130e7d542691efd8008d54e74cb5.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Islands (4p).tmx"
+dest_files=["res://.godot/imported/[p4]Islands (4p).tmx-eae2130e7d542691efd8008d54e74cb5.res"]
+
+[params]
+

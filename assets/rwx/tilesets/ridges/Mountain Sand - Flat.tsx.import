@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c8islystoguac"
+path="res://.godot/imported/Mountain Sand - Flat.tsx-2b3d3e85b4ea7e72376f07e87a3dfabf.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Sand - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain Sand - Flat.tsx-2b3d3e85b4ea7e72376f07e87a3dfabf.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dyshueex14n8d"
+path="res://.godot/imported/Dirt ShalowWater - Ridge.tsx-1eed7cf4a7bfd5719864020dda91d4f6.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Dirt ShalowWater - Ridge.tsx"
+dest_files=["res://.godot/imported/Dirt ShalowWater - Ridge.tsx-1eed7cf4a7bfd5719864020dda91d4f6.res"]
+
+[params]
+

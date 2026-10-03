@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dgt10fdlonll3"
+path="res://.godot/imported/[p2]Fire Bridge (2p) [by uber].tmx-39a018b11e683bf5c50c7446bc33a75d.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Fire Bridge (2p) [by uber].tmx"
+dest_files=["res://.godot/imported/[p2]Fire Bridge (2p) [by uber].tmx-39a018b11e683bf5c50c7446bc33a75d.res"]
+
+[params]
+

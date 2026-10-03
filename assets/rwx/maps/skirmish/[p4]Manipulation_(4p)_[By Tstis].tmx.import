@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d03qkdadbhc5a"
+path="res://.godot/imported/[p4]Manipulation_(4p)_[By Tstis].tmx-fcd09711b9a2a9b5114d99a98dd0f292.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Manipulation_(4p)_[By Tstis].tmx"
+dest_files=["res://.godot/imported/[p4]Manipulation_(4p)_[By Tstis].tmx-fcd09711b9a2a9b5114d99a98dd0f292.res"]
+
+[params]
+

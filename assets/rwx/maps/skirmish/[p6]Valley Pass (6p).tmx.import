@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://f16i73gjusiy"
+path="res://.godot/imported/[p6]Valley Pass (6p).tmx-4ed3d7ab1f592410f90fe73eff57a92c.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p6]Valley Pass (6p).tmx"
+dest_files=["res://.godot/imported/[p6]Valley Pass (6p).tmx-4ed3d7ab1f592410f90fe73eff57a92c.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d1sjosib5gxpl"
+path="res://.godot/imported/Sand Sand - Ridge.tsx-3d53f3904c4821d9a99ac41e3ae3cb3b.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Sand Sand - Ridge.tsx"
+dest_files=["res://.godot/imported/Sand Sand - Ridge.tsx-3d53f3904c4821d9a99ac41e3ae3cb3b.res"]
+
+[params]
+

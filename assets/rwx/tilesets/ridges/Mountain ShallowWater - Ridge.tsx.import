@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://rusm7b8nnms2"
+path="res://.godot/imported/Mountain ShallowWater - Ridge.tsx-dfcffe574913556802fc743d88f0a1dd.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain ShallowWater - Ridge.tsx"
+dest_files=["res://.godot/imported/Mountain ShallowWater - Ridge.tsx-dfcffe574913556802fc743d88f0a1dd.res"]
+
+[params]
+

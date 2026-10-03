@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://7b5gwjfv3aty"
+path="res://.godot/imported/LongGrass LongGrass - Ridge.tsx-5235ebb9ee53baaca6d1dbb61f2d9f84.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/LongGrass LongGrass - Ridge.tsx"
+dest_files=["res://.godot/imported/LongGrass LongGrass - Ridge.tsx-5235ebb9ee53baaca6d1dbb61f2d9f84.res"]
+
+[params]
+

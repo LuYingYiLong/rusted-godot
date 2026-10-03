@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://mkgx8jgt4565"
+path="res://.godot/imported/Deep Water.tsx-7fd84730b759e97112aef1493dce3cde.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Deep Water.tsx"
+dest_files=["res://.godot/imported/Deep Water.tsx-7fd84730b759e97112aef1493dce3cde.res"]
+
+[params]
+

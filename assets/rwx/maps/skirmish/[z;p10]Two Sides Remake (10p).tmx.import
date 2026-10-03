@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://sxsogopbtrr0"
+path="res://.godot/imported/[z;p10]Two Sides Remake (10p).tmx-b6b433e87d8a04bd65457f18827f9447.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Two Sides Remake (10p).tmx"
+dest_files=["res://.godot/imported/[z;p10]Two Sides Remake (10p).tmx-b6b433e87d8a04bd65457f18827f9447.res"]
+
+[params]
+

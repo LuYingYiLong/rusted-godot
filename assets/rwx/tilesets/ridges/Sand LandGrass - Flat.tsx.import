@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://5m23tl23bs3o"
+path="res://.godot/imported/Sand LandGrass - Flat.tsx-0b2ce677d2f9717041bb3ee86574e6aa.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Sand LandGrass - Flat.tsx"
+dest_files=["res://.godot/imported/Sand LandGrass - Flat.tsx-0b2ce677d2f9717041bb3ee86574e6aa.res"]
+
+[params]
+

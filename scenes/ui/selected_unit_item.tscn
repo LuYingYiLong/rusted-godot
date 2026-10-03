@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://wh8q385lnnig"]
+
+[ext_resource type="Texture2D" uid="uid://ckfgd7o8ykx7k" path="res://assets/rwx/drawable/ui/errors/error.png" id="1_1fby7"]
+
+[node name="SelectedUnitItem" type="MarginContainer" unique_id=1310337508]
+custom_minimum_size = Vector2(80, 0)
+
+[node name="Button" type="Button" parent="." unique_id=1051387409]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=593912338]
+layout_mode = 2
+
+[node name="UnitTexture" type="TextureRect" parent="VBoxContainer" unique_id=255450679]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_vertical = 3
+texture = ExtResource("1_1fby7")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="VBoxContainer" unique_id=1595320875]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "UnitName"
+horizontal_alignment = 1
+autowrap_mode = 3

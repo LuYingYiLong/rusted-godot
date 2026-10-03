@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://db077x4yfk1ui"
+path="res://.godot/imported/[p8]Interlocked (8p).tmx-822ad3a0f8194280699de5135df30a6a.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Interlocked (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Interlocked (8p).tmx-822ad3a0f8194280699de5135df30a6a.res"]
+
+[params]
+

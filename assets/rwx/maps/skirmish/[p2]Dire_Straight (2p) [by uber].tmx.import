@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dtre4lc70mk21"
+path="res://.godot/imported/[p2]Dire_Straight (2p) [by uber].tmx-301205682c9374206d14c5404eba3064.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Dire_Straight (2p) [by uber].tmx"
+dest_files=["res://.godot/imported/[p2]Dire_Straight (2p) [by uber].tmx-301205682c9374206d14c5404eba3064.res"]
+
+[params]
+

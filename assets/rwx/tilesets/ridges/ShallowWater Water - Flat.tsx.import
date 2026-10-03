@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c6hkq4skt2t76"
+path="res://.godot/imported/ShallowWater Water - Flat.tsx-b3b10f5feeb37d9c6323d4fe2d2bbf92.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/ShallowWater Water - Flat.tsx"
+dest_files=["res://.godot/imported/ShallowWater Water - Flat.tsx-b3b10f5feeb37d9c6323d4fe2d2bbf92.res"]
+
+[params]
+

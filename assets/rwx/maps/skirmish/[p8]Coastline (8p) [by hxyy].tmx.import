@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bq25rv8wd8i1k"
+path="res://.godot/imported/[p8]Coastline (8p) [by hxyy].tmx-4bafcff37ae6c151c3e3002737dd98c1.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Coastline (8p) [by hxyy].tmx"
+dest_files=["res://.godot/imported/[p8]Coastline (8p) [by hxyy].tmx-4bafcff37ae6c151c3e3002737dd98c1.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://b805knrjcxidy"
+path="res://.godot/imported/Dirt_Details.tsx-f9ab313da2bc73709b08536a9bac50f1.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Dirt_Details.tsx"
+dest_files=["res://.godot/imported/Dirt_Details.tsx-f9ab313da2bc73709b08536a9bac50f1.res"]
+
+[params]
+

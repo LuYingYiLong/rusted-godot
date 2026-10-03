@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://buvyrkb2qhtqc"
+path="res://.godot/imported/LongGrass ShallowWater - Ridge.tsx-7aa765e90b6bb492102d4bee959e49ec.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/LongGrass ShallowWater - Ridge.tsx"
+dest_files=["res://.godot/imported/LongGrass ShallowWater - Ridge.tsx-7aa765e90b6bb492102d4bee959e49ec.res"]
+
+[params]
+

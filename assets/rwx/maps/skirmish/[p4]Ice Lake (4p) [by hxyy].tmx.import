@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://27m2v4e458qc"
+path="res://.godot/imported/[p4]Ice Lake (4p) [by hxyy].tmx-efe4b1a9a99cf3f18f88dbaa35147802.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Ice Lake (4p) [by hxyy].tmx"
+dest_files=["res://.godot/imported/[p4]Ice Lake (4p) [by hxyy].tmx-efe4b1a9a99cf3f18f88dbaa35147802.res"]
+
+[params]
+

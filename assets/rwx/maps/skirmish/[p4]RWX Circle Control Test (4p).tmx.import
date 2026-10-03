@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bp5yh037tfega"
+path="res://.godot/imported/[p4]RWX Circle Control Test (4p).tmx-0b8c68ff815f8e71956b350e9e1d2569.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]RWX Circle Control Test (4p).tmx"
+dest_files=["res://.godot/imported/[p4]RWX Circle Control Test (4p).tmx-0b8c68ff815f8e71956b350e9e1d2569.res"]
+
+[params]
+

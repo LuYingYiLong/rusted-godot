@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cav2507luh3jw"
+path="res://.godot/imported/Mountain Nothing - Flat.tsx-e121c2e4e5118e09066aae3d29935212.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Nothing - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain Nothing - Flat.tsx-e121c2e4e5118e09066aae3d29935212.res"]
+
+[params]
+

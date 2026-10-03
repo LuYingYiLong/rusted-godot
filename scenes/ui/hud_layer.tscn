@@ -1,0 +1,162 @@
+[gd_scene format=3 uid="uid://6to008vqjoss"]
+
+[ext_resource type="Script" uid="uid://deystbwoqndcg" path="res://scripts/ui/hud_layer.gd" id="1_k4qb0"]
+[ext_resource type="PackedScene" uid="uid://mb863ppm1pam" path="res://scenes/ui/resource_label.tscn" id="2_5unhp"]
+[ext_resource type="PackedScene" uid="uid://wh8q385lnnig" path="res://scenes/ui/selected_unit_item.tscn" id="3_t0646"]
+[ext_resource type="PackedScene" uid="uid://bmw3cmgk62apu" path="res://scenes/ui/unit_action_item.tscn" id="4_t0646"]
+
+[node name="HudLayer" type="CanvasLayer" unique_id=1635449708]
+script = ExtResource("1_k4qb0")
+
+[node name="HudMarginContainer" type="MarginContainer" parent="." unique_id=272343107]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HudMarginContainer" unique_id=143570590]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="LeaveButton" type="Button" parent="HudMarginContainer/VBoxContainer" unique_id=427828277]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+text = "Leave"
+
+[node name="MessageLabel" type="RichTextLabel" parent="HudMarginContainer/VBoxContainer" unique_id=809140704]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(256, 80)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="UnitInfoLabel" type="Label" parent="HudMarginContainer/VBoxContainer" unique_id=1264678406]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Click a unit to inspect its initial state"
+
+[node name="HudSpacer" type="Control" parent="HudMarginContainer/VBoxContainer" unique_id=1634165339]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="ChatHistory" type="RichTextLabel" parent="HudMarginContainer/VBoxContainer" unique_id=64836228]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(256, 110)
+layout_mode = 2
+mouse_filter = 2
+scroll_following = true
+
+[node name="ChatRow" type="HBoxContainer" parent="HudMarginContainer/VBoxContainer" unique_id=1991370895]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="SendButton" type="Button" parent="HudMarginContainer/VBoxContainer/ChatRow" unique_id=1772744566]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Send"
+
+[node name="Sidebar" type="HBoxContainer" parent="HudMarginContainer" unique_id=565634510]
+layout_mode = 2
+size_flags_horizontal = 8
+theme_type_variation = &"MarginlessHBoxContainer"
+
+[node name="ResourceContainer" type="VBoxContainer" parent="HudMarginContainer/Sidebar" unique_id=763446041]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ResourceLabel" parent="HudMarginContainer/Sidebar/ResourceContainer" unique_id=1126945700 instance=ExtResource("2_5unhp")]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HudMarginContainer/Sidebar" unique_id=929827138]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_type_variation = &"MarginlessVBoxContainer"
+
+[node name="Minimap" type="TextureRect" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=340851844]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+
+[node name="UnitInfoContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=822116602]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MarginlessGridContainer"
+columns = 2
+
+[node name="SelectedUnitItem" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1310337508 instance=ExtResource("3_t0646")]
+layout_mode = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1883448970]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer/PanelContainer" unique_id=1973863147]
+layout_mode = 2
+text = "999/999"
+horizontal_alignment = 1
+vertical_alignment = 1
+text_overrun_behavior = 6
+
+[node name="SetPatrolAreaButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=274016830]
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "Set patrol area"
+text_overrun_behavior = 5
+
+[node name="EscortUnitButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitInfoContainer" unique_id=1447555263]
+layout_mode = 2
+theme_type_variation = &"SmallButton"
+text = "Escort unit"
+text_overrun_behavior = 5
+
+[node name="UnitActionScrollContainer" type="ScrollContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=979914451]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+vertical_scroll_mode = 3
+
+[node name="UnitActionContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer" unique_id=507217756]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_type_variation = &"MarginlessGridContainer"
+columns = 2
+
+[node name="ReclaimButton" type="Button" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=277830602]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SmallButton"
+text = "Reclaim"
+
+[node name="UnitActionItem" parent="HudMarginContainer/Sidebar/VBoxContainer/UnitActionScrollContainer/UnitActionContainer" unique_id=2010563070 instance=ExtResource("4_t0646")]
+layout_mode = 2
+
+[node name="SelectedUnitScrollContainer" type="ScrollContainer" parent="HudMarginContainer/Sidebar/VBoxContainer" unique_id=1021020045]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+vertical_scroll_mode = 3
+
+[node name="SelectedUnitContainer" type="GridContainer" parent="HudMarginContainer/Sidebar/VBoxContainer/SelectedUnitScrollContainer" unique_id=200975863]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_type_variation = &"MarginlessGridContainer"
+columns = 2
+
+[node name="SelectedUnitItem" parent="HudMarginContainer/Sidebar/VBoxContainer/SelectedUnitScrollContainer/SelectedUnitContainer" unique_id=535367105 instance=ExtResource("3_t0646")]
+layout_mode = 2
+
+[node name="ChatInput" type="LineEdit" parent="." unique_id=234680264]
+unique_name_in_owner = true
+offset_top = 621.0
+offset_right = 1103.0
+offset_bottom = 648.0
+size_flags_horizontal = 3
+placeholder_text = "Chat with players"
+
+[connection signal="pressed" from="HudMarginContainer/VBoxContainer/LeaveButton" to="." method="_on_leave_button_pressed"]

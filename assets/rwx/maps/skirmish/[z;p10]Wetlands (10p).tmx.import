@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bxndidkivga8h"
+path="res://.godot/imported/[z;p10]Wetlands (10p).tmx-b1441e9874163ec592be9e763b959ab0.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Wetlands (10p).tmx"
+dest_files=["res://.godot/imported/[z;p10]Wetlands (10p).tmx-b1441e9874163ec592be9e763b959ab0.res"]
+
+[params]
+

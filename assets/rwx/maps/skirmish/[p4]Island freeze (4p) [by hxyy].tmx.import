@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://xvnmf5gvogpl"
+path="res://.godot/imported/[p4]Island freeze (4p) [by hxyy].tmx-2c476a37ec1fc7c8a51b1ab2a1697914.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Island freeze (4p) [by hxyy].tmx"
+dest_files=["res://.godot/imported/[p4]Island freeze (4p) [by hxyy].tmx-2c476a37ec1fc7c8a51b1ab2a1697914.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dep6agg1ivbix"
+path="res://.godot/imported/Water.tsx-d3b65f8601df3fbf8d21fc0915d5cc18.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Water.tsx"
+dest_files=["res://.godot/imported/Water.tsx-d3b65f8601df3fbf8d21fc0915d5cc18.res"]
+
+[params]
+

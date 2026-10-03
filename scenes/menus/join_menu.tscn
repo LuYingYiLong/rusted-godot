@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://c75kjomieop5w"]
+
+[ext_resource type="Script" uid="uid://bh0hgal4q1xjd" path="res://scripts/menus/join_menu.gd" id="1_lcbyc"]
+
+[node name="JoinMenu" type="Control" unique_id=967644363]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lcbyc")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1507043763]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1812428021]
+layout_mode = 2
+
+[node name="NicknameLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer" unique_id=591396727]
+unique_name_in_owner = true
+layout_mode = 2
+text = "UnnamedPlayer"
+placeholder_text = "Nickname"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1899658335]
+layout_mode = 2
+
+[node name="RoomIDLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=1446488425]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Room ID"
+
+[node name="IPLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=1540839002]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "192.168.169.1:5123"
+placeholder_text = "IP"
+
+[node name="JoinButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=451449160]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Join"
+
+[node name="PasswordLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer" unique_id=1835300585]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Room password (optional)"
+secret = true
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=440432627]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Enter a room code or IP:port"
+
+[connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/JoinButton" to="." method="_on_join_button_pressed"]

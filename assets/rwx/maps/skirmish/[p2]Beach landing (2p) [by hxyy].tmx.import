@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://d6hmuq81so24"
+path="res://.godot/imported/[p2]Beach landing (2p) [by hxyy].tmx-cd603e8fdf378959bd6922a4cbc90586.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Beach landing (2p) [by hxyy].tmx"
+dest_files=["res://.godot/imported/[p2]Beach landing (2p) [by hxyy].tmx-cd603e8fdf378959bd6922a4cbc90586.res"]
+
+[params]
+

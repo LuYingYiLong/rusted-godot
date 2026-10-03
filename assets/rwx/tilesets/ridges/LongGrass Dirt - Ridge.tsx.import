@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dss3fpfqn0x3w"
+path="res://.godot/imported/LongGrass Dirt - Ridge.tsx-07bfac3a130e9c1d9ccaf726a537ba0b.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/LongGrass Dirt - Ridge.tsx"
+dest_files=["res://.godot/imported/LongGrass Dirt - Ridge.tsx-07bfac3a130e9c1d9ccaf726a537ba0b.res"]
+
+[params]
+

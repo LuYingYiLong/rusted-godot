@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bx4j45a80v5dc"
+path="res://.godot/imported/Ice ShallowWater - Broken.tsx-0547d4dc0592fea4a41d7d3150bb66f3.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Ice ShallowWater - Broken.tsx"
+dest_files=["res://.godot/imported/Ice ShallowWater - Broken.tsx-0547d4dc0592fea4a41d7d3150bb66f3.res"]
+
+[params]
+

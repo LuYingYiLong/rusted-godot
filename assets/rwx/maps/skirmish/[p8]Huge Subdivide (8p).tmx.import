@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cnanhuosik5ug"
+path="res://.godot/imported/[p8]Huge Subdivide (8p).tmx-3be6edee96203b0aa1cb54b5d6f6f607.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Huge Subdivide (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Huge Subdivide (8p).tmx-3be6edee96203b0aa1cb54b5d6f6f607.res"]
+
+[params]
+

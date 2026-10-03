@@ -1,0 +1,64 @@
+[gd_scene format=3 uid="uid://kbqq6run7b25"]
+
+[ext_resource type="Script" uid="uid://decboiinbcq8j" path="res://scripts/menus/lobby_menu.gd" id="1_vhd53"]
+
+[node name="LobbyMenu" type="Control" unique_id=163021534]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_vhd53")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1815208697]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1321880273]
+layout_mode = 2
+
+[node name="InfoLabel" type="RichTextLabel" parent="MarginContainer/VBoxContainer" unique_id=841781831]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1076984596]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ChatHistory" type="RichTextLabel" parent="MarginContainer/VBoxContainer" unique_id=1929372868]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+scroll_following = true
+
+[node name="ChatRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=2146803058]
+layout_mode = 2
+
+[node name="ChatInput" type="LineEdit" parent="MarginContainer/VBoxContainer/ChatRow" unique_id=1170792294]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Message"
+
+[node name="SendButton" type="Button" parent="MarginContainer/VBoxContainer/ChatRow" unique_id=360158052]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Send"
+
+[node name="ExitButton" type="Button" parent="MarginContainer/VBoxContainer" unique_id=1955608744]
+layout_mode = 2
+text = "Exit"
+
+[connection signal="pressed" from="MarginContainer/VBoxContainer/ChatRow/SendButton" to="." method="_on_send_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/ExitButton" to="." method="_on_exit_button_pressed"]

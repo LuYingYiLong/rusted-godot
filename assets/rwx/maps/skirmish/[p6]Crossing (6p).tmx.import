@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dj6awj518oosj"
+path="res://.godot/imported/[p6]Crossing (6p).tmx-fc646976113867ab2cee2449faa0d037.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p6]Crossing (6p).tmx"
+dest_files=["res://.godot/imported/[p6]Crossing (6p).tmx-fc646976113867ab2cee2449faa0d037.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://o3c8s6x8c1vd"
+path="res://.godot/imported/Mountain LongGrass - Flat.tsx-2cc494e5839d2e9c059f781e9c919d50.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain LongGrass - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain LongGrass - Flat.tsx-2cc494e5839d2e9c059f781e9c919d50.res"]
+
+[params]
+

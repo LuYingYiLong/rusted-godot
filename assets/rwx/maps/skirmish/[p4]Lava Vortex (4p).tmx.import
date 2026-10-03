@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dnc1tixwfj1iw"
+path="res://.godot/imported/[p4]Lava Vortex (4p).tmx-3ac1018e7315685cdf6e7764b5d61d46.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p4]Lava Vortex (4p).tmx"
+dest_files=["res://.godot/imported/[p4]Lava Vortex (4p).tmx-3ac1018e7315685cdf6e7764b5d61d46.res"]
+
+[params]
+

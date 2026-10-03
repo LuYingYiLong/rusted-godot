@@ -1,0 +1,5 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2582)
+units=256 trees=252 tree_scales=94 credits=Credits at start: 4000 local_slot=0 players=[{ "slot": 0, "assigned_color": -1, "spectator": false, "credits": 4000 }, { "slot": 1, "assigned_color": -1, "spectator": false, "credits": 4000 }] frame=3/10 errors=[]

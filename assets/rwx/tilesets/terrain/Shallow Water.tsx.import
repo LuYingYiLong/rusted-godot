@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dwcsstls0n7dw"
+path="res://.godot/imported/Shallow Water.tsx-e2a82880e8ecee4b49f45243b5097c93.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Shallow Water.tsx"
+dest_files=["res://.godot/imported/Shallow Water.tsx-e2a82880e8ecee4b49f45243b5097c93.res"]
+
+[params]
+

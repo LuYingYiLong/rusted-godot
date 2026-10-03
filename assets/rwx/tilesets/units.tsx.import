@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bws1t3l48vkva"
+path="res://.godot/imported/units.tsx-b878509be9ac66221a8d03f9ecfdd598.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/units.tsx"
+dest_files=["res://.godot/imported/units.tsx-b878509be9ac66221a8d03f9ecfdd598.res"]
+
+[params]
+

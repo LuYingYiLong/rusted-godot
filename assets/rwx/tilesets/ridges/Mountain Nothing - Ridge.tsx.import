@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bsgjjpp5oerw6"
+path="res://.godot/imported/Mountain Nothing - Ridge.tsx-d4bbf9b336f41d293a70cd89a9c2d1b5.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain Nothing - Ridge.tsx"
+dest_files=["res://.godot/imported/Mountain Nothing - Ridge.tsx-d4bbf9b336f41d293a70cd89a9c2d1b5.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://cydut3byffl6l"
+path="res://.godot/imported/Mountain ShallowWater - Flat.tsx-531b3688cc6670398b8e0a05d00ca20b.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Mountain ShallowWater - Flat.tsx"
+dest_files=["res://.godot/imported/Mountain ShallowWater - Flat.tsx-531b3688cc6670398b8e0a05d00ca20b.res"]
+
+[params]
+

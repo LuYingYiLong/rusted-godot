@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://c3pdccajp3057"
+path="res://.godot/imported/Nothing Dust - Flat.tsx-b115ad5aa96fb6e45f5a928e16a33c95.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Nothing Dust - Flat.tsx"
+dest_files=["res://.godot/imported/Nothing Dust - Flat.tsx-b115ad5aa96fb6e45f5a928e16a33c95.res"]
+
+[params]
+

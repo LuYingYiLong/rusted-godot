@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dw0og6v44wmk7"
+path="res://.godot/imported/[p8]Random Islands (8p).tmx-42b87c647ab400997053e67ac1132b5b.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Random Islands (8p).tmx"
+dest_files=["res://.godot/imported/[p8]Random Islands (8p).tmx-42b87c647ab400997053e67ac1132b5b.res"]
+
+[params]
+

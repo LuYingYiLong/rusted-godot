@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://0tkcvi4eruxc"
+path="res://.godot/imported/[p8]Volcano Crater(8p).tmx-6e6fc2afc36e0cf332ea80fcb6a06a12.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p8]Volcano Crater(8p).tmx"
+dest_files=["res://.godot/imported/[p8]Volcano Crater(8p).tmx-6e6fc2afc36e0cf332ea80fcb6a06a12.res"]
+
+[params]
+

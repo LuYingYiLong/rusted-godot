@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://sakyll5y4spv"
+path="res://.godot/imported/[p3]Hercules_(2vs1p) [by_uber].tmx-af4dc3952ddc962e2184208b30874f92.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p3]Hercules_(2vs1p) [by_uber].tmx"
+dest_files=["res://.godot/imported/[p3]Hercules_(2vs1p) [by_uber].tmx-af4dc3952ddc962e2184208b30874f92.res"]
+
+[params]
+

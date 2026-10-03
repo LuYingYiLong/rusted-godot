@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://bq6n8tgakbklc"
+path="res://.godot/imported/[z;p10]Many Islands Large (10p).tmx-05a53899b00e8edd7b80e291bd8f9008.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[z;p10]Many Islands Large (10p).tmx"
+dest_files=["res://.godot/imported/[z;p10]Many Islands Large (10p).tmx-05a53899b00e8edd7b80e291bd8f9008.res"]
+
+[params]
+

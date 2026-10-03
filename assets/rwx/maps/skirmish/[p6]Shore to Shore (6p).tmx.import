@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://076sjod1rc50"
+path="res://.godot/imported/[p6]Shore to Shore (6p).tmx-f4d742db0bac3557f7ff53ce32b25f4e.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p6]Shore to Shore (6p).tmx"
+dest_files=["res://.godot/imported/[p6]Shore to Shore (6p).tmx-f4d742db0bac3557f7ff53ce32b25f4e.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://otr5ocxramhr"
+path="res://.godot/imported/Stone.tsx-d21a814481776f70160f3255d1d5e620.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Stone.tsx"
+dest_files=["res://.godot/imported/Stone.tsx-d21a814481776f70160f3255d1d5e620.res"]
+
+[params]
+

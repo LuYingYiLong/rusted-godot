@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://8e2yacs4m2ta"
+path="res://.godot/imported/Snow Dirt - Ridge.tsx-bf54a6b176b5916af4d04702269c79bf.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/ridges/Snow Dirt - Ridge.tsx"
+dest_files=["res://.godot/imported/Snow Dirt - Ridge.tsx-bf54a6b176b5916af4d04702269c79bf.res"]
+
+[params]
+

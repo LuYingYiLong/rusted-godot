@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://dbn8csdbxpn2p"
+path="res://.godot/imported/Long Grass.tsx-033d1efebbb0970f85e51c741c46cfb0.res"
+
+[deps]
+
+source_file="res://assets/rwx/tilesets/terrain/Long Grass.tsx"
+dest_files=["res://.godot/imported/Long Grass.tsx-033d1efebbb0970f85e51c741c46cfb0.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="rusted_godot.rw_map_xml"
+type="Resource"
+uid="uid://b5y778u3oj0af"
+path="res://.godot/imported/[p2]Hills_(2p)_[By Tstis & KPSS].tmx-0c88ae3d60891d345ab17f7695cf1568.res"
+
+[deps]
+
+source_file="res://assets/rwx/maps/skirmish/[p2]Hills_(2p)_[By Tstis & KPSS].tmx"
+dest_files=["res://.godot/imported/[p2]Hills_(2p)_[By Tstis & KPSS].tmx-0c88ae3d60891d345ab17f7695cf1568.res"]
+
+[params]
+
