@@ -40,6 +40,8 @@ const NAVIGATION_ORDER_TYPES: Array[String] = [
 ## 护盾受击闪烁剩余同步帧数
 @export var shield_flash_frames: int
 @export var build_progress: float = 1.0
+## 正在生产的队列进度，-1 表示没有活动队列
+@export var production_progress: float = -1.0
 @export var movement_speed: float
 @export var water_movement_speed: float
 @export var movement_type: String = "LAND"
@@ -113,6 +115,7 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	max_shield = maxf(definition.max_shield, 0.0) if definition != null else 0.0
 	shield = clampf(float(spawn.get("shield", max_shield)), 0.0, max_shield)
 	build_progress = clampf(float(spawn.get("build_progress", 1.0)), 0.0, 1.0)
+	production_progress = clampf(float(spawn.get("production_progress", -1.0)), -1.0, 1.0)
 	movement_speed = definition.movement_speed if definition != null else 0.0
 	water_movement_speed = definition.water_movement_speed if definition != null else 0.0
 	movement_type = definition.movement_type if definition != null else "LAND"
@@ -170,6 +173,8 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		shield_flash_frames = maxi(int(snapshot["shield_flash_frames"]), 0)
 	if snapshot.has("build_progress"):
 		build_progress = clampf(float(snapshot["build_progress"]), 0.0, 1.0)
+	if snapshot.has("production_progress"):
+		production_progress = clampf(float(snapshot["production_progress"]), -1.0, 1.0)
 	if snapshot.has("health"):
 		health = clampf(float(snapshot["health"]), 0.0, max_health)
 	if snapshot.has("animation_frame"):
@@ -186,6 +191,15 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		is_dead = bool(snapshot["is_dead"])
 	elif health <= 0.0:
 		is_dead = true
+	state_changed.emit(self)
+
+
+## 更新建筑生产队列进度并通知单位视觉层
+func set_production_progress(value: float) -> void:
+	var next_progress: float = clampf(value, -1.0, 1.0)
+	if is_equal_approx(production_progress, next_progress):
+		return
+	production_progress = next_progress
 	state_changed.emit(self)
 
 

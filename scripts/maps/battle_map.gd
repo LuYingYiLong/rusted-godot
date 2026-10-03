@@ -27,6 +27,7 @@ var _selection_additive: bool
 var _selection_start_screen: Vector2
 var _selection_end_screen: Vector2
 var _world_size: Vector2
+var _map_tile_size: Vector2i
 var _target_zoom: float
 var _zoom_anchor_screen: Vector2
 var _zoom_anchor_world: Vector2
@@ -74,6 +75,7 @@ func _ready() -> void:
 		return
 	var map_size: Vector2i = result["size"]
 	var tile_size: Vector2i = result["tile_size"]
+	_map_tile_size = tile_size
 	_world_size = Vector2(map_size * tile_size)
 	map_camera.position = _world_size * 0.5
 	var viewport_size: Vector2 = get_viewport_rect().size
@@ -140,6 +142,7 @@ func _render_initial_units(map_name: String) -> Dictionary:
 		var definition: RwUnitDefinition = _unit_registry.find_definition(source_id, unit_name)
 		var color: Color = RwUnitTeamColors.for_team(team, RwRoomClient.players)
 		var visual: RwUnitVisual = _unit_registry.create_visual(spawn, color)
+		visual.set_footprint_tile_size(_map_tile_size)
 		visual.set_relation(RwUnitTeamColors.relation_for_team(team, RwRoomClient.players, RwRoomClient.local_slot))
 		var unit_state: RwUnitState = RwUnitState.new()
 		unit_state.initialize_from_spawn(spawn, definition)
@@ -823,6 +826,7 @@ func _apply_production_command(command: Dictionary) -> void:
 				var cancelled_action: RwUnitActionDefinition = existing_queue.cancel_one(action.action_id)
 				if cancelled_action != null:
 					RwRoomClient.battle_economy.refund_credits(owner_slot, float(cancelled_action.resource_costs.get("credits", 0.0)))
+				_sync_production_progress(producer, existing_queue)
 			continue
 		var queue: RwProductionQueue = _production_queues.get(object_id) as RwProductionQueue
 		if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT and queue != null:
@@ -839,7 +843,15 @@ func _apply_production_command(command: Dictionary) -> void:
 			queue = RwProductionQueue.new()
 			_production_queues[object_id] = queue
 		queue.enqueue(action)
+		_sync_production_progress(producer, queue)
 	_refresh_production_status()
+
+
+func _sync_production_progress(producer: RwUnitState, queue: RwProductionQueue) -> void:
+	var progress: float = -1.0
+	if queue != null and not queue.items.is_empty():
+		progress = queue.progress
+	producer.set_production_progress(progress)
 
 
 func _apply_build_command(command: Dictionary) -> void:
@@ -1050,6 +1062,7 @@ func _create_building_site(site: Dictionary, object_id: int) -> RwUnitState:
 	}
 	var color: Color = RwUnitTeamColors.for_team(str(site["team"]), RwRoomClient.players)
 	var visual: RwUnitVisual = _unit_registry.create_visual(spawn, color)
+	visual.set_footprint_tile_size(_map_tile_size)
 	visual.set_relation(RwUnitTeamColors.relation_for_team(str(site["team"]), RwRoomClient.players, RwRoomClient.local_slot))
 	var building: RwUnitState = RwUnitState.new()
 	building.initialize_from_spawn(spawn, definition)
@@ -1082,6 +1095,7 @@ func _advance_factory_production(factory_id: int) -> void:
 			_complete_unit_upgrade(factory, action)
 		else:
 			_spawn_produced_unit(factory, action)
+	_sync_production_progress(factory, queue)
 
 
 func _complete_unit_upgrade(unit_state: RwUnitState, action: RwUnitActionDefinition) -> void:
@@ -1121,6 +1135,7 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	_next_object_id += 1
 	var team_color: Color = RwUnitTeamColors.for_team(factory.team, RwRoomClient.players)
 	var visual: RwUnitVisual = _unit_registry.create_visual(spawn, team_color)
+	visual.set_footprint_tile_size(_map_tile_size)
 	visual.set_relation(RwUnitTeamColors.relation_for_team(factory.team, RwRoomClient.players, RwRoomClient.local_slot))
 	var unit_state: RwUnitState = RwUnitState.new()
 	unit_state.initialize_from_spawn(spawn, definition)

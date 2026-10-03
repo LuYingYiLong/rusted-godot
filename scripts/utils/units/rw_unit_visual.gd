@@ -2,6 +2,15 @@
 class_name RwUnitVisual
 extends Node2D
 
+const STATUS_BAR_HEIGHT: float = 4.0
+const STATUS_BAR_GAP: float = 2.0
+const FRIENDLY_HEALTH_COLOR: Color = Color(0.0, 150.0 / 255.0, 0.0, 200.0 / 255.0)
+const FRIENDLY_HEALTH_BORDER_COLOR: Color = Color(0.0, 200.0 / 255.0, 0.0, 120.0 / 255.0)
+const ENEMY_HEALTH_COLOR: Color = Color(183.0 / 255.0, 44.0 / 255.0, 44.0 / 255.0, 200.0 / 255.0)
+const ENEMY_HEALTH_BORDER_COLOR: Color = Color(1.0, 60.0 / 255.0, 60.0 / 255.0, 120.0 / 255.0)
+const BUILD_PROGRESS_COLOR: Color = Color(0.0, 0.0, 150.0 / 255.0, 200.0 / 255.0)
+const BUILD_PROGRESS_BORDER_COLOR: Color = Color(0.0, 0.0, 150.0 / 255.0, 120.0 / 255.0)
+
 var definition: RwUnitDefinition
 var team_color: Color
 var state: RwUnitState
@@ -20,6 +29,7 @@ var _weapon_mounts: Array[Node2D]
 var _weapon_definitions: Array[RwUnitWeaponDefinition]
 var _weapon_textures_by_level: Array[Dictionary]
 var _overlay_sprites: Array[Sprite2D]
+var _footprint_tile_size: Vector2i = Vector2i(20, 20)
 
 
 func configure(unit_definition: RwUnitDefinition, provider: RwUnitAssetProvider, color: Color) -> void:
@@ -124,6 +134,12 @@ func set_selected(value: bool) -> void:
 	queue_redraw()
 
 
+## 设置地图瓦片尺寸，使建筑选中框与占地范围一致
+func set_footprint_tile_size(tile_size: Vector2i) -> void:
+	_footprint_tile_size = tile_size
+	queue_redraw()
+
+
 func set_relation(value: RwUnitTeamColors.Relation) -> void:
 	relation = value
 	queue_redraw()
@@ -173,34 +189,48 @@ func _draw() -> void:
 	var body: Sprite2D = _body_sprite
 	if body == null or body.texture == null:
 		draw_circle(Vector2.ZERO, 5.0, team_color)
-		draw_arc(Vector2.ZERO, 6.0, 0.0, TAU, 16, Color.BLACK, 1.0)
+		draw_arc(Vector2.ZERO, 6.0, 0.0, TAU, 16, Color.BLACK)
 	if state == null:
 		return
 	var body_size: Vector2 = body.get_rect().size * body.scale if body != null and body.texture != null else Vector2(16.0, 16.0)
 	if selected:
 		if definition != null and definition.attack_range > 0.0 and not state.is_dead:
 			draw_circle(Vector2.ZERO, definition.attack_range, Color(1.0, 1.0, 1.0, 0.05), false)
-			draw_arc(Vector2.ZERO, definition.attack_range, 0.0, TAU, 96, Color(1.0, 1.0, 1.0, 0.45), 1.0)
+			draw_arc(Vector2.ZERO, definition.attack_range, 0.0, TAU, 96, Color(1.0, 1.0, 1.0, 0.45))
 		var selection_color: Color = RwUnitTeamColors.relation_color(relation)
 		if definition != null and definition.selection_shape == RwUnitDefinition.SelectionShape.RECTANGLE:
-			var half_size: Vector2 = body_size * 0.5 + Vector2(4.0, 4.0)
-			draw_rect(Rect2(-half_size, half_size * 2.0), selection_color, false)
+			draw_rect(_get_footprint_rect(), selection_color, false)
 		else:
 			var selection_radius: float = maxf(body_size.x, body_size.y) * 0.5 + 4.0
 			draw_arc(Vector2.ZERO, selection_radius, 0.0, TAU, 32, selection_color)
-	if not state.is_dead and (state.health < state.max_health or state.build_progress < 1.0):
-		var bar_width: float = clampf(body_size.x, 24.0, 70.0)
-		var bar_y: float = maxf(body_size.y * 0.5, 8.0) + 5.0 - _get_visual_height()
+	var progress: float = state.build_progress if state.build_progress < 1.0 else state.production_progress
+	if not state.is_dead and (state.health < state.max_health or progress >= 0.0):
+		var bar_width: float = maxf(state.collision_radius * 2.0, 20.0)
+		var bar_y: float = maxf(body_size.y * 0.5, state.collision_radius) + 5.0 - _get_visual_height()
 		draw_set_transform(Vector2.ZERO, -rotation, Vector2.ONE)
 		if state.health < state.max_health:
 			var health_ratio: float = state.health / state.max_health if state.max_health > 0.0 else 0.0
-			draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 4.0), Color.BLACK)
-			draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * health_ratio, 2.0), Color.GREEN if health_ratio > 0.5 else Color.ORANGE_RED)
-			bar_y += 8.0
-		if state.build_progress < 1.0:
-			draw_rect(Rect2(-bar_width * 0.5, bar_y, bar_width, 5.0), Color(0.0, 0.0, 0.55, 0.47), false)
-			draw_rect(Rect2(-bar_width * 0.5 + 1.0, bar_y + 1.0, (bar_width - 2.0) * state.build_progress, 3.0), Color(0.0, 0.0, 0.59, 0.78))
+			var health_color: Color = ENEMY_HEALTH_COLOR if relation == RwUnitTeamColors.Relation.ENEMY else FRIENDLY_HEALTH_COLOR
+			var health_border_color: Color = ENEMY_HEALTH_BORDER_COLOR if relation == RwUnitTeamColors.Relation.ENEMY else FRIENDLY_HEALTH_BORDER_COLOR
+			_draw_status_bar(Rect2(-bar_width * 0.5, bar_y, bar_width, STATUS_BAR_HEIGHT), health_ratio, health_color, health_border_color)
+			bar_y += STATUS_BAR_HEIGHT + STATUS_BAR_GAP
+		if progress >= 0.0:
+			_draw_status_bar(Rect2(-bar_width * 0.5, bar_y, bar_width, STATUS_BAR_HEIGHT), progress, BUILD_PROGRESS_COLOR, BUILD_PROGRESS_BORDER_COLOR)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _get_footprint_rect() -> Rect2:
+	var tile_size: Vector2 = Vector2(_footprint_tile_size)
+	var minimum: Vector2 = Vector2(definition.structure_footprint_min) - Vector2(0.5, 0.5)
+	var tile_count: Vector2 = Vector2(definition.structure_footprint_max - definition.structure_footprint_min + Vector2i.ONE)
+	return Rect2(minimum * tile_size, tile_count * tile_size)
+
+
+func _draw_status_bar(bounds: Rect2, ratio: float, fill_color: Color, border_color: Color) -> void:
+	var fill_width: float = bounds.size.x * clampf(ratio, 0.0, 1.0)
+	if fill_width > 0.0:
+		draw_rect(Rect2(bounds.position, Vector2(fill_width, bounds.size.y)), fill_color)
+	draw_rect(bounds, border_color, false, 1.0, false)
 
 
 func _on_state_changed(unit_state: RwUnitState) -> void:

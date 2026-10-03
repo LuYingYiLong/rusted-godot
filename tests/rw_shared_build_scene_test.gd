@@ -33,10 +33,31 @@ func _run() -> void:
 	map.call("_on_battle_frame_advanced", 1400, 1400)
 	var units: Dictionary = map.get("_unit_states")
 	var extractors: int
+	var extractor_id: int
 	for unit: RwUnitState in units.values():
 		if unit.unit_name == "extractor":
 			extractors += 1
+			extractor_id = unit.object_id
 	assert(extractors == 1)
+	var command_center: RwUnitState = units[1] as RwUnitState
+	var visuals: Dictionary = map.get("_unit_visuals")
+	assert((visuals[1] as RwUnitVisual).call("_get_footprint_rect") == Rect2(-30.0, -30.0, 60.0, 60.0))
+	assert((visuals[extractor_id] as RwUnitVisual).call("_get_footprint_rect") == Rect2(-10.0, -30.0, 20.0, 40.0))
+	var production_command: Dictionary = {
+		"team": 0,
+		"source_team": 0,
+		"allowed_team_mask": 3,
+		"unit_ids": [1,],
+		"action_id": "u_builder",
+	}
+	var production_commands: Array[Dictionary] = [production_command,]
+	map.call("_on_battle_commands_reached", 1400, production_commands)
+	assert(is_equal_approx(command_center.production_progress, 0.0))
+	map.call("_on_battle_frame_advanced", 1450, 1450)
+	assert(command_center.production_progress > 0.0)
+	production_command["stop_current_action"] = true
+	map.call("_on_battle_commands_reached", 1450, production_commands)
+	assert(command_center.production_progress < 0.0)
 	print("SHARED_BUILD_SCENE_CHECK_OK")
 	map.free()
 	quit()
