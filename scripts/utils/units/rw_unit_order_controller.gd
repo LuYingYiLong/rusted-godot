@@ -28,15 +28,17 @@ const REPATH_DISTANCE: float = 16.0
 var _units: Dictionary
 var _registry: RwUnitRegistry
 var _path_grid: RwPathGrid
+var _network_paths: bool
 var _pending_orders: Dictionary
 var _last_repath_frames: Dictionary
 
 
 ## 绑定战场单位、原版定义和导航网格
-func configure(units: Dictionary, registry: RwUnitRegistry, path_grid: RwPathGrid) -> void:
+func configure(units: Dictionary, registry: RwUnitRegistry, path_grid: RwPathGrid, network_paths: bool = false) -> void:
 	_units = units
 	_registry = registry
 	_path_grid = path_grid
+	_network_paths = network_paths
 	_pending_orders.clear()
 	_last_repath_frames.clear()
 
@@ -103,12 +105,12 @@ func apply_command(command: Dictionary, formation_targets: Dictionary = {}, busy
 
 
 ## 按同步帧推进目标追踪、移动和下一条排队命令
-func advance_unit(unit_state: RwUnitState, frame: int, is_busy: bool = false) -> void:
+func advance_unit(unit_state: RwUnitState, frame: int, is_busy: bool = false, simulation_delta: float = 1.0) -> void:
 	if unit_state == null or unit_state.is_dead:
 		return
 	if TARGET_ORDER_TYPES.has(unit_state.order_type):
 		_update_target_order(unit_state, frame)
-	unit_state.advance_movement(1, _path_grid)
+	unit_state.advance_movement(1, _path_grid, simulation_delta)
 	if is_busy or not unit_state.order_type.is_empty() or not _pending_orders.has(unit_state.object_id):
 		return
 	var queue: Array[Dictionary] = _pending_orders[unit_state.object_id]
@@ -129,6 +131,11 @@ func clear_pending(object_id: int) -> void:
 	_last_repath_frames.erase(object_id)
 
 
+## 返回当前战斗是否按联机同步帧释放异步路径
+func uses_network_paths() -> bool:
+	return _network_paths
+
+
 ## 检查命令所属队伍或共享控制位是否允许操作单位
 func can_apply_to_unit(unit_state: RwUnitState, team_slot: int, allowed_mask: int) -> bool:
 	if not unit_state.team.is_valid_int():
@@ -143,16 +150,29 @@ func _apply_order(unit_state: RwUnitState, order: Dictionary) -> void:
 	var target_id: int = int(order["target_id"])
 	var action_id: String = str(order.get("action_id", ""))
 	if POINT_ORDER_TYPES.has(order_type) and unit_state.movement_speed > 0.0:
+		if _path_grid != null:
+			_path_grid.update_object_costs(_units, unit_state.object_id)
 		var path_start: Vector2 = unit_state.get_factory_exit_target() if unit_state.is_exiting_factory() else unit_state.world_position
+		var uses_direct_path: bool = _path_grid != null and not unit_state.is_exiting_factory() and _path_grid.has_source_direct_line(unit_state.world_position, target, unit_state.movement_type)
 		var path_cells: Array[Vector2i] = []
 		for cell: Vector2i in order["path"]:
 			path_cells.append(cell)
 		var waypoints: Array[Vector2] = []
-		if _path_grid != null and not path_cells.is_empty() and path_start.distance_to(order["start_position"]) <= float(_path_grid.tile_size.x):
+		var direct_waypoints: Array[Vector2] = []
+		if uses_direct_path:
+			direct_waypoints = _path_grid.source_direct_waypoints(unit_state.world_position, target, unit_state.movement_type)
+		var used_server_path: bool
+		if not uses_direct_path and _path_grid != null and not path_cells.is_empty() and path_start.distance_squared_to(order["start_position"]) < 3600.0:
 			waypoints = _path_grid.path_from_cells(path_start, target, path_cells, unit_state.movement_type)
-		if waypoints.is_empty() and _path_grid != null:
-			waypoints = _path_grid.find_path(path_start, target, unit_state.movement_type)
-		unit_state.apply_move_order(target, waypoints, order_type, target_id, action_id)
+			used_server_path = not waypoints.is_empty()
+		if waypoints.is_empty() and _path_grid != null and not uses_direct_path:
+			waypoints = _path_grid.find_path(path_start, target, unit_state.movement_type, true, unit_state.body_rotation_degrees, true)
+		var path_delay: int = 0 if used_server_path or uses_direct_path else _network_path_delay(path_start, target, unit_state)
+		unit_state.apply_move_order(target, waypoints, order_type, target_id, action_id, path_delay)
+		if uses_direct_path:
+			unit_state.schedule_source_direct_path(direct_waypoints)
+		elif used_server_path and _network_paths:
+			unit_state.defer_current_path()
 	elif TARGET_ORDER_TYPES.has(order_type) and target_id > 0:
 		var target_state: RwUnitState = _units.get(target_id) as RwUnitState
 		if target_state == null or target_state.is_dead:
@@ -175,6 +195,8 @@ func _update_target_order(unit_state: RwUnitState, frame: int) -> void:
 		return
 	if frame - int(_last_repath_frames.get(unit_state.object_id, -REPATH_INTERVAL_FRAMES)) < REPATH_INTERVAL_FRAMES:
 		return
+	if unit_state.has_pending_path():
+		return
 	if unit_state.get_navigation_path().is_empty() or unit_state.order_target.distance_to(target_state.world_position) > REPATH_DISTANCE:
 		_last_repath_frames[unit_state.object_id] = frame
 		_issue_target_order(unit_state, unit_state.order_type, target_state, unit_state.order_action_id)
@@ -185,11 +207,22 @@ func _issue_target_order(unit_state: RwUnitState, order_type: String, target_sta
 	if unit_state.movement_speed <= 0.0 or unit_state.world_position.distance_to(target) <= _target_distance(unit_state, order_type, target_state):
 		unit_state.apply_order(order_type, target, target_state.object_id, action_id)
 		return
-	var waypoints: Array[Vector2] = _path_grid.find_path(unit_state.world_position, target, unit_state.movement_type) if _path_grid != null else []
-	unit_state.apply_move_order(target, waypoints, order_type, target_state.object_id, action_id)
+	if _path_grid != null:
+		_path_grid.update_object_costs(_units, unit_state.object_id)
+	var waypoints: Array[Vector2] = _path_grid.find_path(unit_state.world_position, target, unit_state.movement_type, true, unit_state.body_rotation_degrees, true) if _path_grid != null else []
+	var path_delay: int = _network_path_delay(unit_state.world_position, target, unit_state)
+	unit_state.apply_move_order(target, waypoints, order_type, target_state.object_id, action_id, path_delay)
+
+
+func _network_path_delay(start: Vector2, target: Vector2, unit_state: RwUnitState) -> int:
+	if not _network_paths or _path_grid == null or unit_state.is_exiting_factory():
+		return 0
+	return _path_grid.network_path_delay_frames(start, target, unit_state.movement_type)
 
 
 func _target_distance(unit_state: RwUnitState, order_type: String, target_state: RwUnitState) -> float:
+	if order_type == "repair" and target_state.build_progress < 1.0:
+		return 85.0
 	if order_type != "attack":
 		return maxf(unit_state.collision_radius + target_state.collision_radius + 8.0, 24.0)
 	var definition: RwUnitDefinition = _registry.find_definition(unit_state.source_id, unit_state.unit_name) if _registry != null else null

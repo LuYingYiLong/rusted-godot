@@ -30,8 +30,10 @@ func _run() -> void:
 	}
 	var commands: Array[Dictionary] = [command,]
 	map.call("_on_battle_commands_reached", 740, commands)
-	map.call("_on_battle_frame_advanced", 1400, 1400)
 	var units: Dictionary = map.get("_unit_states")
+	assert((units[2] as RwUnitState).order_type == "build")
+	map.call("_on_battle_frame_advanced", 1400, 1400)
+	assert((units[2] as RwUnitState).order_type.is_empty())
 	var extractors: int
 	var extractor_id: int
 	for unit: RwUnitState in units.values():

@@ -5,15 +5,15 @@ const SPECS: Dictionary = {
 	"extractor": {"index": 0, "cost": 700.0, "rate": 0.001, "image": "extractor.png", "dead": "extractor_dead.png", "health": 800.0, "radius": 18.0, "min": Vector2i(0, -1), "max": Vector2i(0, 0), "pool": true,},
 	"landFactory": {"index": 1, "cost": 700.0, "rate": 0.001, "image": "land_factory.png", "dead": "land_factory_dead.png", "health": 1200.0, "radius": 30.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
 	"airFactory": {"index": 2, "cost": 1000.0, "rate": 0.001, "image": "air_factory.png", "dead": "air_factory_dead.png", "health": 1000.0, "radius": 30.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
-	"seaFactory": {"index": 3, "cost": 1000.0, "rate": 0.0007, "image": "sea_factory.png", "dead": "sea_factory_dead.png", "health": 1000.0, "radius": 45.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 2), "water": true,},
+	"seaFactory": {"index": 3, "cost": 1000.0, "rate": 0.0007, "image": "sea_factory.png", "dead": "sea_factory_dead.png", "health": 1000.0, "radius": 45.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 2), "water": true, "construction_range_bonus": 110.0,},
 	"turret": {"index": 5, "cost": 500.0, "rate": 0.0006, "image": "turret_base.png", "turret": "turret_top.png", "dead": "turret_base_dead.png", "health": 700.0, "radius": 16.0, "min": Vector2i(0, 0), "max": Vector2i(1, 1),},
-	"antiAirTurret": {"index": 6, "cost": 600.0, "rate": 0.0008, "image": "turret_base.png", "turret": "anti_air_top.png", "dead": "turret_base_dead.png", "health": 700.0, "radius": 16.0, "min": Vector2i(0, 0), "max": Vector2i(1, 1),},
-	"laserDefence": {"index": 24, "cost": 1200.0, "rate": 0.001, "image": "laser_defence.png", "dead": "laser_defence_dead.png", "health": 1000.0, "radius": 20.0, "min": Vector2i(0, 0), "max": Vector2i(1, 1),},
+	"antiAirTurret": {"index": 6, "cost": 600.0, "rate": 0.0008, "image": "turret_base.png", "turret": "anti_air_top.png", "dead": "turret_base_dead.png", "health": 800.0, "radius": 16.0, "min": Vector2i(0, 0), "max": Vector2i(1, 1),},
+	"laserDefence": {"index": 24, "cost": 1200.0, "rate": 0.001, "image": "laser_defence.png", "dead": "laser_defence_dead.png", "health": 500.0, "radius": 20.0, "min": Vector2i(0, 0), "max": Vector2i(1, 1),},
 	"repairbay": {"index": 27, "cost": 1500.0, "rate": 0.001, "image": "repair_bay.png", "dead": "repair_bay_dead.png", "health": 1000.0, "radius": 25.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
 	"NukeLaucher": {"index": 28, "cost": 45000.0, "rate": 0.0001, "image": "nuke_launcher.png", "dead": "nuke_launcher_dead.png", "health": 1500.0, "radius": 40.0, "min": Vector2i(-2, -1), "max": Vector2i(2, 1),},
 	"AntiNukeLaucher": {"index": 29, "cost": 15000.0, "rate": 0.0007, "image": "antinuke_launcher.png", "dead": "antinuke_launcher_dead.png", "health": 2800.0, "radius": 30.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
 	"experimentalLandFactory": {"index": 32, "cost": 11000.0, "rate": 0.00035, "image": "experimental_unit_factory_base.png", "dead": "experimental_unit_factory_dead.png", "health": 3200.0, "radius": 50.0, "min": Vector2i(-2, -2), "max": Vector2i(2, 2),},
-	"fabricator": {"index": 35, "cost": 1500.0, "rate": 0.0006, "image": "power.png", "dead": "power_dead.png", "health": 900.0, "radius": 25.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
+	"fabricator": {"index": 35, "cost": 1500.0, "rate": 0.0006, "image": "power.png", "dead": "power_dead.png", "health": 500.0, "radius": 25.0, "min": Vector2i(-1, -1), "max": Vector2i(1, 1),},
 }
 ## 原版内置自定义单位对原生建筑类型的替换名称
 const BUILTIN_CUSTOM_REPLACEMENTS: Dictionary = {
@@ -119,10 +119,12 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 			"fabricator":
 				definition.body_frames = 3
 		definition.applies_spawn_rotation = false
-		definition.randomize_initial_weapon_rotation = unit_name == "turret" or unit_name == "antiAirTurret"
+		definition.default_body_rotation_degrees = -90.0
+		definition.render_rotation_offset_degrees = 90.0
 		definition.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 		definition.max_health = float(spec["health"])
 		definition.collision_radius = float(spec["radius"])
+		definition.construction_range_bonus = float(spec.get("construction_range_bonus", 0.0))
 		definition.blocks_movement = true
 		definition.structure_footprint_min = spec["min"]
 		definition.structure_footprint_max = spec["max"]

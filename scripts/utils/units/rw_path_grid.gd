@@ -28,6 +28,7 @@ var _water_costs: PackedInt32Array
 var _water_tiles: PackedByteArray
 var _resource_pool_tiles: PackedByteArray
 var _structure_blocks: PackedByteArray
+var _object_costs: PackedByteArray
 var _land_clearance: PackedByteArray
 var _hover_clearance: PackedByteArray
 var _water_clearance: PackedByteArray
@@ -158,15 +159,51 @@ func finalize_obstacles() -> void:
 	_water_clearance = _build_clearance(_water_costs)
 
 
-func find_path(start_position: Vector2, target_position: Vector2, movement_type: String) -> Array[Vector2]:
+## 更新原版寻路使用的闲置单位动态代价
+func update_object_costs(units: Dictionary, moving_unit_id: int) -> void:
+	_object_costs.resize(size.x * size.y)
+	_object_costs.fill(0)
+	for object_id: int in units:
+		if object_id == moving_unit_id:
+			continue
+		var unit_state: RwUnitState = units[object_id] as RwUnitState
+		if unit_state == null or unit_state.is_dead or unit_state.movement_speed <= 0.0 or unit_state.movement_type == "AIR":
+			continue
+		if not unit_state.order_type.is_empty() or unit_state.is_exiting_factory():
+			continue
+		var center: Vector2i = world_to_cell(unit_state.world_position)
+		var inner_radius: float = unit_state.collision_radius + 5.0
+		var outer_radius: float = unit_state.collision_radius + 10.0
+		var search_radius: int = 2 if outer_radius >= 20.0 else 1 if outer_radius >= 10.0 else 0
+		for x: int in range(center.x - search_radius, center.x + search_radius + 1):
+			for y: int in range(center.y - search_radius, center.y + search_radius + 1):
+				var cell: Vector2i = Vector2i(x, y)
+				if not _is_in_bounds(cell):
+					continue
+				var distance_squared: float = cell_to_world(cell).distance_squared_to(unit_state.world_position)
+				var added_cost: int
+				if distance_squared < inner_radius * inner_radius:
+					added_cost = 6
+				elif distance_squared < outer_radius * outer_radius:
+					added_cost = 1
+				if added_cost > 0:
+					var index: int = _cell_index(cell)
+					_object_costs[index] = mini(127, int(_object_costs[index]) + added_cost)
+
+
+func find_path(start_position: Vector2, target_position: Vector2, movement_type: String, use_smoothing: bool = true, heading_degrees: float = 0.0, use_heading: bool = false, goal_radius_cells: int = 0) -> Array[Vector2]:
 	var waypoints: Array[Vector2] = []
 	var start: Vector2i = world_to_cell(start_position)
 	var goal: Vector2i = world_to_cell(target_position)
 	if not _is_in_bounds(start) or not _is_in_bounds(goal):
 		return waypoints
-	if movement_type == "AIR" or has_clear_line(start_position, target_position, movement_type):
+	if movement_type == "AIR":
 		waypoints.append(target_position)
 		return waypoints
+	if use_smoothing and has_clear_line(start_position, target_position, movement_type):
+		return _straight_line_waypoints(start_position, target_position)
+	if use_heading:
+		return _find_native_grid_path(start, goal, target_position, movement_type, heading_degrees, goal_radius_cells)
 	var cell_count: int = size.x * size.y
 	var scores: PackedInt32Array = PackedInt32Array()
 	scores.resize(cell_count)
@@ -176,11 +213,16 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 	parents.fill(-1)
 	var visited: PackedByteArray = PackedByteArray()
 	visited.resize(cell_count)
+	var incoming_directions: PackedByteArray = PackedByteArray()
+	incoming_directions.resize(cell_count)
+	incoming_directions.fill(255)
 	var open_nodes: Array[Vector2i] = []
 	var start_index: int = _cell_index(start)
 	var best_index: int = start_index
 	var best_distance: int = _heuristic(start, goal)
 	scores[start_index] = 0
+	if use_heading:
+		incoming_directions[start_index] = _heading_sector(heading_degrees)
 	_heap_push(open_nodes, Vector2i(best_distance, start_index))
 	var searches: int = 0
 	while not open_nodes.is_empty() and searches < MAX_SEARCH_CELLS:
@@ -200,6 +242,9 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 			best_index = index
 			break
 		for direction_index: int in NEIGHBORS.size():
+			var previous_direction: int = int(incoming_directions[index])
+			if use_heading and index != start_index and _direction_difference(previous_direction, direction_index) > 2:
+				continue
 			var offset: Vector2i = NEIGHBORS[direction_index]
 			var neighbor: Vector2i = cell + offset
 			var tile_cost: int = cost_at(neighbor, movement_type)
@@ -214,18 +259,23 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 			var step_cost: int = 14 if offset.x != 0 and offset.y != 0 else 10
 			var new_score: int = scores[index] + step_cost + 1 + tile_cost
 			new_score += 4 - _clearance_at(neighbor, movement_type)
-			if parents[index] >= 0:
+			if use_heading:
+				new_score += _turn_penalty(previous_direction, direction_index)
+			elif parents[index] >= 0:
 				@warning_ignore("integer_division")
 				var parent_cell: Vector2i = Vector2i(parents[index] % size.x, int(parents[index] / size.x))
-				var previous_direction: int = NEIGHBORS.find(cell - parent_cell)
-				if previous_direction >= 0:
-					new_score += _turn_penalty(previous_direction, direction_index)
+				var parent_direction: int = NEIGHBORS.find(cell - parent_cell)
+				if parent_direction >= 0:
+					new_score += _turn_penalty(parent_direction, direction_index)
 			if new_score >= scores[neighbor_index]:
 				continue
 			scores[neighbor_index] = new_score
 			parents[neighbor_index] = index
+			incoming_directions[neighbor_index] = direction_index
 			_heap_push(open_nodes, Vector2i(new_score + _heuristic(neighbor, goal), neighbor_index))
 	if best_index == start_index:
+		# 原版无法离开起始格时仍保留格子中心作为路径点
+		waypoints.append(cell_to_world(start))
 		return waypoints
 	var reverse_cells: Array[Vector2i] = []
 	var current_index: int = best_index
@@ -241,18 +291,113 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 		raw_points.append(cell_to_world(cell))
 	if reverse_cells.back() == goal and is_passable(goal, movement_type):
 		raw_points.append(target_position)
-	return _smooth_points(start_position, raw_points, movement_type)
+	return _smooth_points(start_position, raw_points, movement_type) if use_smoothing else raw_points
 
 
-func path_from_cells(start_position: Vector2, target_position: Vector2, cells: Array[Vector2i], movement_type: String) -> Array[Vector2]:
+func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Vector2, movement_type: String, heading_degrees: float, goal_radius_cells: int) -> Array[Vector2]:
+	var roots: Array[Vector2i] = [start, goal,]
+	var root_indices: Array[int] = [_cell_index(start), _cell_index(goal),]
+	var queues: Array[RwNativeOpenList] = [RwNativeOpenList.new(), RwNativeOpenList.new(),]
+	var scores: Array[Dictionary] = [{root_indices[0]: 0,}, {root_indices[1]: 0,},]
+	var parents: Array[Dictionary] = [{}, {},]
+	var directions: Array[Dictionary] = [{root_indices[0]: _heading_sector(heading_degrees),}, {root_indices[1]: 0,},]
+	var closed: Array[Dictionary] = [{}, {},]
+	queues[0].push(_heuristic(start, goal), start)
+	queues[1].push(_heuristic(goal, start), goal)
+	var reverse: bool
+	var forward_end: int = -1
+	var reverse_start: int = -1
+	var best_forward_index: int = root_indices[0]
+	var best_forward_distance: int = _heuristic(start, goal)
+	for iteration: int in MAX_SEARCH_CELLS:
+		if iteration >= 400:
+			reverse = not reverse
+		var side: int = 1 if reverse else 0
+		if not queues[side].has_next():
+			if not queues[1 - side].has_next():
+				break
+			continue
+		var entry: Vector3i = queues[side].pop_min()
+		var cell: Vector2i = Vector2i(entry.y, entry.z)
+		var index: int = _cell_index(cell)
+		if side == 0:
+			var distance: int = _heuristic(cell, goal)
+			if distance < best_forward_distance:
+				best_forward_distance = distance
+				best_forward_index = index
+			if absi(cell.x - goal.x) <= goal_radius_cells and absi(cell.y - goal.y) <= goal_radius_cells:
+				forward_end = index
+				break
+		if closed[1 - side].has(index):
+			var previous_index: int = int(parents[side].get(index, index))
+			if side == 0:
+				forward_end = previous_index
+				reverse_start = index
+			else:
+				forward_end = index
+				reverse_start = previous_index
+			break
+		closed[side][index] = true
+		var previous_direction: int = int(directions[side].get(index, 0))
+		var maximum_turn: int = 1 if _clearance_at(cell, movement_type) > 1 else 2
+		for direction_index: int in NEIGHBORS.size():
+			if index != root_indices[side] and _direction_difference(previous_direction, direction_index) > maximum_turn:
+				continue
+			var offset: Vector2i = NEIGHBORS[direction_index]
+			var neighbor: Vector2i = cell + offset
+			var tile_cost: int = cost_at(neighbor, movement_type)
+			if tile_cost < 0:
+				continue
+			if offset.x != 0 and offset.y != 0:
+				if not is_passable(cell + Vector2i(offset.x, 0), movement_type) or not is_passable(cell + Vector2i(0, offset.y), movement_type):
+					continue
+			var neighbor_index: int = _cell_index(neighbor)
+			if closed[side].has(neighbor_index):
+				continue
+			var step_cost: int = 15 if offset.x != 0 and offset.y != 0 else 11
+			var object_cost: int = int(_object_costs[neighbor_index]) * 10 if not _object_costs.is_empty() else 0
+			var new_score: int = int(scores[side][index]) + step_cost + tile_cost + object_cost + 4 - _clearance_at(neighbor, movement_type)
+			if index != root_indices[side] or side == 0:
+				new_score += _turn_penalty(previous_direction, direction_index)
+			if new_score >= int(scores[side].get(neighbor_index, RwNativeOpenList.MAX_SCORE)):
+				continue
+			scores[side][neighbor_index] = new_score
+			parents[side][neighbor_index] = index
+			directions[side][neighbor_index] = direction_index
+			queues[side].push(new_score + _heuristic(neighbor, roots[1 - side]), neighbor)
+	if forward_end < 0:
+		forward_end = best_forward_index
+	var route_indices: Array[int] = []
+	var current_index: int = forward_end
+	while current_index >= 0:
+		route_indices.append(current_index)
+		current_index = int(parents[0].get(current_index, -1))
+	route_indices.reverse()
+	if reverse_start >= 0:
+		current_index = reverse_start
+		if route_indices.back() == current_index:
+			current_index = int(parents[1].get(current_index, -1))
+		while current_index >= 0:
+			route_indices.append(current_index)
+			current_index = int(parents[1].get(current_index, -1))
+	if route_indices.size() > 1:
+		route_indices.pop_front()
+	var waypoints: Array[Vector2] = []
+	for point_index: int in route_indices:
+		@warning_ignore("integer_division")
+		var point_cell: Vector2i = Vector2i(point_index % size.x, int(point_index / size.x))
+		waypoints.append(target_position if point_cell == goal else cell_to_world(point_cell))
+	return waypoints
+
+
+## 将服务器预计算路径的末格替换为精确目标坐标
+func path_from_cells(_start_position: Vector2, target_position: Vector2, cells: Array[Vector2i], _movement_type: String) -> Array[Vector2]:
 	var raw_points: Array[Vector2] = []
-	for cell: Vector2i in cells:
-		if not is_passable(cell, movement_type):
-			return []
-		raw_points.append(cell_to_world(cell))
-	if not raw_points.is_empty() and has_clear_line(raw_points.back(), target_position, movement_type):
+	for index: int in maxi(cells.size() - 1, 0):
+		raw_points.append(cell_to_world(cells[index]))
+	if not cells.is_empty():
 		raw_points.append(target_position)
-	return _smooth_points(start_position, raw_points, movement_type)
+	return raw_points
 
 
 func has_clear_line(start_position: Vector2, end_position: Vector2, movement_type: String) -> bool:
@@ -274,6 +419,94 @@ func has_clear_line(start_position: Vector2, end_position: Vector2, movement_typ
 				return false
 		previous_cell = cell
 	return true
+
+
+## 复现原版决定是否直接生成直线路径的格子检测
+func has_source_direct_line(start_position: Vector2, end_position: Vector2, movement_type: String) -> bool:
+	var start: Vector2i = world_to_cell(start_position)
+	var target: Vector2i = world_to_cell(end_position)
+	var difference: Vector2i = (target - start).abs()
+	var step_x: int = 1 if target.x > start.x else -1
+	var step_y: int = 1 if target.y > start.y else -1
+	var remaining: int = 1 + difference.x + difference.y
+	var balance: int = difference.x - difference.y
+	var doubled_x: int = difference.x * 2
+	var doubled_y: int = difference.y * 2
+	var cell: Vector2i = start
+	var cumulative_cost: int = 0
+	var initial_cells_to_skip: int = 1
+	while remaining > 0:
+		var cell_cost: int = cost_at(cell, movement_type)
+		if cell_cost < 0:
+			return false
+		if initial_cells_to_skip > 0:
+			initial_cells_to_skip -= 1
+		else:
+			cumulative_cost += cell_cost
+			if cumulative_cost >= 80:
+				return false
+		if balance > 0:
+			cell.x += step_x
+			balance -= doubled_y
+		elif balance < 0:
+			cell.y += step_y
+			balance += doubled_x
+		else:
+			cell += Vector2i(step_x, step_y)
+			balance += doubled_x - doubled_y
+			remaining -= 1
+		remaining -= 1
+	return true
+
+
+## 生成原版直线寻路点；路线不可直达时返回空数组
+func source_direct_waypoints(start_position: Vector2, target_position: Vector2, movement_type: String) -> Array[Vector2]:
+	if not has_source_direct_line(start_position, target_position, movement_type):
+		return []
+	return _straight_line_waypoints(start_position, target_position)
+
+
+## 返回原版联机异步寻路结果至少等待的同步帧数
+func network_path_delay_frames(start_position: Vector2, target_position: Vector2, movement_type: String) -> int:
+	if movement_type == "AIR" or has_clear_line(start_position, target_position, movement_type):
+		return 0
+	var start: Vector2i = world_to_cell(start_position)
+	var target: Vector2i = world_to_cell(target_position)
+	var difference: Vector2i = (target - start).abs()
+	if difference.x < 15 and difference.y < 15:
+		return 12
+	if difference.x < 50 and difference.y < 50:
+		return 16
+	if difference.x < 200 and difference.y < 200:
+		return 24
+	if difference.x < 400 and difference.y < 400:
+		return 50
+	if difference.x < 1000 and difference.y < 1000:
+		return 100
+	if difference.x < 2000 and difference.y < 2000:
+		return 200
+	return 300
+
+
+## 复现原版直线可达时每隔 20 像素生成的中间路径点
+func _straight_line_waypoints(start_position: Vector2, target_position: Vector2) -> Array[Vector2]:
+	var waypoints: Array[Vector2] = []
+	var distance: float = start_position.distance_to(target_position)
+	if distance <= 0.0:
+		waypoints.append(target_position)
+		return waypoints
+	var direction: Vector2 = RwGameMath.path_direction(start_position, target_position)
+	var segment_count: int = maxi(int(distance * 0.05 - 1.0), 0)
+	var skip_first_segment: bool = segment_count >= 4
+	var current_point: Vector2 = start_position
+	for segment_index: int in mini(segment_count, 119):
+		current_point += direction * 20.0
+		if skip_first_segment and segment_index == 0:
+			continue
+		waypoints.append(current_point)
+	if waypoints.size() < 119:
+		waypoints.append(target_position)
+	return waypoints
 
 
 func _structure_center_offset(minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2:
@@ -419,7 +652,7 @@ func _cell_index(cell: Vector2i) -> int:
 func _heuristic(cell: Vector2i, goal: Vector2i) -> int:
 	var dx: int = absi(cell.x - goal.x)
 	var dy: int = absi(cell.y - goal.y)
-	return 10 * maxi(dx, dy) + 4 * mini(dx, dy)
+	return 11 * maxi(dx, dy) + 4 * mini(dx, dy)
 
 
 func _clearance_at(cell: Vector2i, movement_type: String) -> int:
@@ -477,8 +710,7 @@ func _build_clearance(costs: PackedInt32Array) -> PackedByteArray:
 
 
 func _turn_penalty(previous_direction: int, next_direction: int) -> int:
-	var difference: int = absi(previous_direction - next_direction)
-	difference = mini(difference, 8 - difference)
+	var difference: int = _direction_difference(previous_direction, next_direction)
 	if difference == 0:
 		return 0
 	if difference == 1:
@@ -486,6 +718,15 @@ func _turn_penalty(previous_direction: int, next_direction: int) -> int:
 	if difference == 2:
 		return 21
 	return 25
+
+
+func _direction_difference(previous_direction: int, next_direction: int) -> int:
+	var difference: int = absi(previous_direction - next_direction)
+	return mini(difference, 8 - difference)
+
+
+func _heading_sector(heading_degrees: float) -> int:
+	return wrapi(int(heading_degrees / 360.0 * 8.0 + 0.5), 0, 8)
 
 
 func _heap_push(heap: Array[Vector2i], value: Vector2i) -> void:
@@ -520,4 +761,11 @@ func _heap_pop(heap: Array[Vector2i]) -> Vector2i:
 
 
 func _heap_less(left: Vector2i, right: Vector2i) -> bool:
-	return left.x < right.x or left.x == right.x and left.y < right.y
+	if left.x != right.x:
+		return left.x < right.x
+	var left_x: int = left.y % size.x
+	var right_x: int = right.y % size.x
+	if left_x != right_x:
+		return left_x < right_x
+	@warning_ignore("integer_division")
+	return int(left.y / size.x) < int(right.y / size.x)

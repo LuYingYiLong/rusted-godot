@@ -6,6 +6,7 @@ signal chat_received(sender: String, message: String)
 signal game_started()
 signal battle_frame_advanced(frame: int, next_blocking_frame: int)
 signal battle_commands_reached(frame: int, commands: Array[Dictionary])
+signal checksum_requested(frame: int, server_checksum: int, fields: Array[int])
 signal team_resource_changed(team_slot: int, resource_id: String, balance: float, growth: float)
 
 const CORE_VERSION: int = 176
@@ -13,6 +14,7 @@ const CORE_UNIT_CHECKSUM: int = 678359601
 const DEFAULT_PORT: int = 5123
 const MAX_PACKET_BYTES: int = 16_777_216
 const MAX_TEAM_BLOCK_BYTES: int = 1_048_576
+const MAX_CHECKSUM_FIELDS: int = 64
 const CONNECT_TIMEOUT_MS: int = 7_000
 const REGISTER_TIMEOUT_MS: int = 15_000
 const PROTOCOL_MAGIC: String = "com.corrodinggames.rts"
@@ -523,7 +525,8 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 	stream.get_u8()
 	var network_id: int = stream.get_32()
 	stream.get_64()
-	var spectator: bool = stream.get_u8() != 0
+	var ai_flag: bool = stream.get_u8() != 0
+	var spectator: bool = color == -3
 	var ping: int = stream.get_32()
 	var sort_index: int = stream.get_32()
 	stream.get_u8()
@@ -544,7 +547,7 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 		"name": _name,
 		"credits": credits,
 		"team_resources": balances,
-		"ai": is_ai,
+		"ai": is_ai or ai_flag,
 		"color": color,
 		"spectator": spectator,
 		"ping": ping,
@@ -615,6 +618,14 @@ func _reply_checksum_unavailable(payload: PackedByteArray) -> void:
 		return
 	var source: StreamPeerBuffer = RwBinary.reader(payload)
 	var checksum_frame: int = source.get_32()
+	var server_checksum: int = source.get_64()
+	var fields: Array[int] = []
+	if source.get_available_bytes() >= 4:
+		var count: int = source.get_32()
+		if count >= 0 and count <= MAX_CHECKSUM_FIELDS and source.get_available_bytes() >= count * 8:
+			for index: int in count:
+				fields.append(source.get_64())
+	checksum_requested.emit(checksum_frame, server_checksum, fields)
 	var response: StreamPeerBuffer = RwBinary.writer()
 	response.put_u8(0)
 	response.put_32(checksum_frame)

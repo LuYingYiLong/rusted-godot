@@ -170,7 +170,7 @@ func _test_native_turret_idle() -> void:
 	var definition: RwUnitDefinition = registry.find_definition("vanilla", "turret")
 	var turret: RwUnitState = _unit(1, "vanilla", "turret", "1", Vector2.ZERO, definition)
 	turret.build_progress = 1.0
-	assert(turret.get_weapon_rotation(0) != 0.0)
+	assert(is_zero_approx(turret.get_weapon_rotation(0)))
 	var original_angle: float = turret.get_weapon_rotation(0)
 	var combat: RwBattleCombat = RwBattleCombat.new()
 	combat.configure({1: turret,}, registry, _players())

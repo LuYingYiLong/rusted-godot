@@ -26,7 +26,8 @@ func advance(frame_count: int) -> Array[RwUnitActionDefinition]:
 	for frame: int in maxi(frame_count, 0):
 		if items.is_empty():
 			break
-		progress += items[0].build_rate_per_frame
+		var frame_rate: float = Vector2(items[0].build_rate_per_frame, 0.0).x
+		progress = Vector2(progress + frame_rate, 0.0).x
 		if progress < 1.0:
 			continue
 		completed.append(items.pop_front())

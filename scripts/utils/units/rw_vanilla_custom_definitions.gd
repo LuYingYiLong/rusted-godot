@@ -2,6 +2,47 @@ extends RefCounted
 class_name RwVanillaCustomDefinitions
 ## 将 RWX 内置 INI 数据转换为可绘制的单位定义
 
+const WEAPON_STATE_COUNTS: Dictionary = {
+	"airShip": 2,
+	"c_interceptor": 2,
+	"battleShip": 2,
+	"experimentalTank": 10,
+	"c_experimentalTank": 10,
+	"amphibiousJet": 3,
+	"antiAirTurretT2": 3,
+	"c_antiAirTurretT2": 3,
+}
+## 原版 INI 中同时启用 moveSlidingMode 和 moveIgnoringBody 的单位
+const SLIDING_UNIT_TYPES: Array[String] = [
+	"aaBeamGunship",
+	"c_amphibiousJet",
+	"bugMeleeT31",
+	"combatEngineer",
+	"experimentalDropship",
+	"experimentalGunship",
+	"fireBee",
+	"heavyInterceptor",
+	"c_helicopter",
+	"c_interceptor",
+	"lightGunship",
+	"mechBunker",
+	"mechHeavyMissile",
+	"mechLightning",
+	"mechEngineer",
+	"missileAirship",
+	"scout",
+	"bugPickup",
+	"bugWasp",
+	"bugRangedT2",
+	"bugBee",
+	"bugFly",
+	"bugMelee",
+	"bugMeleeLarge",
+	"bugMeleeSmall",
+	"bugRanged",
+	"bugSpore",
+]
+
 
 ## 注册游戏自带的自定义单位及其升级和形态变体
 static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnitAssets) -> void:
@@ -17,6 +58,7 @@ static func create_definition(unit_name: String, spec: Dictionary, source_id: St
 	definition.unit_name = unit_name
 	definition.display_name = str(spec.get("display_name", unit_name))
 	definition.description = str(spec.get("description", ""))
+	definition.weapon_state_count = int(WEAPON_STATE_COUNTS.get(unit_name, 1))
 	definition.body_image = str(spec["body"])
 	definition.visual_hidden = bool(spec.get("hidden", false))
 	definition.dead_image = str(spec.get("dead", ""))
@@ -53,12 +95,20 @@ static func create_definition(unit_name: String, spec: Dictionary, source_id: St
 	definition.turn_acceleration = float(spec.get("turn_accel", 0.0))
 	definition.movement_acceleration = float(spec.get("move_accel", 0.0))
 	definition.movement_deceleration = float(spec.get("move_decel", 0.0))
+	var effective_name: String = RwVanillaUnitCatalog.native_replacement(unit_name) if source_id == "vanilla" else unit_name
+	var uses_sliding: bool = SLIDING_UNIT_TYPES.has(effective_name)
+	definition.movement_sliding = bool(spec.get("move_sliding", uses_sliding))
+	definition.movement_ignores_body = bool(spec.get("move_ignoring_body", uses_sliding))
 	definition.attack_range = float(spec.get("attack_range", 0.0))
 	definition.can_reclaim = bool(spec.get("reclaim", false))
 	definition.resource_costs = {"credits": float(spec.get("price", 0.0)),}
 	definition.build_rate_per_frame = float(spec.get("build_rate", 0.0))
+	definition.construction_warmup = float(spec.get("build_warmup", 0.0))
 	definition.render_rotation_offset_degrees = 0.0 if bool(spec.get("building", false)) else 90.0
 	definition.applies_spawn_rotation = not bool(spec.get("building", false))
+	if bool(spec.get("building", false)):
+		definition.default_body_rotation_degrees = -90.0
+		definition.render_rotation_offset_degrees = 90.0
 	definition.draw_layer = 3 if bool(spec.get("building", false)) or definition.movement_type in ["AIR", "HOVER",] else 2
 	definition.dead_draw_layer = 0
 	if bool(spec.get("building", false)):

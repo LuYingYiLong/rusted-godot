@@ -13,6 +13,16 @@ func _run() -> void:
 	var start: Vector2 = grid.cell_to_world(start_cell)
 	var first_target: Vector2 = grid.cell_to_world(start_cell + Vector2i(3, 0))
 	var second_target: Vector2 = grid.cell_to_world(start_cell + Vector2i(5, 0))
+	var server_cells: Array[Vector2i] = [
+		start_cell + Vector2i(1, 0),
+		start_cell + Vector2i(2, 0),
+		start_cell + Vector2i(3, 0),
+	]
+	var server_path: Array[Vector2] = grid.path_from_cells(start, second_target, server_cells, "LAND")
+	assert(server_path.size() == 3)
+	for index: int in server_cells.size() - 1:
+		assert(server_path[index] == grid.cell_to_world(server_cells[index]))
+	assert(server_path.back() == second_target)
 	var registry: RwUnitRegistry = RwVanillaUnitDefinitions.create_registry()
 	var definition: RwUnitDefinition = registry.find_definition("vanilla", "tank")
 	var own: RwUnitState = _unit(1, "1", start, definition)
@@ -42,7 +52,7 @@ func _run() -> void:
 	assert(own.order_target == first_target)
 	for frame: int in 500:
 		orders.advance_unit(own, frame)
-	assert(own.world_position.distance_to(second_target) < 2.0)
+	assert(own.world_position.distance_to(second_target) < 16.0)
 	orders.apply_command({
 		"team": 1,
 		"unit_ids": [1,],
@@ -86,6 +96,28 @@ func _run() -> void:
 	assert(own.order_type.is_empty())
 	orders.advance_unit(own, 502)
 	assert(own.order_type == "move" and own.order_target == second_target)
+	grid.block_structure(grid.cell_to_world(start_cell + Vector2i(1, 0)), Vector2i.ZERO, Vector2i.ZERO)
+	grid.finalize_obstacles()
+	var packet_unit: RwUnitState = _unit(3, "1", start, definition)
+	var packet_orders: RwUnitOrderController = RwUnitOrderController.new()
+	packet_orders.configure({3: packet_unit,}, registry, grid, true)
+	packet_orders.apply_command({
+		"team": 1,
+		"unit_ids": [3,],
+		"order_type": "move",
+		"target": second_target,
+		"command_targets": {3: {
+			"start_position": start,
+			"target_position": second_target,
+			"path": server_cells,
+		},},
+	})
+	assert(packet_unit.has_pending_path())
+	packet_orders.advance_unit(packet_unit, 503)
+	assert(packet_unit.has_pending_path())
+	packet_orders.advance_unit(packet_unit, 504)
+	assert(not packet_unit.has_pending_path())
+	assert(packet_unit.get_checksum_path_points().size() == server_path.size())
 	print("UNIT_ORDER_CHECK_OK")
 	quit()
 

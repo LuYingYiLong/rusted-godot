@@ -19,6 +19,8 @@ enum SelectionShape {
 @export var back_image: String
 @export var turret_image: String
 @export var weapon_parts: Array[RwUnitWeaponDefinition]
+## 原版状态中包含的炮口角度数量，可多于可见武器挂件
+@export var weapon_state_count: int = 1
 @export var leg_parts: Array[RwUnitLegDefinition]
 ## 可开火武器列表，索引不必与绘制挂件相同
 @export var combat_weapons: Array[RwWeaponDefinition]
@@ -32,6 +34,8 @@ enum SelectionShape {
 @export var body_scale: Vector2 = Vector2.ONE
 @export var render_rotation_offset_degrees: float
 @export var applies_spawn_rotation: bool = true
+## 地图没有方向时用于模拟原版单位内部朝向
+@export var default_body_rotation_degrees: float
 ## 原生炮塔创建时为炮口指定一次稳定的初始角度
 @export var randomize_initial_weapon_rotation: bool
 @export var draw_layer: int = 2
@@ -40,6 +44,8 @@ enum SelectionShape {
 @export var tech_level: int = 1
 @export var resource_costs: Dictionary
 @export var build_rate_per_frame: float
+## 建造或维修开始前的原版武器预热时间
+@export var construction_warmup: float
 ## 护盾最大值，由单位行为负责吸收伤害和恢复
 @export var max_shield: float
 @export var movement_speed: float
@@ -50,7 +56,13 @@ enum SelectionShape {
 @export var turn_acceleration: float
 @export var movement_acceleration: float
 @export var movement_deceleration: float
+## 使用独立速度向量滑行，不将当前移动速度直接绑定机身角
+@export var movement_sliding: bool
+## 移动方向直接朝向路径点，允许机身转向与位移方向不同
+@export var movement_ignores_body: bool
 @export var collision_radius: float
+## 原版建筑类型额外提供给建造者的施工距离
+@export var construction_range_bonus: float
 @export var push_mass: float = 3000.0
 ## 原版软碰撞优先级，数值越大推开速度越慢
 @export var soft_collision_on_all: int

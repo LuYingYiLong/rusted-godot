@@ -9,6 +9,13 @@ const KEYBOARD_PAN_SPEED: float = 600.0
 const NAVIGATION_COLOR: Color = Color("11c608")
 const BUILD_RANGE: float = 85.0
 const BUILD_RETRY_FRAMES: int = 12
+const NATIVE_FACTORY_NAMES: Array[String] = [
+	"commandCenter",
+	"landFactory",
+	"airFactory",
+	"seaFactory",
+	"experimentalLandFactory",
+]
 
 @onready var map_root: Node2D = %MapRoot
 @onready var map_camera: Camera2D = %MapCamera
@@ -51,6 +58,7 @@ var _pending_queue_cancellations: Dictionary
 var _build_sites: Array[Dictionary]
 var _builder_site_ids: Dictionary
 var _builder_site_queues: Dictionary
+var _builder_warmup: Dictionary
 var _next_build_site_id: int = 1
 var _placement_action: RwUnitActionDefinition
 var _placement_builder_ids: Array[int]
@@ -97,7 +105,7 @@ func _ready() -> void:
 	_block_initial_structures()
 	_path_grid.finalize_obstacles()
 	_unit_orders = RwUnitOrderController.new()
-	_unit_orders.configure(_unit_states, _unit_registry, _path_grid)
+	_unit_orders.configure(_unit_states, _unit_registry, _path_grid, RwRoomClient.is_active())
 	_unit_orders.order_applied.connect(_on_unit_order_applied)
 	_combat = RwBattleCombat.new()
 	_combat.projectile_fired.connect(_on_projectile_fired)
@@ -131,6 +139,16 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if _state_probe != null:
 		_state_probe.close()
+
+
+## 获取探针记录的指定同步帧单位校验值
+func get_unit_checksum_for_frame(frame: int) -> Dictionary:
+	return _state_probe.unit_checksum_for_frame(frame) if _state_probe != null else {}
+
+
+## 获取探针记录的指定同步帧逐单位状态
+func get_unit_probe_snapshot_for_frame(frame: int) -> Array[Dictionary]:
+	return _state_probe.unit_snapshot_for_frame(frame) if _state_probe != null else []
 
 
 func _render_initial_units(map_name: String) -> Dictionary:
@@ -767,16 +785,17 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	var first_frame: int = _last_simulated_frame
 	_last_simulated_frame = frame
 	for step: int in frame_delta:
+		_advance_unit_generation(first_frame + step)
 		for unit_state: RwUnitState in _mobile_unit_states:
 			if _unit_orders != null:
-				_unit_orders.advance_unit(unit_state, first_frame + step, _builder_site_ids.has(unit_state.object_id))
+				_unit_orders.advance_unit(unit_state, first_frame + step, _builder_site_ids.has(unit_state.object_id), RwRoomClient.battle_timeline.step_rate)
 			else:
-				unit_state.advance_movement(1, _path_grid)
+				unit_state.advance_movement(1, _path_grid, RwRoomClient.battle_timeline.step_rate)
+			unit_state.apply_collision_push(_path_grid)
 		for animated_unit: RwUnitState in _animated_visual_units:
 			animated_unit.advance_visual_animation(1)
 		_separate_mobile_units(RwRoomClient.battle_timeline.step_rate)
 		_advance_service_orders()
-		_advance_unit_generation(first_frame + step)
 		if _combat != null:
 			_combat.advance_frame(RwRoomClient.battle_timeline.step_rate)
 		if _state_probe != null:
@@ -964,7 +983,7 @@ func _resource_stockpile_full(producer: RwUnitState, action: RwUnitActionDefinit
 
 func _sync_production_progress(producer: RwUnitState, queue: RwProductionQueue) -> void:
 	var progress: float = -1.0
-	if queue != null and not queue.items.is_empty():
+	if producer.build_progress >= 1.0 and queue != null and not queue.items.is_empty():
 		progress = queue.progress
 	producer.set_production_progress(progress)
 
@@ -1061,19 +1080,38 @@ func _find_build_approach(builder_position: Vector2, site_position: Vector2, def
 	return best_position
 
 
+func _build_range_for_definition(definition: RwUnitDefinition) -> float:
+	return BUILD_RANGE + definition.construction_range_bonus
+
+
 func _start_builder_site(builder: RwUnitState, site_id: int, _position: Vector2, definition: RwUnitDefinition) -> void:
 	_builder_site_ids[builder.object_id] = site_id
-	if builder.world_position.distance_to(_position) <= BUILD_RANGE:
-		builder.apply_order("", _position)
+	_builder_warmup[builder.object_id] = 0.0
+	if builder.world_position.distance_to(_position) <= _build_range_for_definition(definition):
+		builder.transition_to_target_order("build", _position, -1)
 		return
-	var approach: Vector2 = _find_build_approach(builder.world_position, _position, definition)
-	builder.apply_move_order(approach, _path_grid.find_path(builder.world_position, approach, builder.movement_type))
+	var direct_path: bool = _path_grid.has_clear_line(builder.world_position, _position, builder.movement_type)
+	var build_range: float = _build_range_for_definition(definition)
+	var goal_radius_cells: int = maxi(int((build_range - 41.0) / (float(_map_tile_size.x) * 1.414)), 0) if build_range > 58.0 else 0
+	_path_grid.update_object_costs(_unit_states, builder.object_id)
+	var waypoints: Array[Vector2] = _path_grid.find_path(builder.world_position, _position, builder.movement_type, direct_path, builder.body_rotation_degrees, true, goal_radius_cells)
+	if waypoints.is_empty():
+		var approach: Vector2 = _find_build_approach(builder.world_position, _position, definition)
+		waypoints = _path_grid.find_path(builder.world_position, approach, builder.movement_type, true, builder.body_rotation_degrees, true, goal_radius_cells)
+	var path_delay: int = _path_grid.network_path_delay_frames(builder.world_position, _position, builder.movement_type) if _unit_orders != null and _unit_orders.uses_network_paths() else 0
+	var fast_path: bool = path_delay == 12
+	builder.apply_move_order(_position, waypoints, "build", -1, definition.unit_name, 0 if fast_path else path_delay)
+	if direct_path and _unit_orders != null and _unit_orders.uses_network_paths():
+		builder.schedule_source_direct_path(waypoints)
+	elif fast_path:
+		builder.defer_current_path()
 
 
 func _advance_builder_site_queue(builder_id: int, completed_site_id: int) -> void:
 	if int(_builder_site_ids.get(builder_id, -1)) != completed_site_id:
 		return
 	_builder_site_ids.erase(builder_id)
+	_builder_warmup.erase(builder_id)
 	var pending_sites: Array = _builder_site_queues.get(builder_id, [])
 	while not pending_sites.is_empty():
 		var next_site_id: int = int(pending_sites.pop_front())
@@ -1086,6 +1124,9 @@ func _advance_builder_site_queue(builder_id: int, completed_site_id: int) -> voi
 				_builder_site_queues[builder_id] = pending_sites
 				return
 	_builder_site_queues.erase(builder_id)
+	var completed_builder: RwUnitState = _unit_states.get(builder_id) as RwUnitState
+	if completed_builder != null and completed_builder.order_type in ["build", "repair",]:
+		completed_builder.apply_order("", completed_builder.world_position)
 
 
 func _advance_unit_generation(frame: int) -> void:
@@ -1114,12 +1155,14 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 	if builder == null or builder.is_dead:
 		_builder_site_ids.erase(builder_id)
 		_builder_site_queues.erase(builder_id)
+		_builder_warmup.erase(builder_id)
 		return
 	for site: Dictionary in _build_sites:
 		if int(site["id"]) != site_id or bool(site["finished"]):
 			continue
 		var site_position: Vector2 = site["position"]
-		if builder.world_position.distance_to(site_position) > BUILD_RANGE:
+		var definition: RwUnitDefinition = site["definition"]
+		if builder.world_position.distance_to(site_position) > _build_range_for_definition(definition):
 			return
 		if builder.order_type == "move" or builder.order_type == "attackMove":
 			builder.apply_order("", site_position)
@@ -1127,7 +1170,9 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 		if building == null:
 			if frame < int(site["next_attempt_frame"]):
 				return
-			var definition: RwUnitDefinition = site["definition"]
+			var facing_angle: float = RwGameMath.direction_degrees(builder.world_position, site_position)
+			if builder.turn_speed > 0.0 and absf(wrapf(facing_angle - builder.body_rotation_degrees, -180.0, 180.0)) > 30.0:
+				return
 			if not _path_grid.get_placement_error(site_position, definition).is_empty():
 				site["finished"] = true
 				for assigned_id: int in site["builders"]:
@@ -1142,9 +1187,18 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 			if building == null:
 				return
 			site["created_frame"] = frame
+			builder.transition_to_target_order("repair", site_position, building.object_id)
+		elif builder.order_type == "build":
+			builder.transition_to_target_order("repair", site_position, building.object_id)
 		if frame <= int(site["created_frame"]):
 			return
-		var progress: float = minf(float(site["progress"]) + float(site["rate"]), 1.0)
+		var warmup: float = float(_builder_warmup.get(builder_id, 0.0))
+		var builder_definition: RwUnitDefinition = _unit_registry.find_definition(builder.source_id, builder.unit_name)
+		var warmup_limit: float = builder_definition.construction_warmup if builder_definition != null else 0.0
+		if warmup_limit > 0.0 and warmup <= warmup_limit + 0.001:
+			_builder_warmup[builder_id] = warmup + RwRoomClient.battle_timeline.step_rate
+			return
+		var progress: float = minf(float(site["progress"]) + float(site["rate"]) * RwRoomClient.battle_timeline.step_rate, 1.0)
 		site["progress"] = progress
 		building.apply_snapshot({"build_progress": progress,})
 		if progress >= 1.0:
@@ -1179,7 +1233,8 @@ func _refresh_builder_vfx(frame: int) -> void:
 			if int(site["id"]) != site_id or bool(site["finished"]):
 				continue
 			var building: RwUnitState = _unit_states.get(int(site["object_id"])) as RwUnitState
-			if building == null or building.is_dead or builder.world_position.distance_to(building.world_position) > BUILD_RANGE:
+			var building_definition: RwUnitDefinition = site["definition"]
+			if building == null or building.is_dead or builder.world_position.distance_to(building.world_position) > _build_range_for_definition(building_definition):
 				break
 			beams[builder_id] = {
 				"origin": builder.world_position,
@@ -1230,6 +1285,9 @@ func _advance_factory_production(factory_id: int) -> void:
 		_production_queues.erase(factory_id)
 		return
 	var queue: RwProductionQueue = _production_queues[factory_id] as RwProductionQueue
+	if factory.build_progress < 1.0:
+		_sync_production_progress(factory, queue)
+		return
 	for action: RwUnitActionDefinition in queue.advance(1):
 		if action.kind == RwUnitActionDefinition.Kind.UPGRADE_UNIT:
 			_complete_unit_upgrade(factory, action)
@@ -1335,9 +1393,13 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	if definition == null:
 		return
 	var factory_definition: RwUnitDefinition = _unit_registry.find_definition(factory.source_id, factory.unit_name)
+	var native_factory: bool = factory.source_id == "vanilla" and factory.unit_name in NATIVE_FACTORY_NAMES
 	var exit_move_away: float = factory_definition.factory_exit_move_away if factory_definition != null else 70.0
 	var exit_offset: Vector2 = factory_definition.factory_exit_offset if factory_definition != null else Vector2(0.0, 9.0)
 	var exit_position: Vector2 = _find_factory_exit(factory.world_position, definition.movement_type, exit_move_away)
+	if native_factory and factory_definition != null:
+		exit_offset = Vector2(0.0, 5.0)
+		exit_position = RwGameMath.factory_exit_target(factory.world_position, factory_definition.collision_radius)
 	var spawn_position: Vector2 = factory.world_position + exit_offset
 	if factory.unit_name == "seaFactory":
 		spawn_position.y = maxf(spawn_position.y, factory.world_position.y - 20.0 + definition.collision_radius)
@@ -1357,12 +1419,22 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	var unit_state: RwUnitState = RwUnitState.new()
 	unit_state.initialize_from_spawn(spawn, definition)
 	if unit_state.movement_speed > 0.0 and factory_definition != null:
+		var exit_path_delay: float
+		if native_factory:
+			exit_path_delay = 30.0
+			if factory.unit_name == "experimentalLandFactory":
+				exit_path_delay += 40.0
+			if unit_state.movement_speed < 0.75:
+				exit_path_delay += 30.0
+			if unit_state.movement_speed < 0.55:
+				exit_path_delay += 20.0
 		var factory_cell: Vector2i = _path_grid.structure_anchor_cell(factory.world_position, factory_definition.structure_footprint_min, factory_definition.structure_footprint_max) if _path_grid != null else Vector2i.ZERO
 		unit_state.apply_factory_exit(
 			exit_position,
 			factory_cell,
 			factory_definition.structure_footprint_min,
 			factory_definition.structure_footprint_max,
+			exit_path_delay,
 		)
 	visual.bind_state(unit_state)
 	unit_layer.add_child(visual)
@@ -1478,15 +1550,17 @@ func _separate_mobile_units(simulation_delta: float = 1.0) -> void:
 			var second: RwUnitState = _mobile_unit_states[second_index]
 			if second.is_dead or second.collision_radius <= 0.0 or first.team != second.team:
 				continue
-			var separation: Vector2 = second.world_position - first.world_position
+			var separation: Vector2 = (second.world_position + second.collision_push_offset) - (first.world_position + first.collision_push_offset)
 			var minimum_distance: float = first.collision_radius + second.collision_radius
 			if separation.length_squared() >= minimum_distance * minimum_distance:
 				continue
 			var distance: float = separation.length()
 			if first.is_exiting_factory() != second.is_exiting_factory() and absf(separation.x) < 0.01 and absf(separation.y) > 0.01:
 				separation.x = 2.0 if first.object_id < second.object_id else -2.0
-			var direction: Vector2 = separation.normalized() if separation.length_squared() > 0.000001 else Vector2.RIGHT
-			var overlap: float = minimum_distance - distance
+			var direction: Vector2 = RwGameMath.path_direction(Vector2.ZERO, separation)
+			if second.is_exiting_factory() and not first.is_exiting_factory():
+				direction = -RwGameMath.path_direction(separation, Vector2.ZERO)
+			var overlap: float = minimum_distance - distance + 0.001
 			var priority: int = maxi(first.soft_collision_on_all, second.soft_collision_on_all)
 			var push_distance: float = minf(overlap / float(priority) * simulation_delta, overlap) if priority > 0 else overlap
 			push_distance *= 0.95
@@ -1500,16 +1574,11 @@ func _separate_mobile_units(simulation_delta: float = 1.0) -> void:
 				push_distance = 10.0 + (push_distance - 10.0) * 0.7
 			var first_mass: float = maxf(first.push_mass, 1.0)
 			var second_mass: float = maxf(second.push_mass, 1.0)
-			if first.team == second.team:
-				var first_moving: bool = first.order_type == "move" or first.order_type == "attackMove"
-				var second_moving: bool = second.order_type == "move" or second.order_type == "attackMove"
-				if first_moving and not second_moving:
-					second_mass *= 1.7
-				elif second_moving and not first_moving:
-					first_mass *= 1.7
 			var correction: Vector2 = direction * push_distance
 			first.displace_from_collision(-correction * second_mass / (first_mass + second_mass), _path_grid)
 			second.displace_from_collision(correction * first_mass / (first_mass + second_mass), _path_grid)
+			first.note_collision(second)
+			second.note_collision(first)
 
 
 func _command_center_frame(frame: int) -> int:

@@ -21,6 +21,26 @@ static func configure_tank(definition: RwUnitDefinition) -> void:
 	definition.behavior = RwAutoAttackBehavior.new()
 
 
+## 为指挥中心配置追踪弹及自动防卫行为
+static func configure_command_center(definition: RwUnitDefinition) -> void:
+	var projectile: RwProjectileDefinition = RwProjectileDefinition.new()
+	projectile.damage = 70.0
+	projectile.speed_per_frame = 2.0
+	projectile.target_speed_per_frame = 5.0
+	projectile.speed_acceleration_per_frame = 0.1
+	projectile.lifetime_frames = 180
+	projectile.visual_color = Color8(230, 230, 50)
+	var weapon: RwWeaponDefinition = RwWeaponDefinition.new()
+	weapon.projectile = projectile
+	weapon.attack_range = 280.0
+	weapon.reload_frames = 70
+	weapon.turn_speed_degrees = 999.0
+	weapon.can_target_air = true
+	weapon.can_target_water = true
+	definition.combat_weapons = [weapon,]
+	definition.behavior = RwAutoAttackBehavior.new()
+
+
 ## 为一级普通炮塔配置炮弹和自动攻击行为
 static func configure_turret(definition: RwUnitDefinition) -> void:
 	var projectile: RwProjectileDefinition = RwProjectileDefinition.new()

@@ -13,6 +13,8 @@ static func create_registry() -> RwUnitRegistry:
 	command_center.back_image = "base_back.png"
 	command_center.dead_image = "base_dead.png"
 	command_center.applies_spawn_rotation = false
+	command_center.default_body_rotation_degrees = -90.0
+	command_center.render_rotation_offset_degrees = 90.0
 	command_center.draw_layer = 3
 	command_center.dead_draw_layer = 0
 	command_center.body_frames = 4
@@ -33,6 +35,7 @@ static func create_registry() -> RwUnitRegistry:
 	command_center.build_actions = [
 		produce_builder,
 	]
+	RwVanillaCombatDefinitions.configure_command_center(command_center)
 	registry.register_definition(command_center, assets)
 	var builder: RwUnitDefinition = RwUnitDefinition.new()
 	builder.unit_name = "builder"
@@ -51,6 +54,7 @@ static func create_registry() -> RwUnitRegistry:
 	builder.turn_acceleration = 0.35
 	builder.movement_acceleration = 0.04
 	builder.movement_deceleration = 0.1
+	builder.construction_warmup = 30.0
 	builder.collision_radius = 10.0
 	builder.can_reclaim = true
 	builder.build_actions = [
@@ -162,6 +166,10 @@ static func create_registry() -> RwUnitRegistry:
 	submarine.max_health = 260.0
 	submarine.movement_type = "WATER"
 	submarine.movement_speed = 0.8
+	submarine.turn_speed = 1.2
+	submarine.turn_acceleration = 0.06
+	submarine.movement_acceleration = 0.018
+	submarine.movement_deceleration = 0.1
 	submarine.collision_radius = 15.0
 	var submarine_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
 	submarine_profile.spawn_altitude = -8.0
@@ -179,6 +187,12 @@ static func create_registry() -> RwUnitRegistry:
 	shield_tank.max_shield = 5000.0
 	shield_tank.movement_type = "HOVER"
 	shield_tank.movement_speed = 0.6
+	shield_tank.turn_speed = 1.1
+	shield_tank.turn_acceleration = 0.03
+	shield_tank.movement_acceleration = 0.02
+	shield_tank.movement_deceleration = 0.02
+	shield_tank.movement_sliding = true
+	shield_tank.movement_ignores_body = true
 	shield_tank.collision_radius = 31.0
 	shield_tank.behavior = RwShieldBehavior.new()
 	var shield_tank_profile: RwUnitVisualProfile = RwUnitVisualProfile.new()
@@ -199,11 +213,14 @@ static func create_registry() -> RwUnitRegistry:
 	sea_factory.body_image = "sea_factory.png"
 	sea_factory.dead_image = "sea_factory_dead.png"
 	sea_factory.applies_spawn_rotation = false
+	sea_factory.default_body_rotation_degrees = -90.0
+	sea_factory.render_rotation_offset_degrees = 90.0
 	sea_factory.dead_draw_layer = 0
 	sea_factory.selection_shape = RwUnitDefinition.SelectionShape.RECTANGLE
 	sea_factory.max_health = 1000.0
 	sea_factory.placement_requires_water = true
 	sea_factory.collision_radius = 45.0
+	sea_factory.construction_range_bonus = 110.0
 	sea_factory.blocks_movement = true
 	sea_factory.structure_footprint_min = Vector2i(-1, -1)
 	sea_factory.structure_footprint_max = Vector2i(1, 2)
@@ -230,6 +247,8 @@ static func create_registry() -> RwUnitRegistry:
 	tree.body_image = "trees.png"
 	tree.body_team_colored = false
 	tree.applies_spawn_rotation = false
+	tree.default_body_rotation_degrees = -90.0
+	tree.render_rotation_offset_degrees = 90.0
 	tree.draw_layer = 3
 	tree.dead_draw_layer = 0
 	tree.max_health = 100.0

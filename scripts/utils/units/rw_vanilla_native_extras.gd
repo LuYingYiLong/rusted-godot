@@ -11,6 +11,11 @@ const SPECS: Dictionary = {
 		"radius": 7.0,
 		"speed": 1.0,
 		"turn_speed": 180.0,
+		"turn_accel": 0.5,
+		"move_accel": 0.04,
+		"move_decel": 0.09,
+		"move_sliding": true,
+		"move_ignoring_body": true,
 		"attack_range": 140.0,
 		"movement_type": "HOVER",
 	},
@@ -22,6 +27,10 @@ const SPECS: Dictionary = {
 		"radius": 15.0,
 		"speed": 1.4,
 		"turn_speed": 4.0,
+		"turn_accel": 0.4,
+		"move_accel": 0.2,
+		"move_decel": 0.1,
+		"move_sliding": true,
 		"attack_range": 140.0,
 		"movement_type": "AIR",
 	},
@@ -32,6 +41,9 @@ const SPECS: Dictionary = {
 		"radius": 15.0,
 		"speed": 1.2,
 		"turn_speed": 1.9,
+		"turn_accel": 0.2,
+		"move_accel": 0.05,
+		"move_decel": 0.1,
 		"attack_range": 200.0,
 		"movement_type": "WATER",
 	},
@@ -42,6 +54,9 @@ const SPECS: Dictionary = {
 		"radius": 12.0,
 		"speed": 1.5,
 		"turn_speed": 2.8,
+		"turn_accel": 0.35,
+		"move_accel": 0.06,
+		"move_decel": 0.2,
 		"attack_range": 120.0,
 		"movement_type": "WATER",
 	},
@@ -53,6 +68,8 @@ const SPECS: Dictionary = {
 		"radius": 12.0,
 		"speed": 0.8,
 		"turn_speed": 1.2,
+		"move_accel": 0.05,
+		"move_decel": 0.1,
 		"attack_range": 140.0,
 		"movement_type": "LAND",
 	},
@@ -63,6 +80,8 @@ const SPECS: Dictionary = {
 		"radius": 5.0,
 		"speed": 1.7,
 		"turn_speed": 5.5,
+		"move_accel": 0.07,
+		"move_decel": 0.12,
 		"attack_range": 43.0,
 		"movement_type": "LAND",
 	},
@@ -74,6 +93,9 @@ const SPECS: Dictionary = {
 		"radius": 20.0,
 		"speed": 0.8,
 		"turn_speed": 1.8,
+		"turn_accel": 0.08,
+		"move_accel": 0.03,
+		"move_decel": 0.1,
 		"attack_range": 240.0,
 		"movement_type": "WATER",
 	},
@@ -85,6 +107,8 @@ const SPECS: Dictionary = {
 		"radius": 11.0,
 		"speed": 1.0,
 		"turn_speed": 1.9,
+		"move_accel": 0.07,
+		"move_decel": 0.12,
 		"attack_range": 150.0,
 		"movement_type": "LAND",
 	},
@@ -96,6 +120,9 @@ const SPECS: Dictionary = {
 		"radius": 15.0,
 		"speed": 0.8,
 		"turn_speed": 1.9,
+		"turn_accel": 0.2,
+		"move_accel": 0.05,
+		"move_decel": 0.1,
 		"attack_range": 160.0,
 		"movement_type": "LAND",
 	},
@@ -107,6 +134,10 @@ const SPECS: Dictionary = {
 		"radius": 11.0,
 		"speed": 0.7,
 		"turn_speed": 20.0,
+		"move_accel": 0.06,
+		"move_decel": 0.09,
+		"move_sliding": true,
+		"move_ignoring_body": true,
 		"attack_range": 160.0,
 		"movement_type": "HOVER",
 	},
@@ -118,6 +149,8 @@ const SPECS: Dictionary = {
 		"radius": 20.0,
 		"speed": 2.3,
 		"turn_speed": 1.4,
+		"move_accel": 0.03,
+		"move_decel": 0.05,
 		"attack_range": 140.0,
 		"movement_type": "AIR",
 	},
@@ -146,9 +179,13 @@ const SPECS: Dictionary = {
 		"radius": 13.0,
 		"speed": 0.8,
 		"turn_speed": 1.9,
+		"turn_accel": 0.12,
+		"move_accel": 0.03,
+		"move_decel": 0.1,
 		"attack_range": 240.0,
 		"movement_type": "WATER",
 		"reclaim": true,
+		"build_warmup": 30.0,
 	},
 	"amphibiousJet": {
 		"body": "amphibious_jet.png",
@@ -158,6 +195,11 @@ const SPECS: Dictionary = {
 		"radius": 12.0,
 		"speed": 1.4,
 		"turn_speed": 3.8,
+		"turn_accel": 0.3,
+		"move_accel": 0.03,
+		"move_decel": 0.1,
+		"move_sliding": true,
+		"move_ignoring_body": true,
 		"attack_range": 100.0,
 		"movement_type": "AIR",
 	},
@@ -186,6 +228,13 @@ const HIDDEN_TYPES: Array[String] = [
 	"editorOrBuilder",
 	"dummyNonUnitWithTeam",
 ]
+const HIDDEN_HEALTH: Dictionary = {
+	"fogRevealer": 100.0,
+	"damagingBorder": 100.0,
+	"zoneMarker": 100.0,
+	"editorOrBuilder": 170000.0,
+	"dummyNonUnitWithTeam": 100.0,
+}
 
 
 ## 注册原生单位，并对已由 INI 替换的单位复用相同外观数据
@@ -200,9 +249,13 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 		elif SPECS.has(unit_name):
 			spec = SPECS[unit_name]
 		elif HIDDEN_TYPES.has(unit_name):
-			spec = {"body": "", "health": 1.0, "radius": 0.0, "movement_type": "NONE", "hidden": true,}
+			spec = {"body": "", "health": float(HIDDEN_HEALTH.get(unit_name, 1.0)), "radius": 0.0, "movement_type": "NONE", "hidden": true,}
 		else:
 			push_error("Missing native unit definition: %s" % unit_name)
 			continue
 		var definition: RwUnitDefinition = RwVanillaCustomDefinitions.create_definition(unit_name, spec, "vanilla")
+		if unit_name in ["crystalResource", "spreadingFire",]:
+			definition.applies_spawn_rotation = false
+			definition.default_body_rotation_degrees = -90.0
+			definition.render_rotation_offset_degrees = 90.0
 		registry.register_definition(definition, assets)
