@@ -67,6 +67,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <NMakePreprocessorDefinitions>_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <IncludePath>godot-cpp\include;godot-cpp\gen\include;godot-cpp\gdextension;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <NMakePreprocessorDefinitions>WIN32;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
@@ -95,6 +96,15 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\register_types.h" />
+    <ClInclude Include="src\rw_game_math.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\register_types.cpp" />
+    <ClCompile Include="src\rw_game_math.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\rw_math_tables.inc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

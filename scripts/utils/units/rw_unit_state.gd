@@ -572,17 +572,11 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid, simulation_delta:
 		var turn_step: float
 		if absf(_angle_difference) < 0.01 or factory_exit_path_started or factory_exit_final_started or (is_last_waypoint and distance < reach_distance and _factory_exit_phase != 2):
 			turn_step = 0.0
-		elif turn_acceleration > 0.0:
-			var braking_angle: float = absf(_turn_velocity) / turn_acceleration
-			var requested_turn: float = signf(_angle_difference) * (turn_acceleration if absf(_angle_difference) < braking_angle else current_turn_speed)
-			_turn_velocity = move_toward(_turn_velocity, requested_turn, turn_acceleration * simulation_delta)
-			turn_step = _turn_velocity * simulation_delta
 		else:
-			turn_step = signf(_angle_difference) * current_turn_speed * simulation_delta
-		if absf(turn_step) > absf(_angle_difference):
-			_turn_velocity = 0.0
-			turn_step = _angle_difference
-		body_rotation_degrees = wrapf(body_rotation_degrees + turn_step, -180.0, 180.0)
+			var turn_state: Vector3 = RwGameMath.turn_toward(body_rotation_degrees, desired_angle, _turn_velocity, current_turn_speed, turn_acceleration, simulation_delta)
+			body_rotation_degrees = turn_state.x
+			_turn_velocity = turn_state.y
+			turn_step = turn_state.z
 		_add_weapon_rotation(turn_step)
 		if turn_step != 0.0:
 			is_changed = true
@@ -622,9 +616,8 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid, simulation_delta:
 			next_position = world_position + _sliding_velocity * simulation_delta
 		else:
 			var speed_change: float = movement_acceleration if target_speed > _movement_velocity else movement_deceleration
-			_movement_velocity = move_toward(_movement_velocity, target_speed, speed_change * simulation_delta)
-			var movement_step: float = current_speed * _movement_velocity * simulation_delta
-			next_position = world_position + RwGameMath.direction_for_angle(body_rotation_degrees) * movement_step
+			_movement_velocity = RwGameMath.advance_speed(_movement_velocity, target_speed, speed_change, simulation_delta)
+			next_position = RwGameMath.movement_position(world_position, body_rotation_degrees, current_speed, _movement_velocity, simulation_delta)
 		if not _can_traverse(world_position, next_position, path_grid):
 			if movement_sliding:
 				next_position = _resolve_sliding_wall(world_position, next_position, path_grid)
@@ -662,11 +655,10 @@ func _advance_idle_coasting(frame_count: int, path_grid: RwPathGrid, simulation_
 				break
 			next_position = world_position + _sliding_velocity * simulation_delta
 		else:
-			_movement_velocity = move_toward(_movement_velocity, 0.0, movement_deceleration * simulation_delta)
+			_movement_velocity = RwGameMath.advance_speed(_movement_velocity, 0.0, movement_deceleration, simulation_delta)
 			if _movement_velocity <= 0.0:
 				break
-			var movement_step: float = movement_speed * _movement_velocity * simulation_delta
-			next_position = world_position + RwGameMath.direction_for_angle(body_rotation_degrees) * movement_step
+			next_position = RwGameMath.movement_position(world_position, body_rotation_degrees, movement_speed, _movement_velocity, simulation_delta)
 		if not _can_traverse(world_position, next_position, path_grid):
 			if movement_sliding:
 				next_position = _resolve_sliding_wall(world_position, next_position, path_grid)
@@ -692,21 +684,16 @@ func _advance_target_coasting(frame_count: int, path_grid: RwPathGrid, simulatio
 			current_speed = water_movement_speed if water_movement_speed > 0.0 else movement_speed
 		var turn_step: float
 		if absf(remaining_angle) >= 0.01:
-			var braking_angle: float = absf(_turn_velocity) / turn_acceleration if turn_acceleration > 0.0 else 0.0
-			var requested_turn: float = signf(remaining_angle) * (turn_acceleration if absf(remaining_angle) < braking_angle else current_turn_speed)
-			_turn_velocity = move_toward(_turn_velocity, requested_turn, turn_acceleration * simulation_delta)
-			turn_step = _turn_velocity * simulation_delta
-			if absf(turn_step) > absf(remaining_angle):
-				_turn_velocity = 0.0
-				turn_step = remaining_angle
-		body_rotation_degrees = wrapf(body_rotation_degrees + turn_step, -180.0, 180.0)
+			var turn_state: Vector3 = RwGameMath.turn_toward(body_rotation_degrees, target_angle, _turn_velocity, current_turn_speed, turn_acceleration, simulation_delta)
+			body_rotation_degrees = turn_state.x
+			_turn_velocity = turn_state.y
+			turn_step = turn_state.z
 		_add_weapon_rotation(turn_step)
-		_movement_velocity = move_toward(_movement_velocity, 0.0, movement_deceleration * simulation_delta)
-		var movement_step: float = current_speed * _movement_velocity * simulation_delta
-		var next_position: Vector2 = world_position + RwGameMath.direction_for_angle(body_rotation_degrees) * movement_step
+		_movement_velocity = RwGameMath.advance_speed(_movement_velocity, 0.0, movement_deceleration, simulation_delta)
+		var next_position: Vector2 = RwGameMath.movement_position(world_position, body_rotation_degrees, current_speed, _movement_velocity, simulation_delta)
 		if _can_traverse(world_position, next_position, path_grid):
 			world_position = next_position
-			is_changed = is_changed or movement_step > 0.0 or turn_step != 0.0
+			is_changed = is_changed or _movement_velocity > 0.0 or turn_step != 0.0
 	if is_changed:
 		state_changed.emit(self)
 

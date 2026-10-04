@@ -100,3 +100,5 @@ ipch/
 
 # Scons cache files
 *.sconsign.dblite
+
+!addons/rw_core/project/*
