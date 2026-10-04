@@ -473,6 +473,8 @@ func get_navigation_path() -> PackedVector2Array:
 ## 返回原版校验会累加的未走完路径点
 func get_checksum_path_points() -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
+	if _factory_exit_phase == 1:
+		return points
 	for index: int in range(_path_index, _path_waypoints.size()):
 		points.append(_path_waypoints[index])
 	return points
@@ -558,7 +560,7 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid, simulation_delta:
 		var current_speed: float = water_movement_speed if on_water and water_movement_speed > 0.0 else movement_speed
 		var current_turn_speed: float = water_turn_speed if on_water and water_turn_speed > 0.0 else turn_speed
 		var desired_angle: float = RwGameMath.direction_degrees(world_position, waypoint)
-		var _angle_difference: float = wrapf(desired_angle - body_rotation_degrees, -180.0, 180.0)
+		var _angle_difference: float = RwGameMath.signed_angle_delta(body_rotation_degrees, desired_angle)
 		var turn_step: float
 		if factory_exit_path_started or factory_exit_final_started or (is_last_waypoint and distance < reach_distance and _factory_exit_phase != 2):
 			turn_step = 0.0
@@ -672,7 +674,7 @@ func _advance_target_coasting(frame_count: int, path_grid: RwPathGrid, simulatio
 	var is_changed: bool
 	for frame: int in frame_count:
 		var target_angle: float = RwGameMath.direction_degrees(world_position, order_target)
-		var remaining_angle: float = wrapf(target_angle - body_rotation_degrees, -180.0, 180.0)
+		var remaining_angle: float = RwGameMath.signed_angle_delta(body_rotation_degrees, target_angle)
 		var current_turn_speed: float = turn_speed
 		var current_speed: float = movement_speed
 		if path_grid != null and path_grid.is_water_at(world_position):

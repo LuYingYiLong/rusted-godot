@@ -119,10 +119,8 @@ static func create_definition(unit_name: String, spec: Dictionary, source_id: St
 
 static func _movement_type(source_type: String) -> String:
 	match source_type:
-		"AIR", "LAND", "WATER", "HOVER", "NONE":
+		"AIR", "LAND", "BUILDING", "WATER", "HOVER", "NONE", "OVER_CLIFF", "OVER_CLIFF_WATER":
 			return source_type
-		"OVER_CLIFF_WATER":
-			return "HOVER"
 		_:
 			return "LAND"
 

@@ -56,8 +56,8 @@ func capture(frame: int, step_delta: float, units: Dictionary) -> void:
 		for angle: float in unit.weapon_rotations_degrees:
 			angles.append(str(angle))
 		var team_number: int = unit.team.to_int() if unit.team.is_valid_int() else -1
-		var path_points: PackedVector2Array = unit.get_navigation_path()
-		var waypoint: Vector2 = path_points[1] if path_points.size() > 1 else Vector2.ZERO
+		var path_points: PackedVector2Array = unit.get_checksum_path_points()
+		var waypoint: Vector2 = path_points[0] if not path_points.is_empty() else Vector2.ZERO
 		var fields: PackedStringArray = [
 			str(frame),
 			str(step_delta),
@@ -76,8 +76,8 @@ func capture(frame: int, step_delta: float, units: Dictionary) -> void:
 			str(unit.order_target.x) if not unit.order_type.is_empty() else "",
 			str(unit.order_target.y) if not unit.order_type.is_empty() else "",
 			unit.order_action_id if unit.order_type == "build" else "",
-			str(waypoint.x) if path_points.size() > 1 else "",
-			str(waypoint.y) if path_points.size() > 1 else "",
+			str(waypoint.x) if not path_points.is_empty() else "",
+			str(waypoint.y) if not path_points.is_empty() else "",
 		]
 		_file.store_string("\t".join(fields) + "\n")
 	_file.flush()

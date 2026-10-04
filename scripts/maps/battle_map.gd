@@ -1034,6 +1034,7 @@ func _apply_build_command(command: Dictionary) -> void:
 		"team": (_unit_states[builder_ids[0]] as RwUnitState).team.to_int(),
 		"definition": definition,
 		"position": _position,
+		"command_target": target,
 		"builders": builder_ids,
 		"rate": build_action.build_rate_per_frame,
 		"cost": float(build_action.resource_costs.get("credits", 0.0)),
@@ -1053,7 +1054,7 @@ func _apply_build_command(command: Dictionary) -> void:
 			_builder_site_queues.erase(object_id)
 			if _unit_orders != null:
 				_unit_orders.clear_pending(object_id)
-			_start_builder_site(builder, site_id, _position, definition)
+			_start_builder_site(builder, site_id, _position, target, definition)
 
 
 func _find_build_approach(builder_position: Vector2, site_position: Vector2, definition: RwUnitDefinition) -> Vector2:
@@ -1084,11 +1085,11 @@ func _build_range_for_definition(definition: RwUnitDefinition) -> float:
 	return BUILD_RANGE + definition.construction_range_bonus
 
 
-func _start_builder_site(builder: RwUnitState, site_id: int, _position: Vector2, definition: RwUnitDefinition) -> void:
+func _start_builder_site(builder: RwUnitState, site_id: int, _position: Vector2, command_target: Vector2, definition: RwUnitDefinition) -> void:
 	_builder_site_ids[builder.object_id] = site_id
 	_builder_warmup[builder.object_id] = 0.0
 	if builder.world_position.distance_to(_position) <= _build_range_for_definition(definition):
-		builder.transition_to_target_order("build", _position, -1)
+		builder.transition_to_target_order("build", command_target, -1)
 		return
 	var direct_path: bool = _path_grid.has_clear_line(builder.world_position, _position, builder.movement_type)
 	var build_range: float = _build_range_for_definition(definition)
@@ -1099,12 +1100,9 @@ func _start_builder_site(builder: RwUnitState, site_id: int, _position: Vector2,
 		var approach: Vector2 = _find_build_approach(builder.world_position, _position, definition)
 		waypoints = _path_grid.find_path(builder.world_position, approach, builder.movement_type, true, builder.body_rotation_degrees, true, goal_radius_cells)
 	var path_delay: int = _path_grid.network_path_delay_frames(builder.world_position, _position, builder.movement_type) if _unit_orders != null and _unit_orders.uses_network_paths() else 0
-	var fast_path: bool = path_delay == 12
-	builder.apply_move_order(_position, waypoints, "build", -1, definition.unit_name, 0 if fast_path else path_delay)
+	builder.apply_move_order(command_target, waypoints, "build", -1, definition.unit_name, path_delay)
 	if direct_path and _unit_orders != null and _unit_orders.uses_network_paths():
 		builder.schedule_source_direct_path(waypoints)
-	elif fast_path:
-		builder.defer_current_path()
 
 
 func _advance_builder_site_queue(builder_id: int, completed_site_id: int) -> void:
@@ -1120,7 +1118,7 @@ func _advance_builder_site_queue(builder_id: int, completed_site_id: int) -> voi
 				continue
 			var builder: RwUnitState = _unit_states.get(builder_id) as RwUnitState
 			if builder != null and not builder.is_dead:
-				_start_builder_site(builder, next_site_id, site["position"], site["definition"])
+				_start_builder_site(builder, next_site_id, site["position"], site["command_target"], site["definition"])
 				_builder_site_queues[builder_id] = pending_sites
 				return
 	_builder_site_queues.erase(builder_id)

@@ -5,6 +5,7 @@ param(
     [int]$AiCount = 4,
     [int]$Port = 5125,
     [int]$DurationSeconds = 120,
+    [switch]$PathDebug,
     [switch]$Rebuild
 )
 
@@ -65,6 +66,9 @@ $hostArguments = @(
 )
 if ($Rebuild) {
     $hostArguments += '-Rebuild'
+}
+if ($PathDebug) {
+    $hostArguments += '-PathDebug'
 }
 
 $hostProcess = $null

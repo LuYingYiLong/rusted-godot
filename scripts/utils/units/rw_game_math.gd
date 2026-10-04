@@ -12,14 +12,21 @@ const TRIG_TABLE_MASK: int = 8191
 ## 返回原版直线路径所用的量化方向
 static func path_direction(start_position: Vector2, target_position: Vector2) -> Vector2:
 	return direction_for_angle(direction_degrees(start_position, target_position))
-
-
-
 ## 返回原版按查表量化后的目标方向角
 static func direction_degrees(start_position: Vector2, target_position: Vector2) -> float:
 	var delta: Vector2 = target_position - start_position
 	var angle: float = _fast_angle(delta.y, delta.x)
 	return _float32(angle * _float32(DEGREE_FACTOR))
+
+
+## 返回原版的有符号最短转角，正好 180 度时保持正方向
+static func signed_angle_delta(current_degrees: float, target_degrees: float) -> float:
+	var delta: float = fmod(target_degrees, 360.0) - fmod(current_degrees, 360.0)
+	if delta > 180.0:
+		delta -= 360.0
+	if delta < -180.0:
+		delta += 360.0
+	return delta
 
 
 ## 返回原版按度数查表的移动方向

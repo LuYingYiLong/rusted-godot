@@ -209,7 +209,12 @@ func _issue_target_order(unit_state: RwUnitState, order_type: String, target_sta
 		return
 	if _path_grid != null:
 		_path_grid.update_object_costs(_units, unit_state.object_id)
-	var waypoints: Array[Vector2] = _path_grid.find_path(unit_state.world_position, target, unit_state.movement_type, true, unit_state.body_rotation_degrees, true) if _path_grid != null else []
+	var goal_radius_cells: int
+	if _path_grid != null:
+		var desired_distance: float = _target_distance(unit_state, order_type, target_state)
+		if desired_distance > 58.0:
+			goal_radius_cells = maxi(0, int((desired_distance - 41.0) / (float(_path_grid.tile_size.x) * 1.414)))
+	var waypoints: Array[Vector2] = _path_grid.find_path(unit_state.world_position, target, unit_state.movement_type, true, unit_state.body_rotation_degrees, true, goal_radius_cells) if _path_grid != null else []
 	var path_delay: int = _network_path_delay(unit_state.world_position, target, unit_state)
 	unit_state.apply_move_order(target, waypoints, order_type, target_state.object_id, action_id, path_delay)
 

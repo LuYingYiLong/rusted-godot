@@ -23,15 +23,21 @@ var size: Vector2i
 var tile_size: Vector2i
 
 var _land_costs: PackedInt32Array
+var _building_costs: PackedInt32Array
 var _hover_costs: PackedInt32Array
 var _water_costs: PackedInt32Array
+var _cliff_costs: PackedInt32Array
+var _cliff_water_costs: PackedInt32Array
 var _water_tiles: PackedByteArray
 var _resource_pool_tiles: PackedByteArray
 var _structure_blocks: PackedByteArray
 var _object_costs: PackedByteArray
 var _land_clearance: PackedByteArray
+var _building_clearance: PackedByteArray
 var _hover_clearance: PackedByteArray
 var _water_clearance: PackedByteArray
+var _cliff_clearance: PackedByteArray
+var _cliff_water_clearance: PackedByteArray
 var _tile_info: Dictionary
 
 
@@ -120,10 +126,16 @@ func cost_at(cell: Vector2i, movement_type: String) -> int:
 	if _structure_blocks[index] != 0:
 		return -1
 	match movement_type:
+		"BUILDING":
+			return _building_costs[index]
 		"HOVER":
 			return _hover_costs[index]
 		"WATER":
 			return _water_costs[index]
+		"OVER_CLIFF":
+			return _cliff_costs[index]
+		"OVER_CLIFF_WATER":
+			return _cliff_water_costs[index]
 		_:
 			return _land_costs[index]
 
@@ -136,8 +148,11 @@ func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_
 			if _is_in_bounds(cell):
 				_structure_blocks[_cell_index(cell)] = 1
 	_land_clearance.clear()
+	_building_clearance.clear()
 	_hover_clearance.clear()
 	_water_clearance.clear()
+	_cliff_clearance.clear()
+	_cliff_water_clearance.clear()
 
 
 ## 建筑被摧毁后清除对应格子的动态阻挡
@@ -149,14 +164,20 @@ func unblock_structure(world_position: Vector2, minimum_offset: Vector2i, maximu
 			if _is_in_bounds(cell):
 				_structure_blocks[_cell_index(cell)] = 0
 	_land_clearance.clear()
+	_building_clearance.clear()
 	_hover_clearance.clear()
 	_water_clearance.clear()
+	_cliff_clearance.clear()
+	_cliff_water_clearance.clear()
 
 
 func finalize_obstacles() -> void:
 	_land_clearance = _build_clearance(_land_costs)
+	_building_clearance = _build_clearance(_building_costs)
 	_hover_clearance = _build_clearance(_hover_costs)
 	_water_clearance = _build_clearance(_water_costs)
+	_cliff_clearance = _build_clearance(_cliff_costs)
+	_cliff_water_clearance = _build_clearance(_cliff_water_costs)
 
 
 ## 更新原版寻路使用的闲置单位动态代价
@@ -169,7 +190,7 @@ func update_object_costs(units: Dictionary, moving_unit_id: int) -> void:
 		var unit_state: RwUnitState = units[object_id] as RwUnitState
 		if unit_state == null or unit_state.is_dead or unit_state.movement_speed <= 0.0 or unit_state.movement_type == "AIR":
 			continue
-		if not unit_state.order_type.is_empty() or unit_state.is_exiting_factory():
+		if not unit_state.get_navigation_path().is_empty() or unit_state.is_exiting_factory():
 			continue
 		var center: Vector2i = world_to_cell(unit_state.world_position)
 		var inner_radius: float = unit_state.collision_radius + 5.0
@@ -580,8 +601,11 @@ func _initialize(parsed: Dictionary) -> bool:
 	if ground_gids.size() != cell_count:
 		return false
 	_land_costs.resize(cell_count)
+	_building_costs.resize(cell_count)
 	_hover_costs.resize(cell_count)
 	_water_costs.resize(cell_count)
+	_cliff_costs.resize(cell_count)
+	_cliff_water_costs.resize(cell_count)
 	_water_tiles.resize(cell_count)
 	_resource_pool_tiles.resize(cell_count)
 	_structure_blocks.resize(cell_count)
@@ -597,8 +621,11 @@ func _initialize(parsed: Dictionary) -> bool:
 		_resource_pool_tiles[index] = 1 if items_info.x & RESOURCE_POOL or ground_info.x & RESOURCE_POOL else 0
 		var has_overlay: bool = overlay_gids.size() == cell_count and overlay_gids[index] != 0
 		_land_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "LAND")
+		_building_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "BUILDING")
 		_hover_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "HOVER")
 		_water_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "WATER")
+		_cliff_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "OVER_CLIFF")
+		_cliff_water_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "OVER_CLIFF_WATER")
 	return true
 
 
@@ -618,7 +645,7 @@ func _tile_cost(ground: Vector2i, items: Vector2i, overlay: Vector2i, has_overla
 	var cost: int = _terrain_cost(ground.x, movement_type)
 	if movement_type == "LAND" and items.x & RESOURCE_POOL:
 		cost = -1
-	if items.x & LARGE_OBJECT:
+	if items.x & LARGE_OBJECT and movement_type not in ["OVER_CLIFF", "OVER_CLIFF_WATER",]:
 		cost = -1
 	if cost == 0:
 		cost = items.y
@@ -632,11 +659,15 @@ func _tile_cost(ground: Vector2i, items: Vector2i, overlay: Vector2i, has_overla
 
 
 func _terrain_cost(mask: int, movement_type: String) -> int:
-	if mask & LAVA or mask & LARGE_OBJECT:
+	if mask & LAVA:
 		return -1
-	if movement_type == "LAND" and mask & (WATER | CLIFF):
+	if mask & LARGE_OBJECT and movement_type not in ["OVER_CLIFF", "OVER_CLIFF_WATER",]:
 		return -1
-	if movement_type == "WATER" and (mask & CLIFF or not (mask & (WATER | WATER_BRIDGE))):
+	if mask & WATER and movement_type not in ["WATER", "HOVER", "OVER_CLIFF_WATER",]:
+		return -1
+	if mask & CLIFF and movement_type not in ["HOVER", "OVER_CLIFF", "OVER_CLIFF_WATER",]:
+		return -1
+	if movement_type == "WATER" and not (mask & (WATER | WATER_BRIDGE)):
 		return -1
 	return 0
 
@@ -662,10 +693,16 @@ func _clearance_at(cell: Vector2i, movement_type: String) -> int:
 		finalize_obstacles()
 	var index: int = _cell_index(cell)
 	match movement_type:
+		"BUILDING":
+			return _building_clearance[index]
 		"HOVER":
 			return _hover_clearance[index]
 		"WATER":
 			return _water_clearance[index]
+		"OVER_CLIFF":
+			return _cliff_clearance[index]
+		"OVER_CLIFF_WATER":
+			return _cliff_water_clearance[index]
 		_:
 			return _land_clearance[index]
 
