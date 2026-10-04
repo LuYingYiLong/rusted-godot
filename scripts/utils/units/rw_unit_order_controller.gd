@@ -108,6 +108,7 @@ func apply_command(command: Dictionary, formation_targets: Dictionary = {}, busy
 func advance_unit(unit_state: RwUnitState, frame: int, is_busy: bool = false, simulation_delta: float = 1.0) -> void:
 	if unit_state == null or unit_state.is_dead:
 		return
+	unit_state.navigation_stop_requested = false
 	if TARGET_ORDER_TYPES.has(unit_state.order_type):
 		_update_target_order(unit_state, frame)
 	unit_state.advance_movement(1, _path_grid, simulation_delta)
@@ -190,8 +191,7 @@ func _update_target_order(unit_state: RwUnitState, frame: int) -> void:
 		return
 	var desired_distance: float = _target_distance(unit_state, unit_state.order_type, target_state)
 	if unit_state.world_position.distance_to(target_state.world_position) <= desired_distance:
-		if not unit_state.get_navigation_path().is_empty():
-			unit_state.apply_order(unit_state.order_type, target_state.world_position, target_state.object_id, unit_state.order_action_id)
+		unit_state.navigation_stop_requested = true
 		return
 	if frame - int(_last_repath_frames.get(unit_state.object_id, -REPATH_INTERVAL_FRAMES)) < REPATH_INTERVAL_FRAMES:
 		return
@@ -226,7 +226,7 @@ func _network_path_delay(start: Vector2, target: Vector2, unit_state: RwUnitStat
 
 
 func _target_distance(unit_state: RwUnitState, order_type: String, target_state: RwUnitState) -> float:
-	if order_type == "repair" and target_state.build_progress < 1.0:
+	if order_type == "repair" and (target_state.build_progress < 1.0 or target_state.construction_completed_this_step):
 		return 85.0
 	if order_type != "attack":
 		return maxf(unit_state.collision_radius + target_state.collision_radius + 8.0, 24.0)

@@ -17,9 +17,11 @@ python tools/verify_rw_115_native_catalog.py `
 
 结果：`RW_115_BINARY_OK native_types=52` 与 `RW_115_CATALOG_OK native_types=52 ordinal_writer=confirmed ordinal_reader=confirmed`
 
+原版联机自动化已改为直接运行这份核过指纹的 stock jar，六人 AI 长局的启动与报告格式见 [原版 1.15 多人 AI 长局](rw_115_ai_soak.md)
+
 ## 运动与挤压的下一处差异
 
-`02b-decompiled/com/corrodinggames/rts/game/units/y.java:845-1056` 显示，碰撞使用按单位类型划分的碰撞组、空间网格查询、最多 10 个候选和分帧刷新；同队关系只影响推力权重。项目目前在 `BattleMap._separate_mobile_units()` 每帧枚举同队移动单位对，并对双方施加推力。这是侦察机出厂挤压与长期轨迹偏离的具体候选原因，但还需要基于 1.15 实际对局或可运行探针验证处理顺序，不能只移植其中一条公式
+`02b-decompiled/com/corrodinggames/rts/game/units/y.java:845-1056` 显示，碰撞使用按单位类型划分的碰撞组、空间网格查询、最多 10 个候选和分帧刷新；同队关系只影响推力权重。`BattleMap._separate_mobile_units()` 已纳入敌对单位并按移动状态选择执行推力的单位。建筑命令的格吸附来自 `y.java:5556-5558`：先将命令坐标减去建筑中心偏移并加 `1.0F`，按地图格截断，再加回中心偏移；建造者的路径目标仍使用命令原始坐标。`gameFramework/k/o.java` 的目标处理还规定：目标范围内没有可通行格时，按 x、y 升序选取最近替代终点。AI 轨迹仍会因不同开局在第 602 或 1806 帧失配，下一步要继续核对施工转维修时的车体方向和移动惯性
 
 该源码树的 `03-deobfuscated/.../game/MovementController.java` 虽名为 MovementController，内容实际是带目标、高度、命中逻辑的弹体类。因此该仓库 `docs/06-world/MOVEMENT.md` 对此类的“单位每帧移动控制器”描述不宜直接作为移植依据
 

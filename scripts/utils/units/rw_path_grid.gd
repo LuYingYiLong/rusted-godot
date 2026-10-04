@@ -66,8 +66,8 @@ func cell_to_world(cell: Vector2i) -> Vector2:
 func snap_structure_position(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2:
 	var center_offset: Vector2 = _structure_center_offset(minimum_offset, maximum_offset)
 	var anchor: Vector2i = Vector2i(
-		roundi(world_position.x / float(tile_size.x) - center_offset.x),
-		roundi(world_position.y / float(tile_size.y) - center_offset.y),
+		int((world_position.x - center_offset.x * float(tile_size.x) + 1.0) / float(tile_size.x)),
+		int((world_position.y - center_offset.y * float(tile_size.y) + 1.0) / float(tile_size.y)),
 	)
 	return (Vector2(anchor) + center_offset) * Vector2(tile_size)
 
@@ -76,8 +76,8 @@ func snap_structure_position(world_position: Vector2, minimum_offset: Vector2i, 
 func structure_anchor_cell(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2i:
 	var center_offset: Vector2 = _structure_center_offset(minimum_offset, maximum_offset)
 	return Vector2i(
-		roundi(world_position.x / float(tile_size.x) - center_offset.x),
-		roundi(world_position.y / float(tile_size.y) - center_offset.y),
+		int((world_position.x - center_offset.x * float(tile_size.x) + 1.0) / float(tile_size.x)),
+		int((world_position.y - center_offset.y * float(tile_size.y) + 1.0) / float(tile_size.y)),
 	)
 
 
@@ -316,6 +316,22 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 
 
 func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Vector2, movement_type: String, heading_degrees: float, goal_radius_cells: int) -> Array[Vector2]:
+	var has_passable_goal: bool
+	for x: int in range(goal.x - goal_radius_cells, goal.x + goal_radius_cells + 1):
+		for y: int in range(goal.y - goal_radius_cells, goal.y + goal_radius_cells + 1):
+			if is_passable(Vector2i(x, y), movement_type):
+				has_passable_goal = true
+				break
+		if has_passable_goal:
+			break
+	if not has_passable_goal:
+		var fake_goal: Vector2i = _nearest_passable_native_goal(goal, movement_type, 9)
+		if fake_goal.x < 0:
+			fake_goal = _nearest_passable_native_goal(goal, movement_type, maxi(size.x, size.y))
+		if fake_goal.x >= 0:
+			goal = fake_goal
+			target_position = cell_to_world(goal)
+			goal_radius_cells = 0
 	var roots: Array[Vector2i] = [start, goal,]
 	var root_indices: Array[int] = [_cell_index(start), _cell_index(goal),]
 	var queues: Array[RwNativeOpenList] = [RwNativeOpenList.new(), RwNativeOpenList.new(),]
@@ -409,6 +425,22 @@ func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Ve
 		var point_cell: Vector2i = Vector2i(point_index % size.x, int(point_index / size.x))
 		waypoints.append(target_position if point_cell == goal else cell_to_world(point_cell))
 	return waypoints
+
+
+## 原版目标格不可达时按 x、y 升序选择最近的可通行替代格
+func _nearest_passable_native_goal(goal: Vector2i, movement_type: String, search_radius: int) -> Vector2i:
+	var best_goal: Vector2i = Vector2i(-1, -1)
+	var best_distance: int = 2_147_483_647
+	for x: int in range(maxi(goal.x - search_radius, 0), mini(goal.x + search_radius, size.x - 1) + 1):
+		for y: int in range(maxi(goal.y - search_radius, 0), mini(goal.y + search_radius, size.y - 1) + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if not is_passable(cell, movement_type):
+				continue
+			var distance: int = (cell - goal).length_squared()
+			if distance < best_distance:
+				best_distance = distance
+				best_goal = cell
+	return best_goal
 
 
 ## 将服务器预计算路径的末格替换为精确目标坐标

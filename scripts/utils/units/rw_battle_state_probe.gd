@@ -1,6 +1,6 @@
 extends RefCounted
 class_name RwBattleStateProbe
-## 将联机同步帧末尾的单位状态写入可与 OPEN-RW 探针对照的 TSV 文件
+## 将联机同步帧末尾的单位状态写入可与原版探针对照的 TSV 文件
 
 const HEADER: String = "frame\tdelta\tid\ttype\tteam\tx\ty\tpush_x\tpush_y\trot\tweapon_rot\thp\tbuild\torder\torder_x\torder_y\tbuild_type\tpath_x\tpath_y\n"
 const CHECKSUM_HISTORY_FRAMES: int = 640
@@ -8,18 +8,24 @@ const CHECKSUM_HISTORY_FRAMES: int = 640
 var _file: FileAccess
 var _capture_checksums: bool
 var _interval: int = 1
+var _checksum_stride: int = 1
 var _unit_checksums: Dictionary
 var _unit_debug_snapshots: Dictionary
 var _checksum_frames: Array[int]
+var _trace_unit_ids: Dictionary
 
 
 ## 环境变量 RW_PROBE_PATH 未设置时不产生文件
 func _init() -> void:
 	var path: String = OS.get_environment("RW_PROBE_PATH")
 	_capture_checksums = OS.get_environment("RW_PROBE_CHECKSUMS") == "1"
+	_checksum_stride = maxi(int(OS.get_environment("RW_PROBE_CHECKSUM_STRIDE")), 1)
 	if path.is_empty():
 		return
 	_interval = maxi(int(OS.get_environment("RW_PROBE_INTERVAL")), 1)
+	for id_text: String in OS.get_environment("RW_PROBE_UNIT_IDS").split(",", false):
+		if id_text.is_valid_int():
+			_trace_unit_ids[id_text.to_int()] = true
 	var directory: String = path.get_base_dir()
 	if not directory.is_empty():
 		DirAccess.make_dir_recursive_absolute(directory)
@@ -33,14 +39,15 @@ func _init() -> void:
 func capture(frame: int, step_delta: float, units: Dictionary) -> void:
 	if _file == null and not _capture_checksums:
 		return
-	if not _unit_checksums.has(frame):
-		_checksum_frames.append(frame)
-	_unit_checksums[frame] = RwGameStateChecksum.calculate_unit_fields(units)
-	_unit_debug_snapshots[frame] = _capture_unit_snapshot(units)
-	if _checksum_frames.size() > CHECKSUM_HISTORY_FRAMES:
-		var expired_frame: int = _checksum_frames.pop_front()
-		_unit_checksums.erase(expired_frame)
-		_unit_debug_snapshots.erase(expired_frame)
+	if frame % _checksum_stride == 0:
+		if not _unit_checksums.has(frame):
+			_checksum_frames.append(frame)
+		_unit_checksums[frame] = RwGameStateChecksum.calculate_unit_fields(units)
+		_unit_debug_snapshots[frame] = _capture_unit_snapshot(units)
+		if _checksum_frames.size() > CHECKSUM_HISTORY_FRAMES:
+			var expired_frame: int = _checksum_frames.pop_front()
+			_unit_checksums.erase(expired_frame)
+			_unit_debug_snapshots.erase(expired_frame)
 	if _file == null:
 		return
 	if frame % _interval != 0:
@@ -49,6 +56,8 @@ func capture(frame: int, step_delta: float, units: Dictionary) -> void:
 	ids.assign(units.keys())
 	ids.sort()
 	for object_id: int in ids:
+		if not _trace_unit_ids.is_empty() and not _trace_unit_ids.has(object_id):
+			continue
 		var unit: RwUnitState = units[object_id] as RwUnitState
 		if unit == null:
 			continue
@@ -66,8 +75,8 @@ func capture(frame: int, step_delta: float, units: Dictionary) -> void:
 			str(team_number),
 			str(unit.world_position.x),
 			str(unit.world_position.y),
-			"",
-			"",
+			str(unit.collision_push_offset.x),
+			str(unit.collision_push_offset.y),
 			str(unit.body_rotation_degrees),
 			"|".join(angles),
 			str(unit.health),
@@ -115,6 +124,9 @@ func _capture_unit_snapshot(units: Dictionary) -> Array[Dictionary]:
 			continue
 		var path_points: PackedVector2Array = unit.get_checksum_path_points()
 		var first_path_point: Array[float] = []
+		var path_snapshot: Array[Dictionary] = []
+		for point: Vector2 in path_points:
+			path_snapshot.append({"x": point.x, "y": point.y,})
 		if not path_points.is_empty():
 			first_path_point = [path_points[0].x, path_points[0].y,]
 		result.append({
@@ -129,5 +141,6 @@ func _capture_unit_snapshot(units: Dictionary) -> Array[Dictionary]:
 			"target": [unit.order_target.x, unit.order_target.y,],
 			"path_count": path_points.size(),
 			"first_path_point": first_path_point,
+			"path_points": path_snapshot,
 		})
 	return result

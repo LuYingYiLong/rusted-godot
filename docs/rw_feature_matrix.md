@@ -2,7 +2,7 @@
 
 本清单把“类型已定义”“行为可执行”“逐帧一致”分开。单位纹理、出生参数或某个操作能显示，不代表联机状态已与原版一致。统一入口是 `RwUnitDefinition`、`RwUnitState`、`RwUnitBehavior`、`RwUnitOrderController`、`RwBattleCombat` 和 `RwProductionQueue`；原生单位与内置自定义单位都应通过这些接口接入
 
-原版 1.15 的优先核对结果和自动测试入口见 [1.15 特性差异](rw_115_feature_diff.md)。[OPEN-RW 单位行为盘点](open_rw_unit_behavior_inventory.md)保留为辅助线索，其网络编号和长局结果不能替代 1.15 验收
+原版 1.15 的优先核对结果和自动测试入口见 [1.15 特性差异](rw_115_feature_diff.md) 与 [原版 1.15 多人 AI 长局](rw_115_ai_soak.md)。[OPEN-RW 单位行为盘点](open_rw_unit_behavior_inventory.md)保留为辅助线索，其网络编号和长局结果不能替代 1.15 验收
 
 ## OPEN-RW 历史对照
 
@@ -15,8 +15,8 @@
 | 武器、弹体、护盾、死亡 | 原生武器类和自定义单位炮塔/弹体配置 | `RwBattleCombat`、`RwWeaponDefinition`、`RwProjectileState`、`RwShieldBehavior` | 已有目标类别、弹体和基础伤害测试。炮口静置转动、命中帧、死亡顺序及战斗中的随机数尚未证明逐帧一致 |
 | 资金和额外资源 | `PlayerTeam`、自定义资源定义 | `RwVanillaEconomy`、`RwResourceCatalog` | Credits、收入增长和资源接口已接入；应在 AI 的建造与升级中核对资金校验，并为自定义资源保留同一账本接口 |
 | 战争迷雾、视野和小地图 | 地图视野与单位可见性 | `RwFogOfWar`、`hud_layer` | 三种迷雾模式可运行；需用多队伍和不同阵营检查共享视野、隐蔽单位、未探索资源点 |
-| 命令和联机同步 | `NetworkEngine`、命令包、同步帧、校验包 | `RwBattleCommandReader`、`RwBattleTimeline`、`RwBattleStateProbe` | 双人房间 30 分钟传输稳定；六人 AI 局能自动入房、开局和收取命令/校验。第 0 帧校验一致，第 301 帧首次失配，说明传输成功还不足以判定模拟兼容 |
-| AI 和多人对局 | `AIController`、`NetworkEngine.ap()` | Godot 作为客户端读取 AI 命令并本地模拟 | OPEN-RW 探针可私有开 6 人地图、加入 4 个 AI、等待 Godot 后自动开局。Godot 不需要复制 AI 决策算法，但必须正确执行服务器发来的全部 AI 命令 |
+| 命令和联机同步 | `NetworkEngine`、命令包、同步帧、校验包 | `RwBattleCommandReader`、`RwBattleTimeline`、`RwBattleStateProbe` | 已实现 5、10、20、30 分钟分阶段验收，出现差异即停。建筑目标格不可达时的替代终点已对齐；不同 AI 开局在第 602 或 1806 帧仍有方向和位置差异，5 分钟阶段尚未通过 |
+| AI 和多人对局 | `AIController`、`NetworkEngine.ap()` | Godot 作为客户端读取 AI 命令并本地模拟 | 原版 1.15 stock jar 已可自动开 6 人地图、加入 4 个 AI、等待 Godot 后开局，并保存命令与校验。Godot 不需要复制 AI 决策算法，但必须正确执行服务器发来的全部 AI 命令 |
 | 视觉、音效和 HUD | 原版渲染与音效资源 | `RwUnitVisual`、`RwAudioManager`、HUD 场景 | 视觉表现应跟随模拟状态；不能用视觉结果替代单位位置、炮口角或生产进度的状态校验 |
 
 ## OPEN-RW 辅助自动化对照

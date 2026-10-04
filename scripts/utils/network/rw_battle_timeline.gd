@@ -6,7 +6,7 @@ signal commands_reached(frame: int, commands: Array[Dictionary])
 
 const TICKS_PER_SECOND: float = 60.0
 const MAX_STEPS_PER_UPDATE: int = 120
-const MAX_FRAME_LEAD: int = 18_000
+const MAX_FRAME_LEAD: int = 216_000
 
 var current_frame: int
 var next_blocking_frame: int

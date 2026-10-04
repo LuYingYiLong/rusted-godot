@@ -1,6 +1,6 @@
 extends RefCounted
 class_name RwGameStateChecksum
-## 按 OPEN-RW 1.15 的浮点精度计算单位部分的同步校验值
+## 按原版 1.15 的浮点精度计算单位部分的同步校验值
 
 const COMMAND_ORDINALS: Dictionary = {
 	"move": 0,

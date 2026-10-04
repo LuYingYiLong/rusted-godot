@@ -75,6 +75,10 @@ const NAVIGATION_ORDER_TYPES: Array[String] = [
 
 ## 碰撞阶段累计并在下一同步帧移动阶段应用的推力
 var collision_push_offset: Vector2
+## 进入目标操作范围后保留路径并逐帧减速
+var navigation_stop_requested: bool
+var construction_completed_this_step: bool
+var order_completion_deferred: bool
 var collision_partner: RwUnitState
 var collision_recent_frames: int
 
@@ -371,7 +375,6 @@ func apply_order(command_type: String, target: Vector2, target_id: int = -1, act
 	_pending_direct_path = false
 	_pending_direct_waypoints.clear()
 	_movement_velocity = 0.0
-	_turn_velocity = 0.0
 	_is_exiting_factory = false
 	_factory_exit_phase = 0
 	state_changed.emit(self)
@@ -446,6 +449,11 @@ func schedule_source_direct_path(waypoints: Array[Vector2]) -> void:
 
 func is_exiting_factory() -> bool:
 	return _is_exiting_factory
+
+
+## 返回单位是否正在主动移动，供碰撞候选计算确定主体
+func has_active_movement_for_collision() -> bool:
+	return _movement_velocity != 0.0 or not _sliding_velocity.is_zero_approx()
 
 
 func has_pending_path() -> bool:
@@ -559,10 +567,10 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid, simulation_delta:
 		var on_water: bool = path_grid != null and path_grid.is_water_at(world_position)
 		var current_speed: float = water_movement_speed if on_water and water_movement_speed > 0.0 else movement_speed
 		var current_turn_speed: float = water_turn_speed if on_water and water_turn_speed > 0.0 else turn_speed
-		var desired_angle: float = RwGameMath.direction_degrees(world_position, waypoint)
+		var desired_angle: float = RwGameMath.direction_degrees(world_position, order_target if navigation_stop_requested else waypoint)
 		var _angle_difference: float = RwGameMath.signed_angle_delta(body_rotation_degrees, desired_angle)
 		var turn_step: float
-		if factory_exit_path_started or factory_exit_final_started or (is_last_waypoint and distance < reach_distance and _factory_exit_phase != 2):
+		if absf(_angle_difference) < 0.01 or factory_exit_path_started or factory_exit_final_started or (is_last_waypoint and distance < reach_distance and _factory_exit_phase != 2):
 			turn_step = 0.0
 		elif turn_acceleration > 0.0:
 			var braking_angle: float = absf(_turn_velocity) / turn_acceleration
@@ -590,6 +598,8 @@ func advance_movement(frame_count: int, path_grid: RwPathGrid, simulation_delta:
 		if movement_ignores_body:
 			allowed_angle = 181.0
 		var target_speed: float = 1.0 if absf(_angle_difference) <= allowed_angle and distance >= 3.0 else 0.0
+		if navigation_stop_requested:
+			target_speed = 0.0
 		if factory_exit_path_started or factory_exit_final_started or (is_last_waypoint and distance < reach_distance):
 			target_speed = 0.0
 		if is_last_waypoint and target_speed > 0.0:
@@ -680,18 +690,20 @@ func _advance_target_coasting(frame_count: int, path_grid: RwPathGrid, simulatio
 		if path_grid != null and path_grid.is_water_at(world_position):
 			current_turn_speed = water_turn_speed if water_turn_speed > 0.0 else turn_speed
 			current_speed = water_movement_speed if water_movement_speed > 0.0 else movement_speed
-		var braking_angle: float = absf(_turn_velocity) / turn_acceleration if turn_acceleration > 0.0 else 0.0
-		var requested_turn: float = signf(remaining_angle) * (turn_acceleration if absf(remaining_angle) < braking_angle else current_turn_speed)
-		_turn_velocity = move_toward(_turn_velocity, requested_turn, turn_acceleration * simulation_delta)
-		var turn_step: float = _turn_velocity * simulation_delta
-		if absf(turn_step) > absf(remaining_angle):
-			_turn_velocity = 0.0
-			turn_step = remaining_angle
+		var turn_step: float
+		if absf(remaining_angle) >= 0.01:
+			var braking_angle: float = absf(_turn_velocity) / turn_acceleration if turn_acceleration > 0.0 else 0.0
+			var requested_turn: float = signf(remaining_angle) * (turn_acceleration if absf(remaining_angle) < braking_angle else current_turn_speed)
+			_turn_velocity = move_toward(_turn_velocity, requested_turn, turn_acceleration * simulation_delta)
+			turn_step = _turn_velocity * simulation_delta
+			if absf(turn_step) > absf(remaining_angle):
+				_turn_velocity = 0.0
+				turn_step = remaining_angle
 		body_rotation_degrees = wrapf(body_rotation_degrees + turn_step, -180.0, 180.0)
 		_add_weapon_rotation(turn_step)
 		_movement_velocity = move_toward(_movement_velocity, 0.0, movement_deceleration * simulation_delta)
 		var movement_step: float = current_speed * _movement_velocity * simulation_delta
-		var next_position: Vector2 = world_position + Vector2.RIGHT.rotated(deg_to_rad(body_rotation_degrees)) * movement_step
+		var next_position: Vector2 = world_position + RwGameMath.direction_for_angle(body_rotation_degrees) * movement_step
 		if _can_traverse(world_position, next_position, path_grid):
 			world_position = next_position
 			is_changed = is_changed or movement_step > 0.0 or turn_step != 0.0

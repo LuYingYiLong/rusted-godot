@@ -49,6 +49,7 @@ var _battle_ready: bool
 var _last_connection_message: String
 var _waiting_for_room_restart: bool
 var _battle_scene: Node
+var _pending_checksum_requests: Array[Dictionary]
 
 
 func _ready() -> void:
@@ -85,6 +86,11 @@ func _run() -> void:
 	while true:
 		await get_tree().create_timer(1.0).timeout
 		var now_ms: int = Time.get_ticks_msec()
+		var stop_path: String = OS.get_environment("RW_SOAK_CONTROL_PATH")
+		if not stop_path.is_empty() and FileAccess.file_exists(stop_path):
+			var stop_file: FileAccess = FileAccess.open(stop_path, FileAccess.READ)
+			_finish(stop_file.get_as_text().strip_edges() if stop_file != null else "external_stop", now_ms)
+			return
 		if not RwRoomClient.is_active():
 			if _waiting_for_room_restart and now_ms - _started_at_ms < _setting("RW_SOAK_START_TIMEOUT", DEFAULT_START_TIMEOUT_SECONDS) * 1000:
 				if now_ms - _last_join_attempt_ms >= JOIN_RETRY_INTERVAL_MS:
@@ -111,11 +117,29 @@ func _run() -> void:
 			_write_sample(now_ms)
 			_last_sample_at_ms = now_ms
 		if now_ms - _battle_started_at_ms >= _setting("RW_SOAK_DURATION", DEFAULT_DURATION_SECONDS) * 1000:
-			_write_sample(now_ms)
-			_write_event("transport_completed", {"frame": _last_frame, "commands": _command_count, "checksum_requests": _checksum_count,})
-			_report.close()
-			get_tree().quit(0)
+			_finish("duration_reached", now_ms)
 			return
+
+
+
+func _finish(reason: String, now_ms: int) -> void:
+	_flush_pending_checksums()
+	for request: Dictionary in _pending_checksum_requests:
+		_write_event("checksum_pending_at_end", {
+			"frame": int(request["frame"]),
+			"reason": "pending_at_end",
+			"simulated_frame": _simulated_frame(),
+		})
+	_pending_checksum_requests.clear()
+	_write_sample(now_ms)
+	_write_event("transport_completed", {
+		"frame": _last_frame,
+		"commands": _command_count,
+		"checksum_requests": _checksum_count,
+		"reason": reason,
+	})
+	_report.close()
+	get_tree().quit(0)
 
 
 func _on_connection_changed(message: String) -> void:
@@ -166,6 +190,8 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 		return
 	_last_frame = frame
 	_last_frame_at_ms = Time.get_ticks_msec()
+	if not _pending_checksum_requests.is_empty():
+		call_deferred("_flush_pending_checksums")
 
 
 func _on_battle_commands_reached(frame: int, commands: Array[Dictionary]) -> void:
@@ -175,6 +201,38 @@ func _on_battle_commands_reached(frame: int, commands: Array[Dictionary]) -> voi
 
 func _on_checksum_requested(frame: int, server_checksum: int, fields: Array[int]) -> void:
 	_checksum_count += 1
+	var request: Dictionary = {
+		"frame": frame,
+		"server_checksum": server_checksum,
+		"fields": fields,
+	}
+	if not _verify_checksum(request):
+		_pending_checksum_requests.append(request)
+		call_deferred("_flush_pending_checksums")
+
+
+func _flush_pending_checksums() -> void:
+	for index: int in range(_pending_checksum_requests.size() - 1, -1, -1):
+		var request: Dictionary = _pending_checksum_requests[index]
+		if _verify_checksum(request):
+			_pending_checksum_requests.remove_at(index)
+		elif int(request["frame"]) < _simulated_frame() - RwBattleStateProbe.CHECKSUM_HISTORY_FRAMES:
+			_write_event("checksum_unverified", {
+				"frame": int(request["frame"]),
+				"reason": "expired",
+				"simulated_frame": _simulated_frame(),
+			})
+			_pending_checksum_requests.remove_at(index)
+
+
+func _simulated_frame() -> int:
+	return int(_battle_scene.get("_last_simulated_frame")) if _battle_scene != null else -1
+
+
+func _verify_checksum(request: Dictionary) -> bool:
+	var frame: int = int(request["frame"])
+	var server_checksum: int = int(request["server_checksum"])
+	var fields: Array[int] = request["fields"]
 	var named_fields: Dictionary = {}
 	for index: int in mini(fields.size(), CHECKSUM_FIELD_NAMES.size()):
 		named_fields[CHECKSUM_FIELD_NAMES[index]] = fields[index]
@@ -182,8 +240,7 @@ func _on_checksum_requested(frame: int, server_checksum: int, fields: Array[int]
 	if _battle_scene != null and _battle_scene.has_method("get_unit_checksum_for_frame"):
 		local_checksum = _battle_scene.call("get_unit_checksum_for_frame", frame)
 	if local_checksum.is_empty():
-		_write_event("checksum_unverified", {"frame": frame, "server_checksum": server_checksum, "fields": named_fields,})
-		return
+		return false
 	var differences: Dictionary = {}
 	if int(local_checksum["checksum"]) != server_checksum:
 		differences["checksum"] = {"server": server_checksum, "godot": local_checksum["checksum"],}
@@ -210,6 +267,7 @@ func _on_checksum_requested(frame: int, server_checksum: int, fields: Array[int]
 		if _battle_scene != null and _battle_scene.has_method("get_unit_probe_snapshot_for_frame"):
 			details["unit_snapshot"] = _battle_scene.call("get_unit_probe_snapshot_for_frame", frame)
 	_write_event(event_name, details)
+	return true
 
 
 func _open_battle_map() -> void:

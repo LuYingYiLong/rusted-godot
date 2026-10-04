@@ -9,6 +9,11 @@ const TRIG_INDEX_FACTOR: float = 22.755556
 const TRIG_TABLE_MASK: int = 8191
 
 
+## 将运算结果舍入为原版 Java strictfp 的 32 位浮点值
+static func float32(value: float) -> float:
+	return _float32(value)
+
+
 ## 返回原版直线路径所用的量化方向
 static func path_direction(start_position: Vector2, target_position: Vector2) -> Vector2:
 	return direction_for_angle(direction_degrees(start_position, target_position))
