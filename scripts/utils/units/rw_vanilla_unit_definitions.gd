@@ -1,8 +1,10 @@
-class_name RwVanillaUnitDefinitions
 extends RefCounted
+class_name RwVanillaUnitDefinitions
+## 构建原版单位定义注册表
 
 
-static func create_registry() -> RwUnitRegistry:
+## 创建原版单位注册表，可选开放内置自定义单位的生产菜单
+static func create_registry(include_builtin_custom_actions: bool = false) -> RwUnitRegistry:
 	var registry: RwUnitRegistry = RwUnitRegistry.new()
 	var assets: RwVanillaUnitAssets = RwVanillaUnitAssets.new()
 	var command_center: RwUnitDefinition = RwUnitDefinition.new()
@@ -25,6 +27,7 @@ static func create_registry() -> RwUnitRegistry:
 	command_center.blocks_movement = true
 	command_center.structure_footprint_min = Vector2i(-1, -1)
 	command_center.structure_footprint_max = Vector2i(1, 1)
+	command_center.construction_footprint = Rect2i(-1, -1, 3, 4)
 	command_center.sight_range = 20
 	var produce_builder: RwUnitActionDefinition = _action("builder", "Builder", "builder.png")
 	produce_builder.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
@@ -55,6 +58,7 @@ static func create_registry() -> RwUnitRegistry:
 	builder.movement_acceleration = 0.04
 	builder.movement_deceleration = 0.1
 	builder.construction_warmup = 30.0
+	builder.construction_warmup_decay = 1.3
 	builder.collision_radius = 10.0
 	builder.can_reclaim = true
 	builder.build_actions = [
@@ -224,6 +228,7 @@ static func create_registry() -> RwUnitRegistry:
 	sea_factory.blocks_movement = true
 	sea_factory.structure_footprint_min = Vector2i(-1, -1)
 	sea_factory.structure_footprint_max = Vector2i(1, 2)
+	sea_factory.construction_footprint = Rect2i(-2, -1, 5, 6)
 	var produce_hovercraft: RwUnitActionDefinition = _action("hovercraft", "Hovercraft", "hovercraft.png")
 	produce_hovercraft.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
 	produce_hovercraft.network_action_id = "u_hovercraft"
@@ -252,12 +257,18 @@ static func create_registry() -> RwUnitRegistry:
 	tree.draw_layer = 3
 	tree.dead_draw_layer = 0
 	tree.max_health = 100.0
+	tree.collision_radius = 3.0
 	tree.sight_range = 0
 	registry.register_definition(tree, assets)
 	RwVanillaNativeExtras.register_definitions(registry, assets)
+	for unit_name: String in RwNativeProductionSpecs.SPECS:
+		var native_definition: RwUnitDefinition = registry.find_definition("vanilla", unit_name)
+		if native_definition != null:
+			native_definition.build_rate_per_frame = float(RwNativeProductionSpecs.SPECS[unit_name]["rate"])
 	RwVanillaCustomDefinitions.register_definitions(registry, assets)
 	RwBuiltinCombatDefinitions.register_weapons(registry)
-	RwVanillaProductionActions.register_actions(registry)
+	RwVanillaCombatDefinitions.register_native_weapons(registry)
+	RwVanillaProductionActions.register_actions(registry, include_builtin_custom_actions)
 	return registry
 
 

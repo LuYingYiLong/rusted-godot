@@ -39,6 +39,23 @@ $results.Add([pscustomobject]@{
 })
 Write-Output "native_catalog_115: $(if ($catalogPassed) { 'passed' } else { 'failed' })"
 
+$productionReferenceOutput = & $python (Join-Path $PSScriptRoot 'verify_rw_115_production.py') `
+    --source-root $SourceRoot --game-jar $GameJar --java $JavaExecutable 2>&1 | Out-String
+$productionReferenceExit = $LASTEXITCODE
+$productionReferenceLog = Join-Path $ReportDirectory 'production_reference.log'
+Set-Content -LiteralPath $productionReferenceLog -Value $productionReferenceOutput -Encoding utf8
+$productionReferencePassed = $productionReferenceExit -eq 0 -and
+    $productionReferenceOutput.Contains('RW_115_PRODUCTION_SOURCE_OK') -and
+    $productionReferenceOutput.Contains('RW_115_PRODUCTION_BINARY_OK')
+$results.Add([pscustomobject]@{
+    name = 'production_reference_115'
+    evidence = 'original_115_source_and_stock_binary'
+    status = $(if ($productionReferencePassed) { 'passed' } else { 'failed' })
+    exit_code = $productionReferenceExit
+    log = $productionReferenceLog
+})
+Write-Output "production_reference_115: $(if ($productionReferencePassed) { 'passed' } else { 'failed' })"
+
 $collisionSourceOutput = & $python (Join-Path $PSScriptRoot 'verify_rw_115_collision_source.py') `
     --source-root $SourceRoot 2>&1 | Out-String
 $collisionSourceExit = $LASTEXITCODE
@@ -75,7 +92,8 @@ $cases = @(
     @{ name = 'build_range_115'; script = 'tests/rw_build_range_reference_test.gd'; marker = 'BUILD_RANGE_REFERENCE_CHECK_OK'; evidence = 'original_115_fixture' },
     @{ name = 'command_reader'; script = 'tests/rw_battle_command_reader_test.gd'; marker = 'COMMAND_READER_CHECK_OK'; evidence = 'synthetic_protocol_regression' },
     @{ name = 'movement_grid'; script = 'tests/rw_movement_type_grid_test.gd'; marker = 'MOVEMENT_TYPE_GRID_OK'; evidence = 'local_regression' },
-    @{ name = 'production_actions'; script = 'tests/rw_vanilla_production_test.gd'; marker = 'RW production:'; evidence = 'local_regression' },
+    @{ name = 'production_actions'; script = 'tests/rw_vanilla_production_test.gd'; marker = 'RW production:'; evidence = 'local_regression_with_115_reference_gate' },
+    @{ name = 'production_queue'; script = 'tests/rw_production_queue_test.gd'; marker = 'RW production queue:'; evidence = 'local_regression_with_115_stock_rates' },
     @{ name = 'collision_current_behavior'; script = 'tests/rw_battle_collision_test.gd'; marker = 'BATTLE_COLLISION_CHECK_OK'; evidence = 'local_regression' },
     @{ name = 'cross_team_collision_115'; script = 'tests/rw_115_cross_team_collision_test.gd'; marker = 'RW_115_CROSS_TEAM_COLLISION_OK'; evidence = 'original_115_source'; gap_marker = 'RW_115_COLLISION_GAP' }
 )

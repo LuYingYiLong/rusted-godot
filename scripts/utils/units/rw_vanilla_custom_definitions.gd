@@ -138,6 +138,11 @@ static func _configure_building(definition: RwUnitDefinition, spec: Dictionary) 
 		var radius_tiles: int = maxi(int(ceilf(definition.collision_radius / 20.0)) - 1, 0)
 		definition.structure_footprint_min = Vector2i(-radius_tiles, -radius_tiles)
 		definition.structure_footprint_max = Vector2i(radius_tiles, radius_tiles)
+	var construction_footprint: Array = spec.get("construction_footprint", [])
+	if construction_footprint.size() == 4:
+		var minimum: Vector2i = Vector2i(int(construction_footprint[0]), int(construction_footprint[1]))
+		var maximum: Vector2i = Vector2i(int(construction_footprint[2]), int(construction_footprint[3]))
+		definition.construction_footprint = Rect2i(minimum, maximum - minimum + Vector2i.ONE)
 
 
 static func _configure_visual_parts(definition: RwUnitDefinition, spec: Dictionary) -> void:

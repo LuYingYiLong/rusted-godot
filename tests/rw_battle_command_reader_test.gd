@@ -36,6 +36,8 @@ func _run() -> void:
 	target_body.put_data(compressed_path)
 	target_body.put_u8(1)
 	var complete_body: PackedByteArray = body.slice(0, body.size() - 5)
+	# au.j 是宽松编队标志，与命令包的排队标志分别传输
+	complete_body[36] = 1
 	complete_body.append_array(target_body.data_array)
 	var command_block: StreamPeerBuffer = RwBinary.writer()
 	RwBinary.write_utf(command_block, "c")
@@ -54,6 +56,7 @@ func _run() -> void:
 	assert(command["unit_ids"] == [42,])
 	assert(command["target"] == Vector2(120.0, 80.0))
 	assert(command["is_high_priority"])
+	assert(command["formation_loose"] and not command["is_queued"])
 	var metadata: Dictionary = command["command_targets"][42]
 	assert(metadata["start_position"] == Vector2(20.0, 30.0))
 	assert(metadata["target_position"] == Vector2(120.0, 80.0))
@@ -94,6 +97,14 @@ func _run() -> void:
 	assert(build_command["unit_ids"] == [42,])
 	assert(RwVanillaBuildings.name_for_network_type(-2, str(build_command["custom_build_unit_name"])) == "extractor")
 	assert(RwVanillaBuildings.name_for_network_type(-2, "unknown_mod_unit").is_empty())
+	var queued_build_frame: StreamPeerBuffer = RwBinary.writer()
+	queued_build_frame.put_32(41)
+	queued_build_frame.put_32(1)
+	queued_build_frame.put_data(RwBattleCommandWriter.write_build(1, [42,], 0, Vector2(120.0, 80.0), true))
+	var queued_build_result: Dictionary = RwBattleCommandReader.read_frame_packet(queued_build_frame.data_array)
+	assert(str(queued_build_result.get("error", "")).is_empty())
+	var queued_build_command: Dictionary = (queued_build_result["commands"] as Array)[0]
+	assert(queued_build_command["is_queued"] and not queued_build_command["formation_loose"])
 	var factory_frame: StreamPeerBuffer = RwBinary.writer()
 	factory_frame.put_32(41)
 	factory_frame.put_32(1)

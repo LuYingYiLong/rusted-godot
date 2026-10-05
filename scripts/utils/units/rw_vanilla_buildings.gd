@@ -128,6 +128,15 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 		definition.blocks_movement = true
 		definition.structure_footprint_min = spec["min"]
 		definition.structure_footprint_max = spec["max"]
+		match unit_name:
+			"landFactory":
+				definition.construction_footprint = Rect2i(-1, -1, 3, 5)
+			"airFactory":
+				definition.construction_footprint = Rect2i(-1, -1, 3, 4)
+			"experimentalLandFactory":
+				definition.construction_footprint = Rect2i(-2, -2, 5, 7)
+			"NukeLaucher":
+				definition.construction_footprint = Rect2i(-2, -1, 5, 4)
 		definition.placement_requires_resource_pool = bool(spec.get("pool", false))
 		definition.placement_requires_water = bool(spec.get("water", false))
 		if unit_name == "turret":

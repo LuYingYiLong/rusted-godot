@@ -72,7 +72,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	var attack_move_range: float
 	var max_waypoint_surviving_time: float
 	var order_is_repeating: bool
-	var order_is_queued: bool
+	var formation_loose: bool
 	var force_move: bool
 	var order_action_id: String
 	if has_order:
@@ -90,7 +90,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		attack_move_range = stream.get_float()
 		max_waypoint_surviving_time = stream.get_float()
 		order_is_repeating = stream.get_u8() != 0
-		order_is_queued = stream.get_u8() != 0
+		formation_loose = stream.get_u8() != 0
 		force_move = stream.get_u8() != 0
 		order_action_id = RwBinary.read_nullable_utf(stream)
 		if type_index >= 0 and type_index < COMMAND_TYPES.size():
@@ -177,7 +177,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		"attack_move_range": attack_move_range,
 		"max_waypoint_surviving_time": max_waypoint_surviving_time,
 		"order_is_repeating": order_is_repeating,
-		"order_is_queued": order_is_queued,
+		"formation_loose": formation_loose,
 		"force_move": force_move,
 		"order_action_id": order_action_id,
 		"unit_ids": unit_ids,

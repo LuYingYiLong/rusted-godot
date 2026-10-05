@@ -266,6 +266,7 @@ def spec_for(path: Path) -> dict[str, object]:
         "attack_range": number(attack.get("maxattackrange", "")),
         "building": core.get("isbuilding", "").casefold() == "true",
         "footprint": footprint(core.get("footprint", "")),
+        "construction_footprint": footprint(core.get("constructionfootprint", "")),
         "water_placement": core.get("isbuilding", "").casefold() == "true" and movement_type == "WATER",
         "resource_pool": core.get("placeonlyonrespool", "").casefold() == "true",
         "builder": core.get("isbuilder", "").casefold() == "true",
@@ -273,6 +274,7 @@ def spec_for(path: Path) -> dict[str, object]:
         "price": number(core.get("price", "")),
         "build_rate": build_rate(core.get("buildspeed", "")),
         "credit_income": number(credit_income_match.group(1)) if credit_income_match else 0.0,
+        "income_delay": max(integer(core.get("generation_delay", ""), 40), 1) if credit_income_match else 0,
         "tech_level": integer(core.get("techlevel", ""), 1),
         "hide_on_death": not dead,
     }

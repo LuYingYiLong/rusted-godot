@@ -21,9 +21,14 @@ const BUILDER_SHIP_BUILDINGS: Array[String] = [
 	"seaFactory", "fabricator", "laserDefence", "repairbay",
 ]
 
+const VANILLA_BUILDER_BUILDINGS: Array[String] = [
+	"extractor", "turret", "antiAirTurret", "landFactory", "airFactory", "seaFactory",
+	"laserDefence", "repairbay", "fabricator", "experimentalLandFactory", "NukeLaucher", "AntiNukeLaucher",
+]
 
-## 在所有单位定义就绪后添加原版生产关系和 INI 声明的特殊动作
-static func register_actions(registry: RwUnitRegistry) -> void:
+
+## 注册原版生产关系和内置定义声明的特殊动作
+static func register_actions(registry: RwUnitRegistry, include_builtin_custom_actions: bool = false) -> void:
 	for producer_name: String in NATIVE_PRODUCTION:
 		var producer: RwUnitDefinition = registry.find_definition("vanilla", producer_name)
 		for entry: Array in NATIVE_PRODUCTION[producer_name]:
@@ -99,6 +104,36 @@ static func register_actions(registry: RwUnitRegistry) -> void:
 			_upsert(target_definition, action)
 	_register_factory_upgrade(registry, "landFactory", 2000.0, "land_factory_front_t2.png")
 	_register_factory_upgrade(registry, "airFactory", 1500.0, "air_factory_t2.png")
+	if not include_builtin_custom_actions:
+		_filter_non_vanilla_factory_actions(registry)
+
+
+static func _filter_non_vanilla_factory_actions(registry: RwUnitRegistry) -> void:
+	var producer_names: Array[String] = []
+	for producer_name: String in NATIVE_PRODUCTION:
+		producer_names.append(producer_name)
+	producer_names.append("builder")
+	producer_names.append("builderShip")
+	for producer_name: String in producer_names:
+		var producer: RwUnitDefinition = registry.find_definition("vanilla", producer_name)
+		if producer == null:
+			continue
+		var allowed_queue_targets: Dictionary = {}
+		for entry: Array in NATIVE_PRODUCTION.get(producer_name, []):
+			var target: RwUnitDefinition = _resolve_target(registry, str(entry[0]))
+			if target != null:
+				allowed_queue_targets[target.unit_name] = true
+		var allowed_build_actions: Array[String] = []
+		if producer_name == "builder":
+			allowed_build_actions.append_array(VANILLA_BUILDER_BUILDINGS)
+		elif producer_name == "builderShip":
+			allowed_build_actions.append_array(BUILDER_SHIP_BUILDINGS)
+		for action_index: int in range(producer.build_actions.size() - 1, -1, -1):
+			var action: RwUnitActionDefinition = producer.build_actions[action_index]
+			if action.kind == RwUnitActionDefinition.Kind.QUEUE_UNIT and not allowed_queue_targets.has(action.target_unit_name):
+				producer.build_actions.remove_at(action_index)
+			elif action.kind == RwUnitActionDefinition.Kind.PLACE_BUILDING and not allowed_build_actions.has(action.action_id):
+				producer.build_actions.remove_at(action_index)
 
 
 static func _apply_native_replacements(registry: RwUnitRegistry) -> void:
@@ -153,7 +188,12 @@ static func _production_action(target: RwUnitDefinition, required_level: int, fo
 	action.required_tech_level = required_level if required_level > 1 else 0
 	var cost: float
 	var rate: float
-	if target.source_id == "custom":
+	var native_target_name: String = RwVanillaUnitCatalog.native_name_for_replacement(target.unit_name)
+	if target.source_id == "custom" and native_target_name != target.unit_name:
+		var spec: Dictionary = RwNativeProductionSpecs.SPECS.get(native_target_name, {})
+		cost = float(spec.get("cost", 0.0))
+		rate = float(spec.get("rate", 0.0))
+	elif target.source_id == "custom":
 		var spec: Dictionary = RwBuiltinUnitSpecs.SPECS.get(target.unit_name, {})
 		cost = float(spec.get("price", 0.0))
 		rate = float(spec.get("build_rate", 0.0))
@@ -172,7 +212,7 @@ static func _production_action(target: RwUnitDefinition, required_level: int, fo
 			action.network_build_index = RwVanillaUnitCatalog.native_index(target.unit_name)
 	else:
 		action.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
-		action.network_action_id = "u_%s" % target.unit_name
+		action.network_action_id = RwVanillaUnitCatalog.native_action_id(target.unit_name)
 	return action
 
 

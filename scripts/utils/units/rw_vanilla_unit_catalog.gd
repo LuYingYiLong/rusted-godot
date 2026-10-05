@@ -222,6 +222,23 @@ static func native_replacement(name: String) -> String:
 	return str(NATIVE_REPLACEMENTS.get(name, ""))
 
 
+## 返回替换单位对应的原生类型名
+static func native_name_for_replacement(name: String) -> String:
+	for native_type_name: String in NATIVE_REPLACEMENTS:
+		if str(NATIVE_REPLACEMENTS[native_type_name]) == name:
+			return native_type_name
+	return name
+
+
+## 返回原版生产动作使用的枚举标识，自定义单位继续使用单位名
+static func native_action_id(name: String) -> String:
+	var resolved_native_name: String = native_name_for_replacement(name)
+	var index: int = native_index(resolved_native_name)
+	if index < 0 or index >= 52:
+		return "u_%s" % name
+	return "u_%s" % resolved_native_name
+
+
 ## 返回内置自定义单位的目录记录
 static func builtin_info(name: String) -> Dictionary:
 	var entry: Dictionary = BUILTIN_CUSTOM_UNITS.get(name, {})

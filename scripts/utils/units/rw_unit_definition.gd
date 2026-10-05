@@ -46,6 +46,8 @@ enum SelectionShape {
 @export var build_rate_per_frame: float
 ## 建造或维修开始前的原版武器预热时间
 @export var construction_warmup: float
+## 非工作状态下每同步步冷却的建造预热量
+@export var construction_warmup_decay: float = 4.0
 ## 护盾最大值，由单位行为负责吸收伤害和恢复
 @export var max_shield: float
 @export var movement_speed: float
@@ -72,6 +74,8 @@ enum SelectionShape {
 @export var blocks_movement: bool
 @export var structure_footprint_min: Vector2i
 @export var structure_footprint_max: Vector2i
+## 放置检查包含工厂出口等预留区域，空矩形时沿用实际占地
+@export var construction_footprint: Rect2i
 @export var placement_requires_resource_pool: bool
 @export var placement_requires_water: bool
 @export var attack_range: float
@@ -99,6 +103,13 @@ enum SelectionShape {
 
 func key() -> String:
 	return "%s:%s" % [source_id, unit_name]
+
+
+## 返回放置时检查的格子范围，实际寻路阻挡仍使用建筑占地
+func get_construction_footprint() -> Rect2i:
+	if construction_footprint.has_area():
+		return construction_footprint
+	return Rect2i(structure_footprint_min, structure_footprint_max - structure_footprint_min + Vector2i.ONE)
 
 
 ## 判断单位是否需要按同步帧更新外观动画

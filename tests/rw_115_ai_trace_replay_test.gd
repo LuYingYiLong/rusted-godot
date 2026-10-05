@@ -2,6 +2,8 @@ extends SceneTree
 ## 重放同一局原版 AI 命令并输出各校验帧的数值差异，避免随机开局影响迁移前后比较
 
 const BATTLE_MAP_SCENE_UID: String = "uid://c0w7n4afw43pa"
+## 默认夹具只断言原版第 0 和 602 帧，避开旧文本日志第 301 帧的路径坐标舍入
+const BUILD_TRANSITION_FIXTURE: String = "res://tests/fixtures/rw115_build_transition.jsonl"
 
 var _game_started: Dictionary
 var _commands: Dictionary[int, Array]
@@ -13,7 +15,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var source: FileAccess = FileAccess.open(OS.get_environment("RW_SOAK_REPORT_PATH"), FileAccess.READ)
+	var source_path: String = OS.get_environment("RW_SOAK_REPORT_PATH")
+	if source_path.is_empty():
+		source_path = BUILD_TRANSITION_FIXTURE
+	var source: FileAccess = FileAccess.open(source_path, FileAccess.READ)
 	if source == null:
 		push_error("RW_SOAK_REPORT_PATH must point to a recorded vanilla AI room")
 		quit(2)
@@ -32,8 +37,16 @@ func _run() -> void:
 				_game_started = record
 			"commands":
 				var commands: Array[Dictionary] = []
-				for command: Dictionary in record["commands"]:
-					commands.append(_parse_command(command))
+				if record.has("commands_binary"):
+					var decoded: Variant = bytes_to_var(Marshalls.base64_to_raw(str(record["commands_binary"])))
+					if not decoded is Array:
+						push_error("Invalid recorded command payload")
+						quit(2)
+						return
+					commands.assign(decoded)
+				else:
+					for command: Dictionary in record["commands"]:
+						commands.append(_parse_command(command))
 				_commands[frame] = commands
 			"checksum_unit_match", "checksum_unit_mismatch":
 				_checksums[frame] = record
@@ -66,14 +79,21 @@ func _run() -> void:
 		push_error("Recorded initial unit state could not be reproduced")
 		quit(1)
 		return
-	for frame: int in range(1, checksum_frames.back() + 1):
+	# 固定轨迹切片可覆盖最后一个网络校验之后的短区间，逐帧 CSV 仍由运行器断言
+	var trace_end_frame: int = maxi(checksum_frames.back(), int(_game_started.get("trace_end_frame", 0)))
+	var requested_trace_end_frame: int = OS.get_environment("RW_REPLAY_MAX_FRAME").to_int()
+	if requested_trace_end_frame > 0:
+		trace_end_frame = mini(trace_end_frame, requested_trace_end_frame)
+	for frame: int in range(1, trace_end_frame + 1):
+		room.get("battle_economy").advance_to(frame)
 		map.call("_on_battle_frame_advanced", frame, frame)
+		# 原版在帧末采样校验，然后应用该帧收到的命令，供下一次单位更新执行
+		if _checksums.has(frame):
+			result.append(_compare(frame, units))
 		if _commands.has(frame):
 			var commands: Array[Dictionary] = []
 			commands.assign(_commands[frame])
 			map.call("_on_battle_commands_reached", frame, commands)
-		if _checksums.has(frame):
-			result.append(_compare(frame, units))
 	var output_path: String = OS.get_environment("RW_REPLAY_OUTPUT_PATH")
 	if not output_path.is_empty():
 		var output: FileAccess = FileAccess.open(output_path, FileAccess.WRITE)
@@ -84,7 +104,9 @@ func _run() -> void:
 		if (record["differences"] as Dictionary).is_empty():
 			matched += 1
 	print("RW115_AI_REPLAY checksums=%d matched=%d map=%s" % [result.size(), matched, _game_started["map"],])
+	room.get("battle_economy").clear()
 	map.queue_free()
+	await process_frame
 	quit(0 if matched == result.size() or OS.get_environment("RW_REPLAY_ALLOW_DIFFERENCES") == "1" else 1)
 
 

@@ -41,6 +41,8 @@ var _battle_started_at_ms: int
 var _last_frame_at_ms: int
 var _last_sample_at_ms: int
 var _last_frame: int
+var _simulated_seconds: float
+var _simulation_seconds_by_frame: Dictionary[int, float] = {0: 0.0,}
 var _last_join_attempt_ms: int
 var _command_count: int
 var _checksum_count: int
@@ -172,6 +174,8 @@ func _on_game_started() -> void:
 			"slot": int(player.get("slot", -1)),
 			"starting_units_override": int(player.get("starting_units_override", -1)),
 			"spectator": bool(player.get("spectator", false)),
+			"ai": bool(player.get("ai", false)),
+			"ai_difficulty": int(player.get("ai_difficulty", 0)),
 		})
 	if active_players < minimum_players:
 		_fail("Expected at least %d active players, found %d" % [minimum_players, active_players])
@@ -188,6 +192,10 @@ func _on_game_started() -> void:
 func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	if frame <= _last_frame:
 		return
+	var seconds_per_frame: float = RwRoomClient.battle_timeline.step_rate / RwBattleTimeline.TICKS_PER_SECOND
+	for advanced_frame: int in range(_last_frame + 1, frame + 1):
+		_simulated_seconds += seconds_per_frame
+		_simulation_seconds_by_frame[advanced_frame] = _simulated_seconds
 	_last_frame = frame
 	_last_frame_at_ms = Time.get_ticks_msec()
 	if not _pending_checksum_requests.is_empty():
@@ -196,7 +204,11 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 
 func _on_battle_commands_reached(frame: int, commands: Array[Dictionary]) -> void:
 	_command_count += commands.size()
-	_write_event("commands", {"frame": frame, "commands": commands,})
+	_write_event("commands", {
+		"frame": frame,
+		"commands": commands,
+		"commands_binary": Marshalls.raw_to_base64(var_to_bytes(commands)),
+	})
 
 
 func _on_checksum_requested(frame: int, server_checksum: int, fields: Array[int]) -> void:
@@ -255,6 +267,7 @@ func _verify_checksum(request: Dictionary) -> bool:
 	var event_name: String = "checksum_unit_match" if differences.is_empty() else "checksum_unit_mismatch"
 	var details: Dictionary = {
 		"frame": frame,
+		"simulated_seconds": float(_simulation_seconds_by_frame.get(frame, -1.0)),
 		"checked_fields": checked_fields,
 		"differences": differences,
 		"server_checksum": server_checksum,
@@ -298,6 +311,7 @@ func _write_sample(now_ms: int) -> void:
 		unit_count = units.size()
 	_write_event("sample", {
 		"elapsed_seconds": float(now_ms - _battle_started_at_ms) / 1000.0,
+		"simulated_seconds": _simulated_seconds,
 		"frame": _last_frame,
 		"next_blocking_frame": RwRoomClient.battle_timeline.next_blocking_frame,
 		"step_rate": RwRoomClient.battle_timeline.step_rate,
@@ -313,7 +327,7 @@ func _write_event(event_name: String, details: Dictionary) -> void:
 	var record: Dictionary = details.duplicate()
 	record["event"] = event_name
 	record["time_unix"] = Time.get_unix_time_from_system()
-	_report.store_line(JSON.stringify(record))
+	_report.store_line(JSON.stringify(record, "", true, true))
 	_report.flush()
 
 

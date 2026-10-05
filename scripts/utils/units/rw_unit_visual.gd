@@ -305,6 +305,10 @@ func _on_state_changed(unit_state: RwUnitState) -> void:
 			body.hframes = definition.body_frames
 			body.region_enabled = definition.body_region.size != Vector2i.ZERO
 			body.frame = mini(unit_state.animation_frame, body.hframes - 1)
+			if unit_state.unit_name == "tree" and unit_state.is_dead:
+				var tree_region: Rect2i = definition.body_region
+				tree_region.position.x += unit_state.animation_frame * (tree_region.size.x + 1)
+				body.region_rect = Rect2(tree_region)
 	for index: int in _weapon_mounts.size():
 		var mount: Node2D = _weapon_mounts[index]
 		var weapon: RwUnitWeaponDefinition = _weapon_definitions[index]

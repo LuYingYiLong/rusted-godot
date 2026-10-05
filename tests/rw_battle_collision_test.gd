@@ -46,9 +46,10 @@ func _run() -> void:
 	battle_map.call("_separate_mobile_units")
 	builder.apply_collision_push(null)
 	produced.apply_collision_push(null)
-	assert(not is_zero_approx(produced.world_position.x))
+	# 原版使用实际方向，不人为添加离厂横向位移
+	assert(absf(produced.world_position.x) < 0.005)
 	produced.advance_movement(1, null)
-	assert(not is_equal_approx(produced.body_rotation_degrees, 90.0))
+	assert(absf(produced.body_rotation_degrees - 90.0) < 0.1)
 	battle_map.free()
 	print("BATTLE_COLLISION_CHECK_OK")
 	quit()
@@ -60,6 +61,7 @@ func _unit(object_id: int, team: String, position: Vector2, soft_priority: int) 
 	unit_state.team = team
 	unit_state.world_position = position
 	unit_state.collision_radius = 10.0
+	unit_state.movement_speed = 0.8
 	unit_state.push_mass = 3000.0
 	unit_state.soft_collision_on_all = soft_priority
 	unit_state.weapon_rotations_degrees = PackedFloat32Array([0.0,])

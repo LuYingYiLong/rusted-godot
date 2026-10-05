@@ -4,8 +4,16 @@ extends Resource
 
 ## 发射的弹体定义
 @export var projectile: RwProjectileDefinition
+## 锁定空中目标时使用的弹体
+@export var air_projectile: RwProjectileDefinition
+## 锁定水下目标时使用的弹体
+@export var submerged_projectile: RwProjectileDefinition
 ## 自动索敌与开火的最大距离
 @export var attack_range: float
+## 单位处于水面状态时的射程；小于零时使用通用射程
+@export var surface_attack_range: float = -1.0
+## 单位处于水下状态时的射程；小于零时使用通用射程
+@export var submerged_attack_range: float = -1.0
 @export var minimum_range: float
 @export var reload_frames: int = 60
 ## 首次锁定目标后的预热同步帧数
@@ -20,3 +28,21 @@ extends Resource
 @export var can_target_ground: bool = true
 @export var can_target_water: bool
 @export var can_target_air: bool
+@export var can_target_air_when_submerged: bool = true
+
+
+## 按目标移动类型返回本次射击使用的弹体
+func attack_range_for_source(is_submerged: bool) -> float:
+	if is_submerged and submerged_attack_range >= 0.0:
+		return submerged_attack_range
+	if not is_submerged and surface_attack_range >= 0.0:
+		return surface_attack_range
+	return attack_range
+
+
+func projectile_for_target(target: RwUnitState) -> RwProjectileDefinition:
+	if target != null and target.movement_type == "AIR" and air_projectile != null:
+		return air_projectile
+	if target != null and target.submerged and submerged_projectile != null:
+		return submerged_projectile
+	return projectile

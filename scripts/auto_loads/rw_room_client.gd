@@ -174,6 +174,7 @@ func send_unit_action(unit_ids: Array[int], action_id: String) -> bool:
 		return false
 	var payload: PackedByteArray = RwBattleCommandWriter.write_action(local_slot, unit_ids, action_id)
 	_send_packet(20, payload)
+	print("RW action command sent: team=%d units=%s action=%s" % [local_slot, str(unit_ids), action_id,])
 	return true
 
 
@@ -471,9 +472,7 @@ func _read_players(payload: PackedByteArray) -> void:
 	_read_player_settings_footer(stream)
 	if not battle_map_info.is_empty():
 		battle_economy.set_income_multiplier(float(settings.get("income_multiplier", 1.0)))
-		if _battle_view_ready and not partial_update:
-			for player: Dictionary in updated_players:
-				battle_economy.reconcile_credits(int(player["slot"]), float(player["credits"]))
+		# 原版 n.a 在对局中忽略房间包中的整数字段，资金由同步帧中的单位更新产生
 	if not _has_player_update:
 		_has_player_update = true
 		_send_client_status()
@@ -523,11 +522,11 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 	var color: int = stream.get_32()
 	var _name: String = RwBinary.read_nullable_utf(stream)
 	stream.get_u8()
-	var network_id: int = stream.get_32()
+	var ping: int = stream.get_32()
 	stream.get_64()
 	var ai_flag: bool = stream.get_u8() != 0
 	var spectator: bool = color == -3
-	var ping: int = stream.get_32()
+	var ai_difficulty: int = stream.get_32()
 	var sort_index: int = stream.get_32()
 	stream.get_u8()
 	var connected: bool = stream.get_u8() != 0
@@ -537,7 +536,7 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 	stream.get_32()
 	RwBinary.read_nullable_utf(stream)
 	var host_flag: int = stream.get_32()
-	RwBinary.read_nullable_int(stream)
+	var ai_difficulty_override: int = RwBinary.read_nullable_int(stream)
 	var starting_units_override: int = RwBinary.read_nullable_int(stream)
 	RwBinary.read_nullable_int(stream)
 	RwBinary.read_nullable_int(stream)
@@ -548,13 +547,14 @@ func _read_full_player(stream: StreamPeerBuffer, slot: int, is_ai: bool) -> Dict
 		"credits": credits,
 		"team_resources": balances,
 		"ai": is_ai or ai_flag,
+		"ai_difficulty": ai_difficulty,
+		"ai_difficulty_override": ai_difficulty_override,
 		"color": color,
 		"spectator": spectator,
 		"ping": ping,
 		"sort_index": sort_index,
 		"connected": connected,
 		"network_active": network_active,
-		"network_id": network_id,
 		"host": host_flag != 0,
 		"assigned_color": assigned_color,
 		"starting_units_override": starting_units_override,

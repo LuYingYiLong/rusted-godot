@@ -102,3 +102,5 @@ ipch/
 *.sconsign.dblite
 
 !addons/rw_core/project/*
+
+tests/fixtures

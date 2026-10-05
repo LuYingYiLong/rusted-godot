@@ -1,5 +1,6 @@
-class_name RwPathGrid
 extends RefCounted
+class_name RwPathGrid
+## 保存地图通行代价、建筑占地和原版寻路所需的格子数据
 
 const WATER: int = 1
 const CLIFF: int = 2
@@ -21,6 +22,8 @@ const NEIGHBORS: Array[Vector2i] = [
 
 var size: Vector2i
 var tile_size: Vector2i
+## 当前寻路请求对应的原版模拟帧，未设置时动态代价不使用帧缓存
+var simulation_frame: int = -1
 
 var _land_costs: PackedInt32Array
 var _building_costs: PackedInt32Array
@@ -31,7 +34,10 @@ var _cliff_water_costs: PackedInt32Array
 var _water_tiles: PackedByteArray
 var _resource_pool_tiles: PackedByteArray
 var _structure_blocks: PackedByteArray
+var _placement_blocks: PackedByteArray
 var _object_costs: PackedByteArray
+var _object_cost_cache: Dictionary[String, PackedByteArray]
+var _object_refresh_frames: Dictionary[String, int]
 var _land_clearance: PackedByteArray
 var _building_clearance: PackedByteArray
 var _hover_clearance: PackedByteArray
@@ -39,6 +45,8 @@ var _water_clearance: PackedByteArray
 var _cliff_clearance: PackedByteArray
 var _cliff_water_clearance: PackedByteArray
 var _tile_info: Dictionary
+var _path_probe_serial: int
+var _clearance_update_regions: Array[Rect2i]
 
 
 static func load_map(map_name: String) -> RwPathGrid:
@@ -99,20 +107,21 @@ func get_placement_error(world_position: Vector2, definition: RwUnitDefinition) 
 		return "Requires a resource pool"
 	if definition.placement_requires_water and _water_tiles[center_index] == 0:
 		return "Requires water"
-	for y: int in range(center.y + definition.structure_footprint_min.y, center.y + definition.structure_footprint_max.y + 1):
-		for x: int in range(center.x + definition.structure_footprint_min.x, center.x + definition.structure_footprint_max.x + 1):
+	var footprint: Rect2i = definition.get_construction_footprint()
+	for y: int in range(center.y + footprint.position.y, center.y + footprint.end.y):
+		for x: int in range(center.x + footprint.position.x, center.x + footprint.end.x):
 			var cell: Vector2i = Vector2i(x, y)
 			if not _is_in_bounds(cell):
 				return "Cannot place here"
 			var index: int = _cell_index(cell)
-			if _structure_blocks[index] != 0:
+			if _placement_blocks[index] != 0:
 				return "Location is occupied"
 			if definition.placement_requires_resource_pool and cell == center:
 				continue
 			if definition.placement_requires_water:
-				if _hover_costs[index] < 0:
+				if _water_costs[index] < 0:
 					return "Cannot place here"
-			elif _land_costs[index] < 0:
+			elif _resource_pool_tiles[index] != 0 and not definition.placement_requires_resource_pool or _building_costs[index] < 0:
 				return "Cannot place here"
 	return ""
 
@@ -123,8 +132,18 @@ func cost_at(cell: Vector2i, movement_type: String) -> int:
 	if movement_type == "AIR":
 		return 0
 	var index: int = _cell_index(cell)
-	if _structure_blocks[index] != 0:
+	if (_placement_blocks[index] if movement_type == "BUILDING" else _structure_blocks[index]) != 0:
 		return -1
+	return terrain_cost_at(cell, movement_type)
+
+
+## 返回地形代价，不计建筑占地，用于原版从新建筑占地中脱离的判定
+func terrain_cost_at(cell: Vector2i, movement_type: String) -> int:
+	if not _is_in_bounds(cell):
+		return -1
+	if movement_type == "AIR":
+		return 0
+	var index: int = _cell_index(cell)
 	match movement_type:
 		"BUILDING":
 			return _building_costs[index]
@@ -140,48 +159,47 @@ func cost_at(cell: Vector2i, movement_type: String) -> int:
 			return _land_costs[index]
 
 
-func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
+func block_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i, construction_footprint: Rect2i = Rect2i()) -> void:
 	var center: Vector2i = structure_anchor_cell(world_position, minimum_offset, maximum_offset)
+	_set_placement_block(center, minimum_offset, maximum_offset, construction_footprint, 1)
 	for y: int in range(center.y + minimum_offset.y, center.y + maximum_offset.y + 1):
 		for x: int in range(center.x + minimum_offset.x, center.x + maximum_offset.x + 1):
 			var cell: Vector2i = Vector2i(x, y)
 			if _is_in_bounds(cell):
 				_structure_blocks[_cell_index(cell)] = 1
-	_land_clearance.clear()
-	_building_clearance.clear()
-	_hover_clearance.clear()
-	_water_clearance.clear()
-	_cliff_clearance.clear()
-	_cliff_water_clearance.clear()
+	_queue_clearance_update(world_to_cell(world_position), minimum_offset, maximum_offset)
 
 
 ## 建筑被摧毁后清除对应格子的动态阻挡
-func unblock_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
+func unblock_structure(world_position: Vector2, minimum_offset: Vector2i, maximum_offset: Vector2i, construction_footprint: Rect2i = Rect2i()) -> void:
 	var center: Vector2i = structure_anchor_cell(world_position, minimum_offset, maximum_offset)
+	_set_placement_block(center, minimum_offset, maximum_offset, construction_footprint, 0)
 	for y: int in range(center.y + minimum_offset.y, center.y + maximum_offset.y + 1):
 		for x: int in range(center.x + minimum_offset.x, center.x + maximum_offset.x + 1):
 			var cell: Vector2i = Vector2i(x, y)
 			if _is_in_bounds(cell):
 				_structure_blocks[_cell_index(cell)] = 0
-	_land_clearance.clear()
-	_building_clearance.clear()
-	_hover_clearance.clear()
-	_water_clearance.clear()
-	_cliff_clearance.clear()
-	_cliff_water_clearance.clear()
+	_queue_clearance_update(world_to_cell(world_position), minimum_offset, maximum_offset)
 
 
 func finalize_obstacles() -> void:
-	_land_clearance = _build_clearance(_land_costs)
-	_building_clearance = _build_clearance(_building_costs)
-	_hover_clearance = _build_clearance(_hover_costs)
-	_water_clearance = _build_clearance(_water_costs)
-	_cliff_clearance = _build_clearance(_cliff_costs)
-	_cliff_water_clearance = _build_clearance(_cliff_water_costs)
+	_land_clearance = _refresh_clearance(_land_costs, _land_clearance)
+	_building_clearance = _refresh_clearance(_building_costs, _building_clearance)
+	_hover_clearance = _refresh_clearance(_hover_costs, _hover_clearance)
+	_water_clearance = _refresh_clearance(_water_costs, _water_clearance)
+	_cliff_clearance = _refresh_clearance(_cliff_costs, _cliff_clearance)
+	_cliff_water_clearance = _refresh_clearance(_cliff_water_costs, _cliff_water_clearance)
+	_clearance_update_regions.clear()
 
 
 ## 更新原版寻路使用的闲置单位动态代价
 func update_object_costs(units: Dictionary, moving_unit_id: int) -> void:
+	var moving_unit: RwUnitState = units.get(moving_unit_id) as RwUnitState
+	var movement_type: String = moving_unit.movement_type if moving_unit != null else "LAND"
+	var previous_refresh: int = int(_object_refresh_frames.get(movement_type, -99))
+	if simulation_frame >= 0 and previous_refresh + 30 >= simulation_frame and _object_cost_cache.has(movement_type):
+		_object_costs = _object_cost_cache[movement_type]
+		return
 	_object_costs.resize(size.x * size.y)
 	_object_costs.fill(0)
 	for object_id: int in units:
@@ -190,7 +208,7 @@ func update_object_costs(units: Dictionary, moving_unit_id: int) -> void:
 		var unit_state: RwUnitState = units[object_id] as RwUnitState
 		if unit_state == null or unit_state.is_dead or unit_state.movement_speed <= 0.0 or unit_state.movement_type == "AIR":
 			continue
-		if not unit_state.get_navigation_path().is_empty() or unit_state.is_exiting_factory():
+		if unit_state.navigation_path_active:
 			continue
 		var center: Vector2i = world_to_cell(unit_state.world_position)
 		var inner_radius: float = unit_state.collision_radius + 5.0
@@ -210,6 +228,8 @@ func update_object_costs(units: Dictionary, moving_unit_id: int) -> void:
 				if added_cost > 0:
 					var index: int = _cell_index(cell)
 					_object_costs[index] = mini(127, int(_object_costs[index]) + added_cost)
+	_object_cost_cache[movement_type] = _object_costs.duplicate()
+	_object_refresh_frames[movement_type] = simulation_frame
 
 
 func find_path(start_position: Vector2, target_position: Vector2, movement_type: String, use_smoothing: bool = true, heading_degrees: float = 0.0, use_heading: bool = false, goal_radius_cells: int = 0) -> Array[Vector2]:
@@ -316,6 +336,7 @@ func find_path(start_position: Vector2, target_position: Vector2, movement_type:
 
 
 func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Vector2, movement_type: String, heading_degrees: float, goal_radius_cells: int) -> Array[Vector2]:
+	_capture_path_input(start, goal, movement_type, heading_degrees, goal_radius_cells)
 	var has_passable_goal: bool
 	for x: int in range(goal.x - goal_radius_cells, goal.x + goal_radius_cells + 1):
 		for y: int in range(goal.y - goal_radius_cells, goal.y + goal_radius_cells + 1):
@@ -377,9 +398,11 @@ func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Ve
 		closed[side][index] = true
 		var previous_direction: int = int(directions[side].get(index, 0))
 		var maximum_turn: int = 1 if _clearance_at(cell, movement_type) > 1 else 2
-		for direction_index: int in NEIGHBORS.size():
-			if index != root_indices[side] and _direction_difference(previous_direction, direction_index) > maximum_turn:
-				continue
+		# 原版按入射方向左右展开，跨过 0 的邻居顺序会影响同分开放表
+		var first_direction: int = 0 if index == root_indices[side] else previous_direction - maximum_turn
+		var last_direction: int = 7 if index == root_indices[side] else previous_direction + maximum_turn
+		for unwrapped_direction: int in range(first_direction, last_direction + 1):
+			var direction_index: int = posmod(unwrapped_direction, NEIGHBORS.size())
 			var offset: Vector2i = NEIGHBORS[direction_index]
 			var neighbor: Vector2i = cell + offset
 			var tile_cost: int = cost_at(neighbor, movement_type)
@@ -423,8 +446,46 @@ func _find_native_grid_path(start: Vector2i, goal: Vector2i, target_position: Ve
 	for point_index: int in route_indices:
 		@warning_ignore("integer_division")
 		var point_cell: Vector2i = Vector2i(point_index % size.x, int(point_index / size.x))
-		waypoints.append(target_position if point_cell == goal else cell_to_world(point_cell))
+		waypoints.append(target_position if point_cell == goal and route_indices.size() < 120 else cell_to_world(point_cell))
 	return waypoints
+
+
+func _capture_path_input(start: Vector2i, goal: Vector2i, movement_type: String, heading_degrees: float, goal_radius_cells: int) -> void:
+	var directory: String = OS.get_environment("RW_PATH_PROBE_DIRECTORY")
+	if directory.is_empty():
+		return
+	DirAccess.make_dir_recursive_absolute(directory)
+	var terrain: Array[int] = []
+	var buildings: Array[int] = []
+	var objects: Array[int] = []
+	var clearance: Array[int] = []
+	for x: int in size.x:
+		for y: int in size.y:
+			var cell: Vector2i = Vector2i(x, y)
+			var index: int = _cell_index(cell)
+			terrain.append(terrain_cost_at(cell, movement_type))
+			buildings.append(-1 if _structure_blocks[index] != 0 else 0)
+			objects.append(int(_object_costs[index]) if not _object_costs.is_empty() else 0)
+			clearance.append(_clearance_at(cell, movement_type))
+	var output: FileAccess = FileAccess.open(directory.path_join("path-%d.json" % _path_probe_serial), FileAccess.WRITE)
+	_path_probe_serial += 1
+	if output == null:
+		push_warning("Could not open path input probe")
+		return
+	output.store_string(JSON.stringify({
+		"frame": simulation_frame,
+		"cost_refresh_frame": int(_object_refresh_frames.get(movement_type, -99)),
+		"start": [start.x, start.y,],
+		"goal": [goal.x, goal.y,],
+		"movement_type": movement_type,
+		"heading": heading_degrees,
+		"goal_radius": goal_radius_cells,
+		"size": [size.x, size.y,],
+		"y": terrain,
+		"z": buildings,
+		"A": objects,
+		"C": clearance,
+	}))
 
 
 ## 原版目标格不可达时按 x、y 升序选择最近的可通行替代格
@@ -446,10 +507,11 @@ func _nearest_passable_native_goal(goal: Vector2i, movement_type: String, search
 ## 将服务器预计算路径的末格替换为精确目标坐标
 func path_from_cells(_start_position: Vector2, target_position: Vector2, cells: Array[Vector2i], _movement_type: String) -> Array[Vector2]:
 	var raw_points: Array[Vector2] = []
-	for index: int in maxi(cells.size() - 1, 0):
-		raw_points.append(cell_to_world(cells[index]))
-	if not cells.is_empty():
-		raw_points.append(target_position)
+	for index: int in cells.size():
+		var point: Vector2 = cell_to_world(cells[index])
+		if index == cells.size() - 1 and cells.size() < 120:
+			point = target_position
+		raw_points.append(point)
 	return raw_points
 
 
@@ -474,8 +536,8 @@ func has_clear_line(start_position: Vector2, end_position: Vector2, movement_typ
 	return true
 
 
-## 复现原版决定是否直接生成直线路径的格子检测
-func has_source_direct_line(start_position: Vector2, end_position: Vector2, movement_type: String) -> bool:
+## 复现原版直线格子检测，编队领队可要求整条路线的最小通行余量
+func has_source_direct_line(start_position: Vector2, end_position: Vector2, movement_type: String, minimum_clearance: int = 0) -> bool:
 	var start: Vector2i = world_to_cell(start_position)
 	var target: Vector2i = world_to_cell(end_position)
 	var difference: Vector2i = (target - start).abs()
@@ -489,9 +551,13 @@ func has_source_direct_line(start_position: Vector2, end_position: Vector2, move
 	var cumulative_cost: int = 0
 	var initial_cells_to_skip: int = 1
 	while remaining > 0:
+		if minimum_clearance > 0 and (not _is_in_bounds(cell) or _clearance_at(cell, movement_type) < minimum_clearance):
+			return false
 		var cell_cost: int = cost_at(cell, movement_type)
 		if cell_cost < 0:
 			return false
+		if movement_type != "AIR" and not _object_costs.is_empty():
+			cell_cost += int(_object_costs[_cell_index(cell)]) * 10
 		if initial_cells_to_skip > 0:
 			initial_cells_to_skip -= 1
 		else:
@@ -512,16 +578,39 @@ func has_source_direct_line(start_position: Vector2, end_position: Vector2, move
 	return true
 
 
+## 检查起点是否被建筑占地覆盖且基础地形可通行，需要先走原版脱离路径
+func needs_source_escape(start_position: Vector2, movement_type: String) -> bool:
+	var cell: Vector2i = world_to_cell(start_position)
+	return not is_passable(cell, movement_type) and terrain_cost_at(cell, movement_type) >= 0
+
+
+## 返回原版最多六十像素的建筑脱离目标，z 为一时表示尚未到达最终命令目标
+func source_escape_target(start_position: Vector2, target_position: Vector2) -> Vector3:
+	var target: Vector2 = target_position.clamp(Vector2.ZERO, Vector2(size * tile_size))
+	var distance: float = RwGameMath.float32(sqrt(RwGameMath.distance_squared(start_position, target)))
+	var angle: float = RwGameMath.direction_degrees(start_position, target)
+	var point: Vector2 = RwGameMath.movement_position(start_position, angle, minf(distance, 60.0), 1.0, 1.0)
+	return Vector3(point.x, point.y, 1.0 if distance > 60.0 else 0.0)
+
+
 ## 生成原版直线寻路点；路线不可直达时返回空数组
-func source_direct_waypoints(start_position: Vector2, target_position: Vector2, movement_type: String) -> Array[Vector2]:
-	if not has_source_direct_line(start_position, target_position, movement_type):
+func source_direct_waypoints(start_position: Vector2, target_position: Vector2, movement_type: String, minimum_clearance: int = 0) -> Array[Vector2]:
+	# 原版 ct() 的飞行单位只保存终点，不展开每隔 20 像素的地面路径点
+	if movement_type == "AIR":
+		return [target_position,]
+	if not has_source_direct_line(start_position, target_position, movement_type, minimum_clearance):
 		return []
 	return _straight_line_waypoints(start_position, target_position)
 
 
+## 判断地面直线路径是否达到原版一百一十九点上限，满上限时继续保留命令
+func is_source_direct_path_truncated(start_position: Vector2, target_position: Vector2, movement_type: String) -> bool:
+	return movement_type != "AIR" and _source_direct_segment_count(start_position, target_position) >= 120
+
+
 ## 返回原版联机异步寻路结果至少等待的同步帧数
-func network_path_delay_frames(start_position: Vector2, target_position: Vector2, movement_type: String) -> int:
-	if movement_type == "AIR" or has_clear_line(start_position, target_position, movement_type):
+func network_path_delay_frames(start_position: Vector2, target_position: Vector2, movement_type: String, minimum_clearance: int = 0) -> int:
+	if movement_type == "AIR" or has_source_direct_line(start_position, target_position, movement_type, minimum_clearance):
 		return 0
 	var start: Vector2i = world_to_cell(start_position)
 	var target: Vector2i = world_to_cell(target_position)
@@ -544,22 +633,30 @@ func network_path_delay_frames(start_position: Vector2, target_position: Vector2
 ## 复现原版直线可达时每隔 20 像素生成的中间路径点
 func _straight_line_waypoints(start_position: Vector2, target_position: Vector2) -> Array[Vector2]:
 	var waypoints: Array[Vector2] = []
-	var distance: float = start_position.distance_to(target_position)
+	var distance: float = RwGameMath.float32(sqrt(RwGameMath.distance_squared(start_position, target_position)))
 	if distance <= 0.0:
 		waypoints.append(target_position)
 		return waypoints
 	var direction: Vector2 = RwGameMath.path_direction(start_position, target_position)
-	var segment_count: int = maxi(int(distance * 0.05 - 1.0), 0)
+	var segment_count: int = _source_direct_segment_count(start_position, target_position)
 	var skip_first_segment: bool = segment_count >= 4
 	var current_point: Vector2 = start_position
-	for segment_index: int in mini(segment_count, 119):
+	for segment_index: int in segment_count:
 		current_point += direction * 20.0
 		if skip_first_segment and segment_index == 0:
 			continue
 		waypoints.append(current_point)
+		if waypoints.size() >= 119:
+			break
 	if waypoints.size() < 119:
 		waypoints.append(target_position)
 	return waypoints
+
+
+func _source_direct_segment_count(start_position: Vector2, target_position: Vector2) -> int:
+	var distance: float = RwGameMath.float32(sqrt(RwGameMath.distance_squared(start_position, target_position)))
+	var count: float = RwGameMath.float32(RwGameMath.float32(distance * RwGameMath.float32(0.05)) - 1.0)
+	return maxi(int(count), 0)
 
 
 func _structure_center_offset(minimum_offset: Vector2i, maximum_offset: Vector2i) -> Vector2:
@@ -641,6 +738,7 @@ func _initialize(parsed: Dictionary) -> bool:
 	_water_tiles.resize(cell_count)
 	_resource_pool_tiles.resize(cell_count)
 	_structure_blocks.resize(cell_count)
+	_placement_blocks.resize(cell_count)
 	for index: int in cell_count:
 		var ground_info: Vector2i = _tile_info.get(ground_gids[index], Vector2i.ZERO)
 		var items_info: Vector2i
@@ -739,6 +837,40 @@ func _clearance_at(cell: Vector2i, movement_type: String) -> int:
 			return _land_clearance[index]
 
 
+func _queue_clearance_update(center: Vector2i, minimum_offset: Vector2i, maximum_offset: Vector2i) -> void:
+	if _land_clearance.is_empty():
+		return
+	var first: Vector2i = (center + minimum_offset - Vector2i(5, 5)).max(Vector2i.ZERO)
+	var last: Vector2i = (center + maximum_offset + Vector2i(5, 5)).min(size)
+	_clearance_update_regions.append(Rect2i(first, last - first))
+
+
+## 原版初次生成净空使用虚拟边界，建筑变化时在占地周围重新扫描实际边界
+func _refresh_clearance(costs: PackedInt32Array, previous: PackedByteArray) -> PackedByteArray:
+	if previous.is_empty():
+		return _build_clearance(costs)
+	var distances: PackedByteArray = previous.duplicate()
+	for region: Rect2i in _clearance_update_regions:
+		for x: int in range(region.position.x, region.end.x):
+			for y: int in range(region.position.y, region.end.y):
+				var index: int = _cell_index(Vector2i(x, y))
+				var clearance: int = 4
+				if costs[index] < 0:
+					distances[index] = 0
+					continue
+				for obstacle_x: int in range(x - 3, x + 4):
+					for obstacle_y: int in range(y - 3, y + 4):
+						var obstacle: Vector2i = Vector2i(obstacle_x, obstacle_y)
+						var blocked: bool = not _is_in_bounds(obstacle)
+						if not blocked:
+							var obstacle_index: int = _cell_index(obstacle)
+							blocked = costs[obstacle_index] < 0 or _structure_blocks[obstacle_index] != 0
+						if blocked:
+							clearance = mini(clearance, maxi(absi(x - obstacle_x), absi(y - obstacle_y)))
+				distances[index] = clearance
+	return distances
+
+
 func _build_clearance(costs: PackedInt32Array) -> PackedByteArray:
 	var distances: PackedByteArray = PackedByteArray()
 	distances.resize(size.x * size.y)
@@ -751,8 +883,9 @@ func _build_clearance(costs: PackedInt32Array) -> PackedByteArray:
 				continue
 			var clearance: int = mini(4, x + 1)
 			clearance = mini(clearance, y + 1)
-			clearance = mini(clearance, size.x - x)
-			clearance = mini(clearance, size.y - y)
+			# 原版右侧与下侧的虚拟障碍位于尺寸加一的位置
+			clearance = mini(clearance, size.x + 1 - x)
+			clearance = mini(clearance, size.y + 1 - y)
 			if x > 0:
 				clearance = mini(clearance, distances[index - 1] + 1)
 			if y > 0:
@@ -838,3 +971,14 @@ func _heap_less(left: Vector2i, right: Vector2i) -> bool:
 		return left_x < right_x
 	@warning_ignore("integer_division")
 	return int(left.y / size.x) < int(right.y / size.x)
+
+
+func _set_placement_block(center: Vector2i, minimum_offset: Vector2i, maximum_offset: Vector2i, construction_footprint: Rect2i, value: int) -> void:
+	if _placement_blocks.size() != _structure_blocks.size():
+		_placement_blocks.resize(_structure_blocks.size())
+	var footprint: Rect2i = construction_footprint if construction_footprint.has_area() else Rect2i(minimum_offset, maximum_offset - minimum_offset + Vector2i.ONE)
+	for y: int in range(center.y + footprint.position.y, center.y + footprint.end.y):
+		for x: int in range(center.x + footprint.position.x, center.x + footprint.end.x):
+			var cell: Vector2i = Vector2i(x, y)
+			if _is_in_bounds(cell):
+				_placement_blocks[_cell_index(cell)] = value

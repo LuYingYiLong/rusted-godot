@@ -22,6 +22,7 @@ import sys
 import time
 
 from rw_115_debug_socket import DebugSession
+from compare_rw_115_unit_traces import compare, compare_teams
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +69,35 @@ def port_is_available(port: int) -> bool:
     return True
 
 
+def build_original_probe(output: Path, java_runtime: Path) -> Path:
+    """Build the read-only frame-end agent for the bundled Java 13 runtime."""
+    javac = shutil.which("javac")
+    if javac is None:
+        candidates = sorted((Path.home() / ".jdks").glob("*/bin/javac.exe"))
+        if not candidates:
+            raise RuntimeError("--original-trace requires a JDK with javac")
+        javac = str(candidates[-1])
+    build = output / "agent-build"
+    build.mkdir()
+    source = PROJECT_ROOT / "tools" / "probe" / "Rw115UnitProbeAgent.java"
+    compilation = subprocess.run([
+        javac, "-source", "11", "-target", "11", "-Xlint:-options", "-encoding", "UTF-8",
+        "--system", str(java_runtime),
+        "--add-exports", "java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED",
+        "-d", str(build), str(source),
+    ], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    if compilation.returncode != 0:
+        raise RuntimeError("Original probe compilation failed: " + compilation.stderr.decode("utf-8", errors="replace"))
+    import zipfile
+
+    jar = output / "rw115-unit-probe.jar"
+    with zipfile.ZipFile(jar, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nPremain-Class: Rw115UnitProbeAgent\n\n")
+        for compiled in sorted(build.glob("*.class")):
+            archive.write(compiled, compiled.name)
+    return jar
+
+
 def debug_call(port: int, expression: str) -> str:
     with DebugSession(port) as session:
         return session.call(expression).strip()
@@ -101,6 +131,28 @@ def report_has_event(path: Path, event_name: str, message: str = "") -> bool:
             if event.get("event") == event_name and (not message or message in event.get("message", "")):
                 return True
     return False
+
+
+def original_trace_failure(output: Path, minimum_frame: int = 1) -> str | None:
+    failure = output / "original-probe-failure.txt"
+    if failure.is_file():
+        return failure.read_text(encoding="utf-8", errors="replace")
+    log = (output / "original.stdout.log").read_text(encoding="utf-8", errors="replace")
+    if "RW115 probe hooked main-thread simulation frame end" not in log:
+        return "Original frame-end hook was not installed"
+    trace = output / "original-units.csv"
+    last_frame = 0
+    if trace.is_file():
+        with trace.open("rb") as stream:
+            stream.seek(max(0, trace.stat().st_size - 8192))
+            for line in reversed(stream.read().splitlines()):
+                first = line.partition(b",")[0]
+                if first.isdigit():
+                    last_frame = int(first)
+                    break
+    if last_frame < minimum_frame:
+        return f"Original trace reached only frame {last_frame}; expected at least {minimum_frame}"
+    return None
 
 
 class ReportCursor:
@@ -263,6 +315,10 @@ def run(arguments: argparse.Namespace) -> Path:
         "duration_seconds": duration,
         "stage_seconds": arguments.stages,
         "trace_interval_frames": arguments.trace_interval,
+        "original_frame_end_trace": arguments.original_trace,
+        "original_weapon_catalog": arguments.weapon_catalog,
+        "full_unit_trace_comparison": arguments.original_trace and arguments.trace_interval == 1 and not arguments.trace_units,
+        "stage_time_basis": "verified_simulation_seconds",
         "output_directory": str(output),
     }
     (output / "run.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -273,6 +329,12 @@ def run(arguments: argparse.Namespace) -> Path:
         "-nodisplay", "-nosound", "-nomusic", "-nomods",
         "-debug", f"{arguments.debug_port}:local",
     ]
+    if arguments.original_trace:
+        probe_jar = build_original_probe(output, java.parent.parent)
+        java_args[1:1] = [
+            "--add-exports", "java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED",
+            f"-javaagent:{probe_jar}={output / 'original-units.csv'}",
+        ]
     godot_args = [str(godot), "--headless", "--path", str(PROJECT_ROOT), "--scene", "res://tests/rw_multiplayer_soak.tscn"]
     environment = os.environ.copy()
     roaming_data = output / "godot-user-data" / "Roaming"
@@ -285,7 +347,7 @@ def run(arguments: argparse.Namespace) -> Path:
         "RW_SOAK_ADDRESS": f"127.0.0.1:{arguments.port}",
         "RW_SOAK_EXPECT_MAP": arguments.map.split("]", 1)[-1].split("(", 1)[0].strip(),
         "RW_SOAK_MIN_PLAYERS": str(arguments.ai + 2),
-        "RW_SOAK_DURATION": str(duration + 3),
+        "RW_SOAK_DURATION": str(duration * 4 + 60),
         "RW_SOAK_CONTROL_PATH": str(control),
         "RW_SOAK_START_TIMEOUT": str(arguments.start_timeout),
         "RW_SOAK_REPORT_PATH": str(report),
@@ -295,6 +357,9 @@ def run(arguments: argparse.Namespace) -> Path:
         "RW_PROBE_INTERVAL": str(arguments.trace_interval),
         "RW_PROBE_UNIT_IDS": arguments.trace_units,
     })
+    host_environment = environment
+    if arguments.weapon_catalog:
+        host_environment = environment | {"RW115_WEAPON_CATALOG": str(output / "original-weapons.jsonl")}
 
     host: subprocess.Popen[bytes] | None = None
     client: subprocess.Popen[bytes] | None = None
@@ -305,7 +370,7 @@ def run(arguments: argparse.Namespace) -> Path:
         godot_err = stack.enter_context((output / "godot.stderr.log").open("wb"))
         metrics = stack.enter_context((output / "original-metrics.jsonl").open("w", encoding="utf-8"))
         try:
-            host = subprocess.Popen(java_args, cwd=runtime, stdout=host_out, stderr=host_err, creationflags=creation_flags)
+            host = subprocess.Popen(java_args, cwd=runtime, env=host_environment, stdout=host_out, stderr=host_err, creationflags=creation_flags)
             print(f"Original v1.15 PID={host.pid}; waiting for main menu", flush=True)
             wait_for_debug(host, arguments.debug_port, arguments.startup_timeout)
             with DebugSession(arguments.debug_port) as session:
@@ -338,6 +403,8 @@ def run(arguments: argparse.Namespace) -> Path:
             verified_checksums = 0
             parity_failure: dict[str, object] | None = None
             stop_requested = False
+            last_verified_frame = 0
+            last_verified_seconds = 0.0
             while client.poll() is None:
                 if host.poll() is not None:
                     raise RuntimeError(f"Original host exited during battle: {host.returncode}")
@@ -346,6 +413,8 @@ def run(arguments: argparse.Namespace) -> Path:
                     event_name = event.get("event")
                     if event_name in ("checksum_unit_match", "checksum_unit_mismatch"):
                         verified_checksums += 1
+                        last_verified_frame = max(last_verified_frame, int(event.get("frame", 0)))
+                        last_verified_seconds = max(last_verified_seconds, float(event.get("simulated_seconds", -1.0)))
                     if event_name in ("checksum_unit_mismatch", "checksum_unverified", "failed") and parity_failure is None:
                         parity_failure = {
                             "event": event_name,
@@ -354,7 +423,7 @@ def run(arguments: argparse.Namespace) -> Path:
                             "reason": event.get("reason", ""),
                         }
                 if elapsed >= next_sample:
-                    sample: dict[str, object] = {"elapsed_seconds": round(elapsed, 1)}
+                    sample: dict[str, object] = {"elapsed_seconds": round(elapsed, 1), "verified_simulation_seconds": last_verified_seconds}
                     try:
                         with DebugSession(arguments.debug_port) as session:
                             for key, expression in (
@@ -373,6 +442,10 @@ def run(arguments: argparse.Namespace) -> Path:
                     if (sample.get("desync_errors", 0) or sample.get("resyncs", 0)) and parity_failure is None:
                         parity_failure = {"event": "original_desync_or_resync", "sample": sample}
                     next_sample += arguments.metrics_interval
+                if arguments.original_trace and verified_checksums > 0 and parity_failure is None:
+                    probe_failure = original_trace_failure(output, last_verified_frame)
+                    if probe_failure:
+                        parity_failure = {"event": "original_probe_failed", "reason": probe_failure}
                 if parity_failure is not None and not stop_requested:
                     stop_requested = True
                     control.write_text("parity_difference\n", encoding="utf-8")
@@ -380,11 +453,26 @@ def run(arguments: argparse.Namespace) -> Path:
                     stage_results.append(result)
                     stage_report.write_text(json.dumps(result) + "\n", encoding="utf-8")
                     print(f"Parity difference; stopping before the {arguments.stages[stage_index]}s gate: {parity_failure}", flush=True)
-                elif not stop_requested and stage_index < len(arguments.stages) and elapsed >= arguments.stages[stage_index]:
+                elif not stop_requested and stage_index < len(arguments.stages) and last_verified_seconds + 1e-6 >= arguments.stages[stage_index]:
                     if verified_checksums == 0:
                         parity_failure = {"event": "no_verified_checksums"}
                         continue
-                    result = {"stage_seconds": arguments.stages[stage_index], "status": "passed", "elapsed_seconds": round(elapsed, 1), "verified_checksums": verified_checksums}
+                    if metadata["full_unit_trace_comparison"]:
+                        unit_comparison = compare(output, max_frame=last_verified_frame)
+                        team_comparison = compare_teams(output / "original-teams.csv", output / "godot.teams.tsv", last_verified_frame)
+                        (output / f"team-differences-{arguments.stages[stage_index]}s.json").write_text(json.dumps(team_comparison, indent=2), encoding="utf-8")
+                        if team_comparison["first_difference"] is not None or not team_comparison["compared_team_frames"]:
+                            parity_failure = {"event": "team_trace_mismatch", "frame": last_verified_frame, "team_trace": team_comparison}
+                            continue
+                        (output / f"unit-differences-{arguments.stages[stage_index]}s.json").write_text(json.dumps(unit_comparison, indent=2), encoding="utf-8")
+                        if unit_comparison["first_difference"] is not None or not unit_comparison["compared_unit_frames"]:
+                            parity_failure = {"event": "unit_trace_mismatch", "frame": last_verified_frame,
+                                              "first_difference": unit_comparison["first_difference"],
+                                              "missing_unit_frames": unit_comparison["missing_godot_unit_frames"],
+                                              "extra_unit_frames": unit_comparison["extra_godot_unit_frames"]}
+                            continue
+                    result = {"stage_seconds": arguments.stages[stage_index], "status": "passed", "elapsed_seconds": round(elapsed, 1), "verified_checksums": verified_checksums,
+                              "verified_simulation_seconds": last_verified_seconds, "last_verified_frame": last_verified_frame}
                     stage_results.append(result)
                     with stage_report.open("a", encoding="utf-8") as stream:
                         stream.write(json.dumps(result) + "\n")
@@ -397,6 +485,13 @@ def run(arguments: argparse.Namespace) -> Path:
             summary = collect_summary(report, metadata, client.returncode or 0)
             summary["original_metrics"] = collect_original_metrics(output / "original-metrics.jsonl")
             summary["stages"] = stage_results
+            if metadata["full_unit_trace_comparison"] and verified_checksums > 0:
+                unit_comparison = compare(output, max_frame=last_verified_frame)
+                (output / "unit-differences.json").write_text(json.dumps(unit_comparison, indent=2), encoding="utf-8")
+                summary["unit_trace_comparison"] = {key: value for key, value in unit_comparison.items() if key != "first_difference_per_unit"}
+                team_comparison = compare_teams(output / "original-teams.csv", output / "godot.teams.tsv", last_verified_frame)
+                summary["team_trace_comparison"] = team_comparison
+                (output / "team-differences.json").write_text(json.dumps(team_comparison, indent=2), encoding="utf-8")
             summary["parity_status"] = "failed" if parity_failure is not None else ("passed" if stage_index == len(arguments.stages) else "incomplete")
             (output / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"Status={summary['status']} frame={summary['last_frame']} commands={summary['total_commands']}", flush=True)
@@ -432,6 +527,8 @@ def main() -> None:
     parser.add_argument("--duration", type=int, help="Run one fixed-duration gate instead of staged gates")
     parser.add_argument("--trace-interval", type=int, default=120)
     parser.add_argument("--trace-units", default="", help="Comma-separated unit IDs for high-frequency Godot tracing")
+    parser.add_argument("--original-trace", action="store_true", help="Capture stock unit states on the simulation thread at every frame end")
+    parser.add_argument("--weapon-catalog", action="store_true", help="Probe each stock unit turret once and record native projectile parameters; requires --original-trace")
     parser.add_argument("--metrics-interval", type=int, default=30)
     parser.add_argument("--startup-timeout", type=int, default=90)
     parser.add_argument("--room-timeout", type=int, default=45)
@@ -445,6 +542,8 @@ def main() -> None:
         parser.error("Stages must be strictly increasing positive seconds")
     if arguments.trace_interval <= 0 or arguments.metrics_interval <= 0:
         parser.error("Sampling intervals must be positive")
+    if arguments.weapon_catalog and not arguments.original_trace:
+        parser.error("--weapon-catalog requires --original-trace")
     try:
         print(f"Output: {run(arguments)}")
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
