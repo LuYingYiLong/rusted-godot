@@ -30,6 +30,7 @@ var _trail_elapsed_frames: float
 var _previous_wobble_offset: float
 var _altitude_reached_maximum: bool
 var _altitude_descending: bool
+var _spread_seed: int
 
 
 ## 按发射信息初始化弹体
@@ -38,7 +39,8 @@ func configure(
 	target: RwUnitState,
 	weapon: RwWeaponDefinition,
 	angle_degrees: float,
-	projectile_override: RwProjectileDefinition = null
+	projectile_override: RwProjectileDefinition = null,
+	spread_seed: int = -1,
 ) -> void:
 	owner_id = source.object_id
 	target_id = target.object_id
@@ -48,21 +50,35 @@ func configure(
 	team = source.team
 	definition = weapon.projectile if projectile_override == null else projectile_override
 	weapon_definition = weapon
-	random_seed = fposmod(float(source.object_id * 37 + target.object_id * 19), 360.0)
+	_spread_seed = spread_seed if spread_seed >= 0 else source.object_id * 37 + target.object_id * 19
+	random_seed = fposmod(float(_spread_seed), 360.0)
 	_initialize_motion(source, weapon, angle_degrees)
 
 
 ## 按地面目标初始化没有目标单位的弹体
-func configure_at(source: RwUnitState, position: Vector2, weapon: RwWeaponDefinition, angle_degrees: float) -> void:
+func configure_at(
+	source: RwUnitState,
+	position: Vector2,
+	weapon: RwWeaponDefinition,
+	angle_degrees: float,
+	projectile_override: RwProjectileDefinition = null,
+	target_altitude: float = 0.0,
+	spread_seed: int = -1,
+) -> void:
 	owner_id = source.object_id
 	target_id = -1
-	target_position = position
-	_last_target_position = position
-	_last_target_altitude = 0.0
-	team = source.team
-	definition = weapon.projectile
+	definition = weapon.projectile if projectile_override == null else projectile_override
 	weapon_definition = weapon
-	random_seed = fposmod(float(source.object_id * 37), 360.0)
+	_spread_seed = spread_seed if spread_seed >= 0 else source.object_id * 37 + int(round(position.x)) * 19 + int(round(position.y))
+	random_seed = fposmod(float(_spread_seed), 360.0)
+	target_position = position
+	if definition.target_ground_spread > 0.0:
+		target_position.x += _seeded_spread(definition.target_ground_spread, 1)
+		target_position.y += _seeded_spread(definition.target_ground_spread, 2)
+	_last_target_position = target_position
+	var resolved_target_altitude: float = target_altitude if definition.target_ground_include_target_height else 0.0
+	_last_target_altitude = resolved_target_altitude + definition.target_ground_height_offset
+	team = source.team
 	_initialize_motion(source, weapon, angle_degrees)
 
 
@@ -77,7 +93,7 @@ func advance_frame(target: RwUnitState, simulation_delta: float = 1.0) -> bool:
 		mark_target_lost()
 		if definition.detonate_on_target_loss:
 			return true
-	if target_lost and target == null and definition.remove_on_target_loss:
+	if target_lost and definition.remove_on_target_loss:
 		remove_requested = true
 		return false
 	elif target != null and target_id > 0:
@@ -90,8 +106,8 @@ func advance_frame(target: RwUnitState, simulation_delta: float = 1.0) -> bool:
 		return false
 	remaining_frames = maxf(remaining_frames - step, 0.0)
 	if definition.instant:
-		world_position = target.world_position if target != null else target_position
-		height = target.altitude if target != null else _last_target_altitude
+		world_position = target.world_position if target != null and not definition.target_ground else target_position
+		height = target.altitude if target != null and not definition.target_ground else _last_target_altitude
 		return true
 	var speed: float = velocity.length()
 	var aim_position: Vector2 = target_position
@@ -124,10 +140,21 @@ func advance_frame(target: RwUnitState, simulation_delta: float = 1.0) -> bool:
 			_altitude_descending = true
 		if _altitude_descending:
 			height = move_toward(height, target_altitude, ballistic_step)
-	elif elapsed_frames > definition.ballistic_delay_move_height:
+	else:
 		height += height_velocity * step
-		height_velocity -= definition.gravity_per_frame * step
-		height_velocity -= definition.true_gravity_per_frame * step
+		if height > 0.0:
+			height -= definition.gravity_per_frame * step
+			height_velocity -= definition.true_gravity_per_frame * step
+		var altitude_delta: float = target_altitude - height
+		if altitude_delta != 0.0:
+			var vertical_travel: float = speed * step
+			var horizontal_distance_squared: float = world_position.distance_squared_to(aim_position)
+			if horizontal_distance_squared > 0.1:
+				vertical_travel = minf(
+					absf(altitude_delta) / sqrt(horizontal_distance_squared) * vertical_travel,
+					vertical_travel,
+				)
+			height += signf(altitude_delta) * vertical_travel
 	native_target_height_delta = target_altitude - height
 	if definition.homing and (target_id > 0 or target_lost):
 		var offset: Vector2 = aim_position - world_position
@@ -146,6 +173,7 @@ func advance_frame(target: RwUnitState, simulation_delta: float = 1.0) -> bool:
 		velocity = velocity.normalized() * speed
 	var remaining_distance: float = world_position.distance_to(aim_position)
 	var travel_distance: float = speed * step
+	world_position += definition.initial_unguided_velocity * step
 	if move_horizontally:
 		if target_id > 0 and remaining_distance < travel_distance and not definition.native_target_collision_rules:
 			world_position = aim_position
@@ -229,14 +257,26 @@ func _initialize_motion(source: RwUnitState, weapon: RwWeaponDefinition, angle_d
 	var mount_offset: Vector2 = weapon.muzzle_offset.rotated(deg_to_rad(source.body_rotation_degrees))
 	world_position = source.world_position + mount_offset + direction * weapon.muzzle_distance
 	origin_position = world_position
-	velocity = direction * definition.speed_per_frame + definition.initial_velocity.rotated(deg_to_rad(angle_degrees))
+	var spread_speed: float = _seeded_spread(definition.speed_spread, 3) if definition.speed_spread > 0.0 else 0.0
+	var initial_speed: float = maxf(definition.speed_per_frame + spread_speed, 0.0)
+	velocity = direction * initial_speed + definition.initial_velocity.rotated(deg_to_rad(angle_degrees))
 	height_velocity = definition.initial_height_velocity
-	if definition.ballistic_height > 0.0 and definition.target_speed_per_frame > 0.0:
+	if height_velocity == 0.0 and definition.ballistic_height > 0.0 and definition.target_speed_per_frame > 0.0:
 		var flight_time: float = world_position.distance_to(target_position) / definition.target_speed_per_frame
 		height_velocity = 4.0 * definition.ballistic_height / maxf(flight_time, 1.0)
 	remaining_frames = definition.lifetime_frames
 	if not definition.trail_as_particles:
 		_append_trail_position(world_position, height)
+
+
+func _seeded_spread(spread: float, stream: int) -> float:
+	if spread <= 0.0:
+		return 0.0
+	var modulus: int = 2147483647
+	var value: int = posmod(_spread_seed * 48271 + stream * 69621, modulus)
+	value = posmod(value * 48271 + 1, modulus)
+	var unit_value: float = float(value) / float(modulus)
+	return (unit_value * 2.0 - 1.0) * spread
 
 
 func _append_trail_position(position: Vector2, trail_height: float) -> void:

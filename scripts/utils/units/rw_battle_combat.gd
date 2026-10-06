@@ -22,6 +22,7 @@ var _idle_sweep_runtime: Dictionary
 var _sorted_ids: Array[int]
 var _sorted_ids_dirty: bool = true
 var _simulation_delta: float = 1.0
+var _projectile_sequence: int
 
 
 ## 绑定地图单位与定义，并注册已有单位
@@ -32,6 +33,7 @@ func configure(unit_states: Dictionary, registry: RwUnitRegistry, players: Array
 	_weapon_runtime.clear()
 	_idle_sweep_runtime.clear()
 	projectiles.clear()
+	_projectile_sequence = 0
 	_sorted_ids_dirty = true
 	var unit_ids: Array[int] = _sorted_unit_ids()
 	for unit_id: int in unit_ids:
@@ -202,7 +204,14 @@ func advance_weapons(unit_state: RwUnitState, definition: RwUnitDefinition) -> v
 		var projectile_definition: RwProjectileDefinition = weapon.projectile_for_target(target)
 		var projectile: RwProjectileState
 		if projectile_definition.target_ground:
-			projectile = spawn_projectile_at(unit_state, target.world_position, weapon, next_angle)
+			projectile = spawn_projectile_at(
+				unit_state,
+				target.world_position,
+				weapon,
+				next_angle,
+				projectile_definition,
+				target.altitude,
+			)
 		else:
 			projectile = spawn_projectile(unit_state, target, weapon, next_angle, projectile_definition)
 		if projectile == null:
@@ -227,7 +236,7 @@ func spawn_projectile(
 	if source == null or source.is_dead or target == null or target.is_dead or weapon == null or weapon.projectile == null:
 		return null
 	var projectile: RwProjectileState = RwProjectileState.new()
-	projectile.configure(source, target, weapon, angle_degrees, projectile_override)
+	projectile.configure(source, target, weapon, angle_degrees, projectile_override, _next_projectile_seed())
 	projectiles.append(projectile)
 	projectile_fired.emit(projectile)
 	return projectile
@@ -238,15 +247,30 @@ func spawn_projectile_at(
 	source: RwUnitState,
 	target_position: Vector2,
 	weapon: RwWeaponDefinition,
-	angle_degrees: float
+	angle_degrees: float,
+	projectile_override: RwProjectileDefinition = null,
+	target_altitude: float = 0.0,
 ) -> RwProjectileState:
 	if source == null or source.is_dead or weapon == null or weapon.projectile == null:
 		return null
 	var projectile: RwProjectileState = RwProjectileState.new()
-	projectile.configure_at(source, target_position, weapon, angle_degrees)
+	projectile.configure_at(
+		source,
+		target_position,
+		weapon,
+		angle_degrees,
+		projectile_override,
+		target_altitude,
+		_next_projectile_seed(),
+	)
 	projectiles.append(projectile)
 	projectile_fired.emit(projectile)
 	return projectile
+
+
+func _next_projectile_seed() -> int:
+	_projectile_sequence += 1
+	return _projectile_sequence
 
 
 ## 对单位直接造成伤害并触发单位行为与死亡事件
@@ -534,22 +558,17 @@ func _find_projectile_retarget(
 
 func _resolve_impact(projectile: RwProjectileState, direct_target: RwUnitState) -> void:
 	var definition: RwProjectileDefinition = projectile.definition
+	if definition == null:
+		return
+	if not definition.target_ground and definition.damage > 0.0 and direct_target != null:
+		_damage_unit(direct_target, definition.damage, definition, projectile.world_position, projectile.velocity.angle())
 	var splash_radius: float = definition.splash_radius
 	var splash_damage: float = definition.splash_damage
-	if splash_radius > 0.0 and splash_damage <= 0.0:
-		splash_damage = definition.damage
-	elif definition.damage > 0.0:
-		if direct_target == null:
-			direct_target = _find_impact_target(projectile)
-		if direct_target != null:
-			_damage_unit(direct_target, definition.damage, definition, projectile.world_position, projectile.velocity.angle())
 	if splash_radius <= 0.0 or splash_damage <= 0.0:
 		return
 	for unit_id: int in _sorted_unit_ids():
 		var candidate: RwUnitState = _unit_states[unit_id] as RwUnitState
-		if candidate == null or candidate.is_dead:
-			continue
-		if not definition.friendly_fire and not _are_hostile(projectile.team, candidate.team):
+		if not _can_receive_splash(projectile, candidate, definition):
 			continue
 		var distance: float = candidate.world_position.distance_to(projectile.world_position)
 		if definition.area_radius_from_edge:
@@ -562,15 +581,30 @@ func _resolve_impact(projectile: RwProjectileState, direct_target: RwUnitState) 
 		_damage_unit(candidate, splash_damage * damage_factor, definition, projectile.world_position, projectile.velocity.angle())
 
 
-func _find_impact_target(projectile: RwProjectileState) -> RwUnitState:
-	for unit_id: int in _sorted_unit_ids():
-		var candidate: RwUnitState = _unit_states[unit_id] as RwUnitState
-		if candidate == null or candidate.is_dead or not _are_hostile(projectile.team, candidate.team):
-			continue
-		var hit_radius: float = candidate.collision_radius + projectile.definition.hit_radius
-		if candidate.world_position.distance_squared_to(projectile.world_position) <= hit_radius * hit_radius:
-			return candidate
-	return null
+func _can_receive_splash(
+	projectile: RwProjectileState,
+	candidate: RwUnitState,
+	definition: RwProjectileDefinition,
+) -> bool:
+	if candidate == null or candidate.is_dead:
+		return false
+	var hostile: bool = _are_hostile(projectile.team, candidate.team)
+	var same_player: bool = projectile.team == candidate.team
+	if definition.friendly_fire_mode == "only-ignore-enemy":
+		if hostile:
+			return false
+	elif not definition.friendly_fire and not hostile:
+		return false
+	elif definition.friendly_fire and not same_player and not hostile:
+		return false
+	if not definition.area_hit_air_and_land_at_same_time:
+		var impact_is_air: bool = projectile.height >= 5.0
+		if (candidate.movement_type == "AIR") != impact_is_air:
+			return false
+	var underwater: bool = candidate.submerged or candidate.altitude < -5.0
+	if underwater and projectile.height >= -2.0 and not definition.area_hit_underwater_always:
+		return false
+	return true
 
 
 func _damage_unit(
@@ -583,28 +617,41 @@ func _damage_unit(
 	if unit_state == null or unit_state.is_dead or amount <= 0.0:
 		return
 	var resolved_damage: float = amount
+	var projectile_shield_handled: bool
 	if projectile_definition != null:
 		if unit_state.is_building:
 			resolved_damage *= projectile_definition.building_damage_multiplier
 		if unit_state.movement_type == "AIR":
 			resolved_damage *= projectile_definition.air_damage_multiplier
-		if unit_state.shield > 0.0:
-			resolved_damage *= projectile_definition.shield_damage_multiplier
-			var shield_before: float = unit_state.shield
-			var shield_damage: float = resolved_damage * projectile_definition.target_damage_multiplier
+		if unit_state.build_progress < 1.0:
+			resolved_damage *= 1.75
+		var shield_before: float = unit_state.shield
+		if shield_before > 0.0:
+			projectile_shield_handled = true
+			var shield_damage: float = resolved_damage * projectile_definition.shield_damage_multiplier
 			unit_state.set_shield(maxf(shield_before - shield_damage, 0.0))
 			if shield_before < shield_damage:
-				resolved_damage -= shield_before * projectile_definition.splash_damage_multiplier
+				resolved_damage -= shield_before * projectile_definition.shield_deflection_multiplier
 			else:
-				resolved_damage *= 1.0 - projectile_definition.splash_damage_multiplier
-			resolved_damage *= projectile_definition.global_damage_multiplier
-		else:
-			resolved_damage *= projectile_definition.hull_damage_multiplier
-			resolved_damage *= projectile_definition.global_damage_multiplier
+				resolved_damage *= 1.0 - projectile_definition.shield_deflection_multiplier
+		resolved_damage *= projectile_definition.hull_damage_multiplier
+		resolved_damage *= projectile_definition.global_damage_multiplier
 		_apply_projectile_push(unit_state, projectile_definition, impact_position, impact_angle)
 	var definition: RwUnitDefinition = _registry.find_definition(unit_state.source_id, unit_state.unit_name)
 	var behavior: RwUnitBehavior = definition.behavior if definition != null else null
-	var actual_damage: float = maxf(behavior.filter_damage(unit_state, resolved_damage, self), 0.0) if behavior != null else resolved_damage
+	var filtered_damage: float = resolved_damage
+	if behavior != null:
+		if projectile_definition != null:
+			filtered_damage = behavior.filter_projectile_damage(
+				unit_state,
+				resolved_damage,
+				projectile_definition,
+				self,
+				projectile_shield_handled,
+			)
+		else:
+			filtered_damage = behavior.filter_damage(unit_state, resolved_damage, self)
+	var actual_damage: float = maxf(filtered_damage, 0.0)
 	var previous_health: float = unit_state.health
 	var was_destroyed: bool = unit_state.apply_damage(actual_damage)
 	if unit_state.health >= previous_health:

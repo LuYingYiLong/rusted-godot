@@ -1,12 +1,13 @@
 import java.lang.reflect.Method;
 
-/** 只读提取原版 1.15 单位枚举和各科技等级的生产动作 */
+/** 只读提取原版 1.15 单位枚举、生产动作 ID 和生产数据 */
 public final class Rw115ProductionProbe {
 	private Rw115ProductionProbe() {}
 
-	/** 输出原版单位数据和单精度生产完成帧数 */
+	/** 输出原版单位、动作 ID 和单精度生产完成帧数 */
 	public static void main(String[] args) throws Exception {
 		Class<?> unitTypeClass = Class.forName("com.corrodinggames.rts.game.units.ar");
+		Method getProductionName = unitTypeClass.getMethod("v");
 		Method getCost = unitTypeClass.getMethod("c");
 		Method getProductionRate = unitTypeClass.getMethod("D");
 
@@ -20,6 +21,12 @@ public final class Rw115ProductionProbe {
 				unitType.getClass().getName(),
 				getCost.invoke(unitType),
 				rate
+			);
+			String productionName = (String) getProductionName.invoke(unitType);
+			System.out.printf(
+				"ACTION\t%s\t%s%n",
+				unitEnum.name(),
+				"u_" + productionName
 			);
 			float progress = 0.0f;
 			int completionFrames = 0;

@@ -11,19 +11,28 @@ func _run() -> void:
 	var failures: Array[String] = []
 	_check_action(registry, "vanilla", "commandCenter", "builder", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_builder", failures)
 	_check_native_production_values(_find_action(registry.find_definition("vanilla", "commandCenter"), "builder"), "builder", failures)
-	_check_action(registry, "vanilla", "landFactory", "c_tank", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_tank", failures)
+	_check_action(registry, "vanilla", "landFactory", "c_tank", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_c_tank", failures)
 	_check_action(registry, "vanilla", "airFactory", "dropship", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_dropship", failures)
+	_check_action(registry, "vanilla", "experimentalLandFactory", "c_experimentalTank", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_c_experimentalTank", failures)
 	_check_action(registry, "vanilla", "builder", "landFactory", RwUnitActionDefinition.Kind.PLACE_BUILDING, "", failures)
 	_check_action(registry, "custom", "mechFactory", "mechGun", RwUnitActionDefinition.Kind.QUEUE_UNIT, "u_mechGun", failures)
 	if (
-		RwVanillaUnitCatalog.native_action_id("extractor") != "u_extractor"
-		or RwVanillaUnitCatalog.native_action_id("builder") != "u_builder"
-		or RwVanillaUnitCatalog.native_action_id("c_tank") != "u_tank"
-		or RwVanillaUnitCatalog.native_action_id("c_helicopter") != "u_helicopter"
-		or RwVanillaUnitCatalog.native_action_id("dropship") != "u_dropship"
-		or RwVanillaUnitCatalog.native_action_id("mechGun") != "u_mechGun"
+		RwVanillaUnitCatalog.production_action_id("extractor") != "u_extractor"
+		or RwVanillaUnitCatalog.production_action_id("builder") != "u_builder"
+		or RwVanillaUnitCatalog.production_action_id("c_tank") != "u_c_tank"
+		or RwVanillaUnitCatalog.production_action_id("c_helicopter") != "u_c_helicopter"
+		or RwVanillaUnitCatalog.production_action_id("dropship") != "u_dropship"
+		or RwVanillaUnitCatalog.production_action_id("mechGun") != "u_mechGun"
 	):
-		failures.append("Native production action IDs do not match the 1.15 unit enum")
+		failures.append("Production action IDs do not match the final unit type name")
+	for native_name: String in RwVanillaUnitCatalog.NATIVE_TYPES:
+		var expected_network_id: String = str(RwVanillaUnitCatalog.STOCK_NATIVE_ACTION_IDS.get(native_name, ""))
+		if expected_network_id != "u_%s" % native_name or RwVanillaUnitCatalog.production_action_id(native_name) != expected_network_id:
+			failures.append("Stock action ID catalog does not match runtime enum name: %s" % native_name)
+	for native_name: String in RwVanillaUnitCatalog.NATIVE_REPLACEMENTS:
+		var replacement_name: String = str(RwVanillaUnitCatalog.NATIVE_REPLACEMENTS[native_name])
+		if RwVanillaUnitCatalog.production_action_id(replacement_name) != "u_%s" % replacement_name:
+			failures.append("Replacement production action ID does not use replacement name: %s" % replacement_name)
 	_check_action(registry, "custom", "extractorT1", "convert:upgradet2", RwUnitActionDefinition.Kind.CONVERT_UNIT, "extractorT2_0", failures)
 	_check_action(registry, "custom", "mechFactory", "convert:upgrade", RwUnitActionDefinition.Kind.CONVERT_UNIT, "mechFactoryT2_2", failures)
 	_check_action(registry, "custom", "nukeLauncherC", "resource:buildnuke", RwUnitActionDefinition.Kind.QUEUE_RESOURCE, "_0", failures)
@@ -35,13 +44,13 @@ func _run() -> void:
 	]
 	var expected_land_factory_action_ids: Dictionary = {
 		"builder": "u_builder",
-		"tank": "u_tank",
+		"tank": "u_c_tank",
 		"hoverTank": "u_hoverTank",
-		"artillery": "u_artillery",
+		"artillery": "u_c_artillery",
 		"hovercraft": "u_hovercraft",
 		"heavyTank": "u_heavyTank",
 		"heavyHoverTank": "u_heavyHoverTank",
-		"laserTank": "u_laserTank",
+		"laserTank": "u_c_laserTank",
 	}
 	var expected_native_types: Dictionary = {
 		"builder": "builder",
@@ -54,13 +63,23 @@ func _run() -> void:
 		"laserTank": "laserTank",
 	}
 	var expected_factory_menus: Dictionary = {
+		"commandCenter": ["builder", "scout",],
+		"landFactory": ["builder", "c_tank", "hoverTank", "c_artillery", "hovercraft", "heavyTank", "heavyHoverTank", "c_laserTank", "c_mammothTank", "combatEngineer", "heavyArtillery", "missileTank", "plasmaTank", "scout",],
+		"airFactory": ["dropship", "gunShip", "amphibiousJet", "aaBeamGunship", "bomber", "c_helicopter", "c_interceptor", "heavyInterceptor", "lightGunship", "missileAirship", "spyDrone",],
+		"seaFactory": ["builderShip", "gunBoat", "missileShip", "hovercraft", "battleShip", "attackSubmarine", "experiementalCarrier", "heavyAAShip", "heavyBattleship", "heavyMissileShip", "heavySub", "lightSub", "nautilusSubmarine",],
+		"experimentalLandFactory": ["c_experimentalTank", "experimentalHoverTank", "combatEngineer", "experimentalDropship", "experimentalSpider", "fireBee", "nautilusSubmarineLand",],
+	}
+	_check_vanilla_factory_menus(registry, expected_factory_menus, failures)
+	_check_builtin_factory_action_ids(registry, failures)
+	var native_only_registry: RwUnitRegistry = RwVanillaUnitDefinitions.create_registry(false)
+	var native_only_factory_menus: Dictionary = {
 		"commandCenter": ["builder",],
 		"landFactory": ["builder", "c_tank", "hoverTank", "c_artillery", "hovercraft", "heavyTank", "heavyHoverTank", "c_laserTank",],
 		"airFactory": ["dropship", "gunShip", "amphibiousJet",],
 		"seaFactory": ["builderShip", "gunBoat", "missileShip", "hovercraft", "battleShip", "attackSubmarine",],
 		"experimentalLandFactory": ["c_experimentalTank", "experimentalHoverTank",],
 	}
-	_check_vanilla_factory_menus(registry, expected_factory_menus, failures)
+	_check_vanilla_factory_menus(native_only_registry, native_only_factory_menus, failures)
 	for unit_name: String in expected_land_factory_units:
 		var native_action: RwUnitActionDefinition = _find_action(land_factory, RwVanillaUnitCatalog.native_replacement(unit_name))
 		if native_action == null:
@@ -82,17 +101,17 @@ func _run() -> void:
 		if (
 			not str(action_result.get("error", "")).is_empty()
 			or action_command.is_empty()
-			or str(action_command.get("action_id", "")) != "u_tank"
+			or str(action_command.get("action_id", "")) != "u_c_tank"
 			or int(action_command.get("team", -1)) != 1
 			or int(action_command.get("source_team", -1)) != 1
 			or action_command.get("unit_ids", []) != [42,]
-			or bool(action_command.get("stop_current_action", true))
+			or bool(action_command.get("is_action_cancelled", true))
 			or bool(action_command.get("is_instant_command", true))
 			or int(action_command.get("allowed_team_mask", -1)) != 0
 		):
 			failures.append("Land factory replacement tank does not use the recorded vanilla action ID")
-	if tank_action == null or tank_action.target_unit_name != "c_tank" or tank_action.network_action_id != "u_tank":
-		failures.append("Land factory replacement tank is not mapped to the original tank action")
+	if tank_action == null or tank_action.target_unit_name != "c_tank" or tank_action.network_action_id != "u_c_tank":
+		failures.append("Land factory replacement tank does not use the replacement action ID")
 	var nuke_launcher: RwUnitDefinition = registry.find_definition("custom", "nukeLauncherC")
 	var nuke_ammo: RwUnitActionDefinition = _find_action(nuke_launcher, "resource:buildnuke")
 	if nuke_ammo == null or nuke_ammo.max_stockpile != 4 or float(nuke_ammo.resource_delta.get("ammo", 0.0)) != 1.0:
@@ -169,7 +188,7 @@ func _check_action_packet(action: RwUnitActionDefinition, expected_action_id: St
 		or int(command.get("team", -1)) != 1
 		or int(command.get("source_team", -1)) != 1
 		or command.get("unit_ids", []) != [42,]
-		or bool(command.get("stop_current_action", true))
+		or bool(command.get("is_action_cancelled", true))
 		or bool(command.get("is_instant_command", true))
 		or int(command.get("allowed_team_mask", -1)) != 0
 	):
@@ -191,6 +210,25 @@ func _check_vanilla_factory_menus(registry: RwUnitRegistry, expected_menus: Dict
 		expected_actions.sort()
 		if actual_actions != expected_actions:
 			failures.append("Vanilla %s production menu differs from the 1.15 menu: %s" % [producer_name, actual_actions])
+
+
+func _check_builtin_factory_action_ids(registry: RwUnitRegistry, failures: Array[String]) -> void:
+	for unit_name: String in RwBuiltinActionSpecs.SPECS:
+		var action_spec: Dictionary = RwBuiltinActionSpecs.SPECS[unit_name]
+		for relation: Dictionary in action_spec.get("built_from", []):
+			var requested_producer_name: String = str(relation.get("producer", ""))
+			var producer_name: String
+			for native_producer_name: String in RwVanillaProductionActions.NATIVE_PRODUCTION:
+				if native_producer_name.to_lower() == requested_producer_name.to_lower():
+					producer_name = native_producer_name
+					break
+			if producer_name.is_empty():
+				continue
+			var producer: RwUnitDefinition = registry.find_definition("vanilla", producer_name)
+			var action: RwUnitActionDefinition = _find_action(producer, unit_name)
+			var expected_action_id: String = RwVanillaUnitCatalog.production_action_id(unit_name)
+			if action == null or action.network_action_id != expected_action_id:
+				failures.append("Built-in factory production action is missing or has a wrong ID: %s:%s -> %s" % [producer_name, unit_name, expected_action_id])
 
 
 func _check_native_production_values(action: RwUnitActionDefinition, native_name: String, failures: Array[String]) -> void:

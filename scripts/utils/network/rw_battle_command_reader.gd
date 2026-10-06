@@ -98,7 +98,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 	if stream.get_available_bytes() < 16:
 		return {"error": "Command selection is incomplete",}
 	var is_queued: bool = stream.get_u8() != 0
-	var stop_current_action: bool = stream.get_u8() != 0
+	var is_action_cancelled: bool = stream.get_u8() != 0
 	stream.get_32()
 	var attack_mode: int = stream.get_32()
 	var rally_point: Variant
@@ -170,7 +170,7 @@ static func _read_command(data: PackedByteArray) -> Dictionary:
 		"custom_build_unit_name": custom_build_unit_name,
 		"action_id": action_id,
 		"is_queued": is_queued,
-		"stop_current_action": stop_current_action,
+		"is_action_cancelled": is_action_cancelled,
 		"target": target,
 		"target_id": target_id,
 		"build_queue_size": build_queue_size,

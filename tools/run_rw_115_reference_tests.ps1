@@ -40,13 +40,18 @@ $results.Add([pscustomobject]@{
 Write-Output "native_catalog_115: $(if ($catalogPassed) { 'passed' } else { 'failed' })"
 
 $productionReferenceOutput = & $python (Join-Path $PSScriptRoot 'verify_rw_115_production.py') `
-    --source-root $SourceRoot --game-jar $GameJar --java $JavaExecutable 2>&1 | Out-String
+	--source-root $SourceRoot --game-jar $GameJar `
+	--assets-root (Join-Path (Split-Path $GameJar -Parent) 'assets\units') `
+	--java $JavaExecutable 2>&1 | Out-String
 $productionReferenceExit = $LASTEXITCODE
 $productionReferenceLog = Join-Path $ReportDirectory 'production_reference.log'
 Set-Content -LiteralPath $productionReferenceLog -Value $productionReferenceOutput -Encoding utf8
 $productionReferencePassed = $productionReferenceExit -eq 0 -and
     $productionReferenceOutput.Contains('RW_115_PRODUCTION_SOURCE_OK') -and
-    $productionReferenceOutput.Contains('RW_115_PRODUCTION_BINARY_OK')
+    $productionReferenceOutput.Contains('RW_115_PRODUCTION_BINARY_OK') -and
+	$productionReferenceOutput.Contains('RW_115_PRODUCTION_PROJECT_IDS_OK') -and
+	$productionReferenceOutput.Contains('RW_115_PRODUCTION_REPLACEMENTS_OK')
+$productionAliasMapping = $productionReferenceOutput.Contains('RW_115_PRODUCTION_SOURCE_ALIAS_MAP')
 $results.Add([pscustomobject]@{
     name = 'production_reference_115'
     evidence = 'original_115_source_and_stock_binary'
@@ -55,6 +60,15 @@ $results.Add([pscustomobject]@{
     log = $productionReferenceLog
 })
 Write-Output "production_reference_115: $(if ($productionReferencePassed) { 'passed' } else { 'failed' })"
+$results.Add([pscustomobject]@{
+    name = 'production_source_binary_obfuscation'
+    evidence = 'decompiled_source_aliases_mapped_to_stock_runtime_action_ids'
+    status = $(if ($productionReferencePassed) { 'passed' } else { 'failed' })
+    source_alias_mapping_detected = $productionAliasMapping
+    exit_code = $productionReferenceExit
+    log = $productionReferenceLog
+})
+Write-Output "production_source_binary_obfuscation: $(if (-not $productionReferencePassed) { 'failed' } elseif ($productionAliasMapping) { 'passed (aliases mapped)' } else { 'passed' })"
 
 $collisionSourceOutput = & $python (Join-Path $PSScriptRoot 'verify_rw_115_collision_source.py') `
     --source-root $SourceRoot 2>&1 | Out-String
@@ -90,7 +104,9 @@ $cases = @(
     @{ name = 'vanilla_unit_catalog'; script = 'tests/rw_vanilla_unit_catalog_test.gd'; marker = 'RW vanilla unit catalog:'; evidence = 'local_regression' },
     @{ name = 'factory_exit_115'; script = 'tests/rw_factory_exit_reference_test.gd'; marker = 'Factory exit reference passed:'; evidence = 'original_115_fixture' },
     @{ name = 'build_range_115'; script = 'tests/rw_build_range_reference_test.gd'; marker = 'BUILD_RANGE_REFERENCE_CHECK_OK'; evidence = 'original_115_fixture' },
+    @{ name = 'build_snap_115'; script = 'tests/rw_115_build_snap_test.gd'; marker = 'RW_115_BUILD_SNAP_OK'; evidence = 'original_115_fixture' },
     @{ name = 'command_reader'; script = 'tests/rw_battle_command_reader_test.gd'; marker = 'COMMAND_READER_CHECK_OK'; evidence = 'synthetic_protocol_regression' },
+    @{ name = 'shared_build_scene'; script = 'tests/rw_shared_build_scene_test.gd'; marker = 'SHARED_BUILD_SCENE_CHECK_OK'; evidence = 'network_command_to_factory_queue_end_to_end' },
     @{ name = 'movement_grid'; script = 'tests/rw_movement_type_grid_test.gd'; marker = 'MOVEMENT_TYPE_GRID_OK'; evidence = 'local_regression' },
     @{ name = 'production_actions'; script = 'tests/rw_vanilla_production_test.gd'; marker = 'RW production:'; evidence = 'local_regression_with_115_reference_gate' },
     @{ name = 'production_queue'; script = 'tests/rw_production_queue_test.gd'; marker = 'RW production queue:'; evidence = 'local_regression_with_115_stock_rates' },
@@ -101,27 +117,23 @@ $cases = @(
 foreach ($case in $cases) {
     $stdoutPath = Join-Path $ReportDirectory "$($case.name).stdout.log"
     $stderrPath = Join-Path $ReportDirectory "$($case.name).stderr.log"
-    $arguments = @('--headless', '--quit-after', '600', '--path', "`"$projectRoot`"", '--script', $case.script)
-    $process = Start-Process -FilePath $GodotExecutable -ArgumentList $arguments `
-        -WorkingDirectory $projectRoot -WindowStyle Hidden `
-        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
-    $finished = $process.WaitForExit(30000)
-    if (-not $finished) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    }
-    $process.Refresh()
-    $stdout = [string](Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue)
-    $stderr = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-    $passed = $finished -and $process.ExitCode -eq 0 -and $stdout.Contains($case.marker) -and
-        $stdout -notmatch 'SCRIPT ERROR|Parse Error|Assertion failed' -and
-        $stderr -notmatch 'SCRIPT ERROR|Parse Error|Assertion failed'
-    $knownGap = $case.ContainsKey('gap_marker') -and $stderr.Contains($case.gap_marker)
-    $status = if ($passed) { 'passed' } elseif ($knownGap) { 'known_gap' } elseif (-not $finished) { 'timeout' } else { 'failed' }
+    $arguments = @('--headless', '--quit-after', '600', '--path', $projectRoot, '--script', $case.script)
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $stdout = & $GodotExecutable @arguments 2>&1 | Out-String
+    $godotExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Set-Content -LiteralPath $stdoutPath -Value $stdout -Encoding utf8
+    Set-Content -LiteralPath $stderrPath -Value '' -Encoding utf8
+    $passed = $godotExitCode -eq 0 -and $stdout.Contains($case.marker) -and
+        $stdout -notmatch 'SCRIPT ERROR|Parse Error|Assertion failed'
+    $knownGap = $case.ContainsKey('gap_marker') -and $stdout.Contains($case.gap_marker)
+    $status = if ($passed) { 'passed' } elseif ($knownGap) { 'known_gap' } else { 'failed' }
     $results.Add([pscustomobject]@{
         name = $case.name
         evidence = $case.evidence
         status = $status
-        exit_code = $(if ($finished) { $process.ExitCode } else { -1 })
+        exit_code = $godotExitCode
         stdout = $stdoutPath
         stderr = $stderrPath
     })

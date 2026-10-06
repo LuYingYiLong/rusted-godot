@@ -58,7 +58,7 @@ func _run() -> void:
 	assert(is_equal_approx(command_center.production_progress, 0.0))
 	map.call("_on_battle_frame_advanced", 1450, 1450)
 	assert(command_center.production_progress > 0.0)
-	production_command["stop_current_action"] = true
+	production_command["is_action_cancelled"] = true
 	map.call("_on_battle_commands_reached", 1450, production_commands)
 	assert(command_center.production_progress < 0.0)
 	var unit_registry: RwUnitRegistry = map.get("_unit_registry") as RwUnitRegistry
@@ -84,7 +84,32 @@ func _run() -> void:
 	}
 	map.call("_apply_build_command", turret_command)
 	var build_sites: Array = map.get("_build_sites")
-	assert((build_sites.back() as Dictionary)["position"] == Vector2(960.0, 440.0))
+	var turret_build_position: Vector2 = (build_sites.back() as Dictionary)["position"]
+	assert(turret_build_position == Vector2(940.0, 440.0), "Unexpected turret build position: %s" % turret_build_position)
+	var factory_definition: RwUnitDefinition = unit_registry.find_definition("vanilla", "landFactory")
+	var factory: RwUnitState = RwUnitState.new()
+	factory.initialize_from_spawn({
+		"object_id": 9000,
+		"source_id": "vanilla",
+		"unit_name": "landFactory",
+		"team": "1",
+		"position": Vector2(500.0, 500.0),
+	}, factory_definition)
+	units[9000] = factory
+	var production_frame: StreamPeerBuffer = RwBinary.writer()
+	production_frame.put_32(1500)
+	production_frame.put_32(1)
+	production_frame.put_data(RwBattleCommandWriter.write_action(1, [9000,], "u_c_tank"))
+	var production_result: Dictionary = RwBattleCommandReader.read_frame_packet(production_frame.data_array)
+	assert(str(production_result.get("error", "")).is_empty())
+	var factory_production_commands: Array[Dictionary] = production_result["commands"]
+	assert(str(factory_production_commands[0].get("action_id", "")) == "u_c_tank")
+	map.call("_on_battle_commands_reached", 1500, factory_production_commands)
+	var production_queues: Dictionary = map.get("_production_queues")
+	var production_queue: RwProductionQueue = production_queues.get(9000) as RwProductionQueue
+	assert(production_queue != null and production_queue.items.size() == 1)
+	assert(production_queue.items[0].target_unit_name == "c_tank")
+	assert(production_queue.items[0].network_action_id == "u_c_tank")
 	print("SHARED_BUILD_SCENE_CHECK_OK")
 	map.free()
 	quit()

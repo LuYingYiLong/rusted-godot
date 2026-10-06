@@ -97,7 +97,9 @@ def source_factory_actions(source: str, aliases: dict[str, str]) -> list[str]:
 	return result
 
 
-def stock_binary_specs(game_jar: Path, java: str) -> tuple[dict[str, tuple[float, float, int]], str]:
+def stock_binary_specs(
+	game_jar: Path, java: str
+) -> tuple[dict[str, tuple[float, float, int]], dict[str, str], str]:
 	digest = hashlib.sha256(game_jar.read_bytes()).hexdigest()
 	if not digest.startswith(EXPECTED_STOCK_SHA256_PREFIX):
 		raise ValueError(f"Game jar is not the documented 1.15 stock build: {digest}")
@@ -111,17 +113,24 @@ def stock_binary_specs(game_jar: Path, java: str) -> tuple[dict[str, tuple[float
 	)
 	rows = re.findall(r"^UNIT\t(\d+)\t([^\t]+)\t[^\t]+\t([^\t]+)\t([^\t]+)$", completed.stdout, re.MULTILINE)
 	frame_rows = re.findall(r"^FRAMES\t([^\t]+)\t(\d+)$", completed.stdout, re.MULTILINE)
+	action_rows = re.findall(r"^ACTION\t([^\t]+)\t([^\t]+)$", completed.stdout, re.MULTILINE)
 	if len(rows) != 52:
 		raise ValueError(f"Expected 52 stock enum rows, received {len(rows)}")
 	if len(frame_rows) != 52:
 		raise ValueError(f"Expected 52 stock completion frame rows, received {len(frame_rows)}")
+	if len(action_rows) != 52:
+		raise ValueError(f"Expected 52 binary production action IDs, received {len(action_rows)}")
+	for native_name, action_id in action_rows:
+		if action_id != f"u_{native_name}":
+			raise ValueError(f"Stock binary action ID differs for {native_name}: {action_id}")
+	production_action_ids = {native_name: action_id for native_name, action_id in action_rows}
 	completion_frames: dict[str, int] = {name: int(frames) for name, frames in frame_rows}
 	specs: dict[str, tuple[float, float, int]] = {}
 	for expected_ordinal, (ordinal, name, cost, rate) in enumerate(rows):
 		if int(ordinal) != expected_ordinal:
 			raise ValueError(f"Unexpected binary ordinal for {name}: {ordinal} != {expected_ordinal}")
 		specs[name] = (float(cost), float(rate), completion_frames[name])
-	return specs, digest
+	return specs, production_action_ids, digest
 
 
 def parse_specs(source: str) -> dict[str, tuple[float, float]]:
@@ -158,21 +167,50 @@ def parse_factory_actions(source: str, producer_name: str) -> list[tuple[str, in
 	]
 
 
-def parse_native_action_id(name: str, catalog_source: str, enum_names: list[str]) -> str:
-	method = re.search(r"static func native_action_id\(name: String\) -> String:(.*?)(?=\n\nstatic func |\Z)", catalog_source, re.DOTALL)
-	if method is None:
-		raise ValueError("Could not locate project native_action_id implementation")
-	if 'return "u_%s" % resolved_native_name' not in method.group(1):
-		raise ValueError("Project native_action_id does not use the full native enum name")
-	if name not in enum_names:
-		raise ValueError(f"Factory action references a non-native production unit: {name}")
-	return f"u_{name}"
+def parse_project_action_ids(catalog_source: str) -> dict[str, str]:
+	declaration = catalog_source.split("const STOCK_NATIVE_ACTION_IDS: Dictionary = {", 1)
+	if len(declaration) != 2:
+		raise ValueError("Could not locate the project's stock action ID catalog")
+	rows = re.findall(r'^\s*"([^"]+)": "([^"]+)",$', declaration[1].split("\n}", 1)[0], re.MULTILINE)
+	return dict(rows)
+
+
+def parse_project_replacements(catalog_source: str) -> dict[str, str]:
+	declaration = catalog_source.split("const NATIVE_REPLACEMENTS: Dictionary = {", 1)
+	if len(declaration) != 2:
+		raise ValueError("Could not locate the project's native replacement catalog")
+	rows = re.findall(r'^\s*"([^"]+)": "([^"]+)",$', declaration[1].split("\n}", 1)[0], re.MULTILINE)
+	return dict(rows)
+
+
+def stock_replacements(assets_root: Path) -> dict[str, str]:
+	if not assets_root.is_dir():
+		raise FileNotFoundError(f"Missing stock unit assets: {assets_root}")
+	replacements: dict[str, str] = {}
+	for path in sorted(assets_root.rglob("*.ini")):
+		text = path.read_text(encoding="utf-8", errors="replace")
+		name_match = re.search(r"(?im)^\s*name\s*:\s*(\S+)", text)
+		replacement_match = re.search(r"(?im)^\s*overrideAndReplace\s*:\s*(\S+)", text)
+		if name_match is None or replacement_match is None:
+			continue
+		native_name = replacement_match.group(1)
+		if native_name.upper() == "NONE":
+			continue
+		custom_name = name_match.group(1)
+		previous_name: str = replacements.get(native_name, "")
+		if previous_name and previous_name != custom_name:
+			raise ValueError(f"Conflicting stock replacements for {native_name}: {previous_name} and {custom_name}")
+		replacements[native_name] = custom_name
+	if not replacements:
+		raise ValueError(f"No stock overrideAndReplace entries found in {assets_root}")
+	return replacements
 
 
 def main() -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument("--source-root", required=True, type=Path)
 	parser.add_argument("--game-jar", required=True, type=Path)
+	parser.add_argument("--assets-root", required=True, type=Path)
 	parser.add_argument("--java", required=True)
 	args = parser.parse_args()
 	try:
@@ -188,7 +226,9 @@ def main() -> int:
 			if source_actions != [name for name, _ in expected_actions]:
 				raise ValueError(f"Unexpected 1.15 {producer_name} action list: {source_actions}")
 		if 'super("u_" + var1.v())' not in action_source:
-			raise ValueError("Original production action does not use u_ + native name")
+			raise ValueError("Original production action does not initialize from the requested type name")
+		if 'this.a("u_" + var3.v())' not in action_source:
+			raise ValueError("Original production action does not replace its ID with the resolved replacement type")
 		if not re.search(r"public String v\(\)\s*\{\s*return this\.name\(\);", enum_source):
 			raise ValueError("Original native type v() does not return Enum.name()")
 		if not re.search(r"public float e;", queue_source) or "this.e += var3;" not in queue_source or "if(this.e >= 1.0F)" not in queue_source:
@@ -201,14 +241,42 @@ def main() -> int:
 			if runtime_actions != expected_actions:
 				raise ValueError(f"Project {producer_name} menu differs from 1.15 source: {runtime_actions}")
 		catalog_source = CATALOG_PATH.read_text(encoding="utf-8")
-		for actions in EXPECTED_FACTORY_ACTIONS.values():
-			for native_name, _ in actions:
-				action_id = parse_native_action_id(native_name, catalog_source, enum_names)
-				if action_id != f"u_{native_name}":
-					raise ValueError(f"Incorrect native action ID for {native_name}: {action_id}")
-		binary_specs, digest = stock_binary_specs(args.game_jar, args.java)
+		project_action_ids = parse_project_action_ids(catalog_source)
+		project_replacements = parse_project_replacements(catalog_source)
+		binary_replacements = stock_replacements(args.assets_root)
+		binary_specs, binary_action_ids, digest = stock_binary_specs(args.game_jar, args.java)
 		if list(binary_specs) != enum_names:
 			raise ValueError("Stock binary enum differs from the 1.15 source enum")
+		if set(project_action_ids) != set(enum_names):
+			missing = sorted(set(enum_names) - set(project_action_ids))
+			extra = sorted(set(project_action_ids) - set(enum_names))
+			raise ValueError(f"Project stock action ID catalog differs from the binary enum; missing={missing}, extra={extra}")
+		for native_name, action_id in binary_action_ids.items():
+			if project_action_ids[native_name] != action_id:
+				raise ValueError(f"Project stock action ID differs for {native_name}: project={project_action_ids[native_name]} binary={action_id}")
+		if project_replacements != binary_replacements:
+			missing = sorted(set(binary_replacements) - set(project_replacements))
+			extra = sorted(set(project_replacements) - set(binary_replacements))
+			wrong = {
+				native_name: (project_replacements[native_name], binary_replacements[native_name])
+				for native_name in set(project_replacements) & set(binary_replacements)
+				if project_replacements[native_name] != binary_replacements[native_name]
+			}
+			raise ValueError(f"Native replacement catalog differs from stock unit INIs: missing={missing}, extra={extra}, wrong={wrong}")
+		factory_unit_names = {
+			native_name
+			for actions in EXPECTED_FACTORY_ACTIONS.values()
+			for native_name, _ in actions
+		}
+		source_action_ids = {
+			native_name: f"u_{alias}"
+			for alias, native_name in aliases.items()
+		}
+		source_binary_action_mismatches = {
+			native_name: (source_action_ids[native_name], binary_action_ids[native_name])
+			for native_name in factory_unit_names
+			if source_action_ids[native_name] != binary_action_ids[native_name]
+		}
 		project_specs = parse_specs(SPECS_PATH.read_text(encoding="utf-8"))
 		if set(project_specs) != set(binary_specs):
 			missing = sorted(set(binary_specs) - set(project_specs))
@@ -226,8 +294,16 @@ def main() -> int:
 		print(f"RW_115_PRODUCTION_ERROR {error}")
 		return 1
 
-	print(f"RW_115_PRODUCTION_SOURCE_OK factory_menus={len(EXPECTED_FACTORY_ACTIONS)} action_ids=name_based")
-	print(f"RW_115_PRODUCTION_BINARY_OK native_specs={len(binary_specs)} sha256={digest}")
+	print(f"RW_115_PRODUCTION_SOURCE_OK factory_menus={len(EXPECTED_FACTORY_ACTIONS)} enum_identifiers=decompiled_aliases")
+	print(f"RW_115_PRODUCTION_BINARY_OK native_specs={len(binary_specs)} native_enum_ids=stock_runtime_enum_names sha256={digest}")
+	print(f"RW_115_PRODUCTION_PROJECT_IDS_OK native_types={len(project_action_ids)} factory_types={len(factory_unit_names)} source_action_class=UnitBuildAction replacement_ids=resolved_type_names")
+	print(f"RW_115_PRODUCTION_REPLACEMENTS_OK mappings={len(project_replacements)} source=stock_unit_ini_overrideAndReplace")
+	if source_binary_action_mismatches:
+		mismatch_text = ",".join(
+			f"{name}:{source_id}->{binary_id}"
+			for name, (source_id, binary_id) in sorted(source_binary_action_mismatches.items())
+		)
+		print(f"RW_115_PRODUCTION_SOURCE_ALIAS_MAP {mismatch_text}")
 	return 0
 
 

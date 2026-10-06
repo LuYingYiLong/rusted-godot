@@ -21,8 +21,8 @@ static func register_native_weapons(registry: RwUnitRegistry) -> void:
 ## 为坦克配置普通炮弹和自动攻击行为
 static func configure_tank(definition: RwUnitDefinition) -> void:
 	var projectile: RwProjectileDefinition = RwProjectileDefinition.new()
-	projectile.damage = 30.0
-	projectile.speed_per_frame = 3.0
+	projectile.damage = 25.0
+	projectile.speed_per_frame = 5.0
 	projectile.texture_name = "projectiles.png"
 	projectile.texture_region = Rect2i(20, 0, 20, 20)
 	projectile.texture_rotation_offset_degrees = 90.0
@@ -33,7 +33,7 @@ static func configure_tank(definition: RwUnitDefinition) -> void:
 	weapon.attack_range = 130.0
 	weapon.reload_frames = 75
 	weapon.turn_speed_degrees = 4.0
-	weapon.muzzle_distance = 13.0
+	weapon.muzzle_distance = 0.0
 	weapon.can_target_water = true
 	definition.combat_weapons = [weapon,]
 	definition.behavior = RwAutoAttackBehavior.new()
@@ -227,8 +227,8 @@ static func _configure_amphibious_jet(definition: RwUnitDefinition) -> void:
 	projectile.render_jitter = true
 	projectile.small_explosion = false
 	projectile.building_damage_multiplier = 0.5
-	projectile.target_damage_multiplier = 1.0
-	projectile.splash_damage_multiplier = 0.1
+	projectile.shield_damage_multiplier = 1.0
+	projectile.shield_deflection_multiplier = 0.1
 	var weapon: RwWeaponDefinition = _create_native_weapon(projectile, 170.0, 110, 4.0, 0.0)
 	weapon.surface_attack_range = 170.0
 	weapon.submerged_attack_range = 100.0
@@ -321,7 +321,7 @@ static func configure_command_center(definition: RwUnitDefinition) -> void:
 	projectile.native_target_collision_rules = true
 	projectile.native_altitude_collision_rules = true
 	projectile.retarget_on_target_loss = true
-	projectile.remove_on_target_loss = true
+	projectile.remove_on_target_loss = false
 	projectile.target_loss_retarget_range = 120.0
 	projectile.target_loss_retarget_lead_distance = 15.0
 	projectile.lead_target = false

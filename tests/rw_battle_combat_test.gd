@@ -24,6 +24,7 @@ func _run() -> void:
 	assert(_deaths > 0, "Damage must destroy units")
 	_test_turret()
 	_test_ground_projectile()
+	_test_projectile_damage_rules()
 	_test_command_center_projectile()
 	_test_command_center_target_reacquisition()
 	_test_attack_move_acquisition()
@@ -104,6 +105,7 @@ func _test_ground_projectile() -> void:
 	combat.configure(units, registry, players)
 	var projectile_definition: RwProjectileDefinition = RwProjectileDefinition.new()
 	projectile_definition.damage = 20.0
+	projectile_definition.splash_damage = 20.0
 	projectile_definition.speed_per_frame = 10.0
 	projectile_definition.splash_radius = 15.0
 	var weapon: RwWeaponDefinition = RwWeaponDefinition.new()
@@ -112,8 +114,120 @@ func _test_ground_projectile() -> void:
 	assert(projectile != null and projectile.target_id == -1)
 	for frame: int in 3:
 		combat.advance_frame()
-	assert((units[2] as RwUnitState).health == 190.0)
+	assert((units[2] as RwUnitState).health == 175.0, "Under-construction targets must take 1.75 times projectile damage")
 	assert((units[1] as RwUnitState).health == 210.0)
+
+
+func _test_projectile_damage_rules() -> void:
+	var registry: RwUnitRegistry = RwVanillaUnitDefinitions.create_registry()
+	var tank_definition: RwUnitDefinition = registry.find_definition("vanilla", "tank")
+	var helicopter_definition: RwUnitDefinition = registry.find_definition("vanilla", "helicopter")
+	var source: RwUnitState = _create_combat_test_unit(1, "tank", "1", Vector2.ZERO, tank_definition)
+	var direct_target: RwUnitState = _create_combat_test_unit(2, "tank", "2", Vector2(30.0, 0.0), tank_definition)
+	var splash_target: RwUnitState = _create_combat_test_unit(3, "tank", "2", Vector2(50.0, 0.0), tank_definition)
+	var allied_target: RwUnitState = _create_combat_test_unit(4, "tank", "1", Vector2(30.0, 5.0), tank_definition)
+	var units: Dictionary = {1: source, 2: direct_target, 3: splash_target, 4: allied_target,}
+	var players: Array[Dictionary] = [
+		{"slot": 1, "color": 1,},
+		{"slot": 2, "color": 2,},
+	]
+	var combat: RwBattleCombat = RwBattleCombat.new()
+	combat.configure(units, registry, players)
+	var projectile_definition: RwProjectileDefinition = RwProjectileDefinition.new()
+	projectile_definition.damage = 20.0
+	projectile_definition.splash_damage = 10.0
+	projectile_definition.splash_radius = 40.0
+	var projectile: RwProjectileState = _create_test_projectile(projectile_definition, "1", Vector2(30.0, 0.0))
+	combat._resolve_impact(projectile, direct_target)
+	assert(direct_target.health == 180.0, "Direct and area damage must be applied as separate values")
+	assert(splash_target.health == 204.0, "Area damage must use the original distance falloff")
+	assert(allied_target.health == allied_target.max_health, "Default splash damage must skip friendly units")
+
+	var direct_only: RwProjectileDefinition = RwProjectileDefinition.new()
+	direct_only.damage = 25.0
+	direct_only.splash_radius = 40.0
+	var target_ground: RwProjectileState = _create_test_projectile(direct_only, "1", direct_target.world_position)
+	combat._resolve_impact(target_ground, null)
+	assert(direct_target.health == 180.0, "Direct damage must not be converted into splash damage")
+	target_ground.definition.target_ground = true
+	combat._resolve_impact(target_ground, direct_target)
+	assert(direct_target.health == 180.0, "Ground-targeted projectiles must not apply direct unit damage")
+
+	var unfinished_target: RwUnitState = _create_combat_test_unit(5, "tank", "2", Vector2(200.0, 0.0), tank_definition)
+	unfinished_target.build_progress = 0.5
+	var unfinished_units: Dictionary = {1: source, 5: unfinished_target,}
+	combat.configure(unfinished_units, registry, players)
+	combat._damage_unit(unfinished_target, 20.0, projectile_definition)
+	assert(unfinished_target.health == 175.0, "Unfinished targets must take the original 1.75 damage multiplier")
+
+	var shielded_target: RwUnitState = _create_combat_test_unit(6, "tank", "2", Vector2(300.0, 0.0), tank_definition)
+	shielded_target.max_shield = 100.0
+	shielded_target.set_shield(100.0)
+	tank_definition.behavior = RwShieldBehavior.new()
+	var shield_units: Dictionary = {1: source, 6: shielded_target,}
+	combat.configure(shield_units, registry, players)
+	var shield_projectile: RwProjectileDefinition = RwProjectileDefinition.new()
+	shield_projectile.shield_damage_multiplier = 0.5
+	shield_projectile.shield_deflection_multiplier = 0.2
+	shield_projectile.hull_damage_multiplier = 0.5
+	combat._damage_unit(shielded_target, 100.0, shield_projectile)
+	assert(shielded_target.shield == 50.0)
+	assert(shielded_target.health == 170.0, "Shield damage, deflection, and hull multipliers must match 1.15")
+
+	var air_target: RwUnitState = _create_combat_test_unit(7, "helicopter", "2", Vector2(400.0, 0.0), helicopter_definition)
+	var underwater_target: RwUnitState = _create_combat_test_unit(8, "tank", "2", Vector2(400.0, 0.0), tank_definition)
+	air_target.movement_type = "AIR"
+	underwater_target.submerged = true
+	underwater_target.altitude = -10.0
+	var category_units: Dictionary = {1: source, 7: air_target, 8: underwater_target,}
+	combat.configure(category_units, registry, players)
+	var area_definition: RwProjectileDefinition = RwProjectileDefinition.new()
+	area_definition.splash_damage = 20.0
+	area_definition.splash_radius = 20.0
+	var area_projectile: RwProjectileState = _create_test_projectile(area_definition, "1", Vector2(400.0, 0.0))
+	combat._resolve_impact(area_projectile, null)
+	assert(air_target.health == air_target.max_health, "Ground explosions must not hit air units by default")
+	assert(underwater_target.health == underwater_target.max_health, "Surface explosions must not hit submerged units by default")
+	area_definition.area_hit_air_and_land_at_same_time = true
+	area_definition.area_hit_underwater_always = true
+	combat._resolve_impact(area_projectile, null)
+	assert(air_target.health < air_target.max_health)
+	assert(underwater_target.health < underwater_target.max_health)
+
+	var stock_tank: RwUnitDefinition = registry.find_definition("vanilla", "tank")
+	assert(stock_tank.combat_weapons[0].projectile.damage == 25.0)
+	assert(stock_tank.combat_weapons[0].projectile.speed_per_frame == 5.0)
+
+
+func _create_combat_test_unit(
+	object_id: int,
+	unit_name: String,
+	team: String,
+	position: Vector2,
+	definition: RwUnitDefinition,
+) -> RwUnitState:
+	var unit_state: RwUnitState = RwUnitState.new()
+	unit_state.initialize_from_spawn({
+		"object_id": object_id,
+		"source_id": "vanilla",
+		"unit_name": unit_name,
+		"team": team,
+		"position": position,
+	}, definition)
+	return unit_state
+
+
+func _create_test_projectile(
+	definition: RwProjectileDefinition,
+	team: String,
+	position: Vector2,
+) -> RwProjectileState:
+	var projectile: RwProjectileState = RwProjectileState.new()
+	projectile.definition = definition
+	projectile.team = team
+	projectile.world_position = position
+	projectile.velocity = Vector2.RIGHT
+	return projectile
 
 
 func _test_command_center_projectile() -> void:
@@ -135,7 +249,7 @@ func _test_command_center_projectile() -> void:
 	assert(projectile_definition.hit_radius == 2.0)
 	assert(projectile_definition.include_target_collision_radius)
 	assert(projectile_definition.retarget_on_target_loss)
-	assert(projectile_definition.remove_on_target_loss)
+	assert(not projectile_definition.remove_on_target_loss)
 	assert(projectile_definition.altitude_move_start == 40.0)
 	assert(projectile_definition.altitude_maximum == 60.0)
 	assert(projectile_definition.render_shadow)
@@ -250,9 +364,9 @@ func _test_command_center_projectile() -> void:
 	var previous_lifetime: float = projectile.remaining_frames
 	assert(not projectile.advance_frame(null))
 	assert(projectile.target_lost)
-	assert(projectile.remove_requested)
-	assert(projectile.world_position == previous_position)
-	assert(projectile.remaining_frames == previous_lifetime)
+	assert(not projectile.remove_requested)
+	assert(projectile.world_position != previous_position)
+	assert(projectile.remaining_frames < previous_lifetime)
 	var impact_projectile: RwProjectileState = RwProjectileState.new()
 	impact_projectile.configure(source, target, weapon, 0.0)
 	var did_hit: bool

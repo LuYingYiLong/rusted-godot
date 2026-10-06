@@ -32,11 +32,13 @@ func _test_builtin_weapons() -> void:
 	assert(native_tank.combat_weapons.size() == 1)
 	assert(custom_tank.combat_weapons[0].projectile.damage == 25.0)
 	assert(native_tank.combat_weapons[0].projectile.damage == 25.0)
+	assert(native_tank.combat_weapons[0].projectile.speed_per_frame == 5.0)
+	assert(is_zero_approx(native_tank.combat_weapons[0].muzzle_distance))
 	assert(native_tank.combat_weapons[0].reload_frames == 75)
 	assert(anti_air.combat_weapons.size() > 0)
 	assert(anti_air.combat_weapons[0].can_target_air)
 	assert(not anti_air.combat_weapons[0].can_target_ground)
-	assert(is_equal_approx(interceptor.combat_weapons[0].turn_speed_degrees, 8.0))
+	assert(is_equal_approx(interceptor.combat_weapons[0].turn_speed_degrees, 0.0))
 	assert(battleship.combat_weapons.size() > 1)
 	for weapon: RwWeaponDefinition in battleship.combat_weapons:
 		assert(weapon.projectile != null)
@@ -81,15 +83,15 @@ func _test_instant_and_area_damage() -> void:
 	assert(projectile != null)
 	combat.advance_frame()
 	assert(combat.projectiles.is_empty())
-	assert(target.health == 180.0)
-	assert(nearby.health == 200.0)
+	assert(is_equal_approx(target.health, 157.5))
+	assert(is_equal_approx(nearby.health, 203.875))
 	assert(ally.health == 210.0)
 	projectile_definition.damage = 0.0
 	projectile_definition.area_damage_no_falloff = false
 	combat.spawn_projectile_at(source, Vector2(40.0, 0.0), weapon, 0.0)
 	combat.advance_frame()
-	assert(is_equal_approx(target.health, 170.0))
-	assert(is_equal_approx(nearby.health, 196.5))
+	assert(is_equal_approx(target.health, 140.0))
+	assert(is_equal_approx(nearby.health, 197.75))
 	assert(ally.health == 210.0)
 
 

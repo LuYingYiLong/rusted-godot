@@ -67,6 +67,8 @@ def spec_for(path: Path) -> list[dict[str, object]]:
         speed_acceleration = number(projectile.get("targetspeedacceleration", ""), 0.1)
         if projectile_speed <= 0.0:
             instant = True
+        friendly_fire_value = projectile.get("friendlyfire", "").strip().casefold()
+        friendly_fire_mode = "only-ignore-enemy" if friendly_fire_value == "only-ignoreenemy" else friendly_fire_value
         weapon: dict[str, object] = {
             "turret": turret_name.removeprefix("turret_"),
             "projectile": projectile_name,
@@ -77,7 +79,7 @@ def spec_for(path: Path) -> list[dict[str, object]]:
             "turn_speed": number(turret.get("turnspeed", ""), number(attack.get("turretturnspeed", ""), 8.0)),
             "muzzle_x": number(turret.get("x", "")),
             "muzzle_y": number(turret.get("y", "")),
-            "muzzle_distance": positive_number(turret.get("size", ""), number(attack.get("turretsize", ""))),
+            "muzzle_distance": number(turret.get("muzzledistance", ""), number(attack.get("muzzledistance", ""))),
             "ground": bool_value(turret.get("canattacklandunits", ""), bool_value(attack.get("canattacklandunits", ""))),
             "air": bool_value(turret.get("canattackflyingunits", ""), bool_value(attack.get("canattackflyingunits", ""))),
             "underwater": bool_value(turret.get("canattackunderwaterunits", ""), bool_value(attack.get("canattackunderwaterunits", ""))),
@@ -87,6 +89,8 @@ def spec_for(path: Path) -> list[dict[str, object]]:
             "area_no_falloff": bool_value(projectile.get("areadamagenofalloff", "")),
             "area_from_edge": bool_value(projectile.get("arearadiusfromedge", "")),
             "area_minimum_distance": number(projectile.get("areaignoreunitscloserthan", "")),
+            "area_hit_air_and_land_at_same_time": bool_value(projectile.get("areahitairandlandatsametime", "")),
+            "area_hit_underwater_always": bool_value(projectile.get("areahitunderwateralways", "")),
             "speed": projectile_speed,
             "target_speed": target_speed,
             "speed_acceleration": speed_acceleration if target_speed > 0.0 else 0.0,
@@ -95,7 +99,11 @@ def spec_for(path: Path) -> list[dict[str, object]]:
             "instant": instant,
             "beam": bool_value(projectile.get("lasereffect", "")) or bool_value(projectile.get("lightingeffect", "")) or bool(projectile.get("beamimage", "").strip()),
             "target_ground": bool_value(projectile.get("targetground", "")),
-            "friendly_fire": bool_value(projectile.get("friendlyfire", "")),
+            "target_ground_include_target_height": bool_value(projectile.get("targetground_includetargetheight", "")),
+            "target_ground_spread": number(projectile.get("targetgroundspread", "")),
+            "target_ground_height_offset": number(projectile.get("targetgroundheightoffset", "")),
+            "friendly_fire": friendly_fire_value == "true",
+            "friendly_fire_mode": friendly_fire_mode,
             "frame": int(number(projectile.get("frame", ""), -1.0)),
             "draw_size": positive_number(projectile.get("drawsize", ""), 1.0),
             "texture_scale": positive_number(projectile.get("drawsize", ""), 1.0) * 2.0,
@@ -103,6 +111,10 @@ def spec_for(path: Path) -> list[dict[str, object]]:
             "ballistic": bool_value(projectile.get("ballistic", "")),
             "ballistic_height": number(projectile.get("ballistic_height", "")),
             "ballistic_delay_move_height": max(0.0, number(projectile.get("ballistic_delaymove_height", ""))),
+            "initial_unguided_speed_x": number(projectile.get("initialunguidedspeedx", "")),
+            "initial_unguided_speed_y": number(projectile.get("initialunguidedspeedy", "")),
+            "initial_unguided_speed_height": number(projectile.get("initialunguidedspeedheight", "")),
+            "speed_spread": number(projectile.get("speedspread", "")),
             "gravity": number(projectile.get("gravity", "")),
             "true_gravity": number(projectile.get("truegravity", "")),
             "wobble_amplitude": number(projectile.get("wobbleamplitude", "")),
@@ -120,8 +132,9 @@ def spec_for(path: Path) -> list[dict[str, object]]:
             "building_damage_multiplier": number(projectile.get("buildingdamagemultiplier", ""), 1.0),
             "air_damage_multiplier": number(projectile.get("damagetoair", ""), 1.0),
             "shield_damage_multiplier": number(projectile.get("shielddamagemultiplier", ""), 1.0),
+            "shield_deflection_multiplier": number(projectile.get("shielddefectionmultiplier", ""), 1.0),
             "hull_damage_multiplier": number(projectile.get("hulldamagemultiplier", ""), 1.0),
-            "armor_ignore": number(projectile.get("armourignore", projectile.get("armorignore", ""))),
+            "armor_ignore": number(projectile.get("armourignoreamount", projectile.get("armorignoreamount", projectile.get("armourignore", projectile.get("armorignore", ""))))),
             "push_force": number(projectile.get("pushforce", "")),
             "push_velocity": number(projectile.get("pushvelocity", "")),
         }

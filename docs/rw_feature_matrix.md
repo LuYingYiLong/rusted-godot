@@ -11,8 +11,8 @@
 | 地图、出生物与玩家槽位 | `GameLogic.startGame`、`TileMap`、`PlayerTeam` | `RwTmxLoader`、`RwTmxUnitReader`、`RwRoomClient` | Small Island 双人及 Valley Pass 六人能开局；六人局第 0 帧单位校验一致。继续核对其他 6/8/10 人地图、随机种子与初始资金预设 |
 | 原生单位与内置自定义单位的定义 | `UnitTypeEnum`、`assets/units/*.ini` | `RwVanillaUnitCatalog`、`RwUnitRegistry`、`RwVanillaCustomDefinitions` | 52 种原生类型的出生状态和移动参数测试通过；内置自定义单位已经注册，但其完整动作和长期状态未逐种核验 |
 | 移动、转向、寻路、碰撞 | `UnitCommand`、`PathEngine`、单位更新与碰撞代码 | `RwUnitOrderController`、`RwPathGrid`、`RwUnitState` | 已分别验证跨悬崖移动网格、修理路径五个拐点与侦察机离厂前 100 帧。六人 AI 对照的首次轨迹误差从第 70 帧推迟到第 880 帧；第 880 帧建造者挤压仍有差异，最终需和原版 1.15 复验 |
-| 建造、维修、回收、工厂生产 | 单位动作、建造者施工、工厂队列与出生出口 | `RwUnitBehavior`、`RwVanillaBuildings`、`RwProductionQueue`、`battle_map.gd` | 双人房间的抽取器建造双向可见，施工距离与生产出口有基线；六人 AI 局已收到 build、queue、repair 命令。需分别验证资源扣费、队列时间、完成帧、离厂挤压和特殊动作 |
-| 武器、弹体、护盾、死亡 | 原生武器类和自定义单位炮塔/弹体配置 | `RwBattleCombat`、`RwWeaponDefinition`、`RwProjectileState`、`RwShieldBehavior` | 已有目标类别、弹体和基础伤害测试。炮口静置转动、命中帧、死亡顺序及战斗中的随机数尚未证明逐帧一致 |
+| 建造、维修、回收、工厂生产 | 单位动作、建造者施工、工厂队列与出生出口 | `RwUnitBehavior`、`RwVanillaBuildings`、`RwProductionQueue`、`battle_map.gd` | 默认工厂菜单已纳入 RWX 自带单位的 `built_from` 生产关系，回归核验了 1.15 原版动作 ID；双人房间的抽取器建造双向可见，施工距离与生产出口有基线。资源扣费、队列时间、完成帧、离厂挤压和特殊动作仍需逐项与原版复验 |
+| 武器、弹体、护盾、死亡 | 原生武器类和自定义单位炮塔/弹体配置 | `RwBattleCombat`、`RwWeaponDefinition`、`RwProjectileState`、`RwShieldBehavior` | 已补坦克炮弹 25/5 数值、三维追踪、直击与范围伤害分离、空地/水下范围筛选、护盾倍率及未完工目标 1.75 倍伤害；测试覆盖这些规则。炮口静置转动、死亡顺序、随机散布和全体单位逐帧一致性仍未证明 |
 | 资金和额外资源 | `PlayerTeam`、自定义资源定义 | `RwVanillaEconomy`、`RwResourceCatalog` | Credits、收入增长和资源接口已接入；应在 AI 的建造与升级中核对资金校验，并为自定义资源保留同一账本接口 |
 | 战争迷雾、视野和小地图 | 地图视野与单位可见性 | `RwFogOfWar`、`hud_layer` | 三种迷雾模式可运行；需用多队伍和不同阵营检查共享视野、隐蔽单位、未探索资源点 |
 | 命令和联机同步 | `NetworkEngine`、命令包、同步帧、校验包 | `RwBattleCommandReader`、`RwBattleTimeline`、`RwBattleStateProbe` | 已实现 5、10、20、30 分钟分阶段验收，出现差异即停。建筑目标格不可达时的替代终点已对齐；不同 AI 开局在第 602 或 1806 帧仍有方向和位置差异，5 分钟阶段尚未通过 |

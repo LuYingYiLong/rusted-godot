@@ -17,6 +17,14 @@ python tools/verify_rw_115_native_catalog.py `
 
 结果：`RW_115_BINARY_OK native_types=52` 与 `RW_115_CATALOG_OK native_types=52 ordinal_writer=confirmed ordinal_reader=confirmed`
 
+## 工厂生产动作 ID
+
+`02b-decompiled/.../game/units/a/l.java` 的 `UnitBuildAction` 初始以 `u_` 和请求类型的 `v()` 结果创建动作 ID；若 `ModUnitRegistry` 将这个原生类型替换为内置自定义单位，构造函数还会再次改写动作 ID 为 `u_` 加替换类型的名字。反编译文件中的枚举字段 `a` 到 `Z` 是混淆后的 Java 标识，不能直接当作协议名；stock `game-lib.jar` 的运行时枚举名由探针读取，`verify_rw_115_production.py` 会把源码字段别名、运行时枚举名和动作 ID 并排核验。项目替换表还会与安装版单位 INI 的 `overrideAndReplace` 对照，18 条映射完全一致。生产动作必须按最终注册的目标单位名生成，因此原版工厂的坦克、炮兵和激光坦克替换动作分别是 `u_c_tank`、`u_c_artillery`、`u_c_laserTank`，未替换的建造者则仍是 `u_builder`。`STOCK_NATIVE_ACTION_IDS` 只描述原生枚举本身，不能拿它覆盖已替换单位的生产动作 ID
+
+此前默认单位注册表把 `include_builtin_custom_actions` 设为 `false`，从工厂菜单中过滤掉了 RWX 自带单位的 `built_from` 关系。原版 1.15 回放实际记录了 `u_c_interceptor` 和 `u_c_helicopter`，而默认空军工厂菜单没有这两项；陆军工厂同样漏掉 `heavyArtillery`、`missileTank` 等自带单位。这是菜单遗漏，不是混淆后的动作名。现在默认注册表保留全部内置生产关系，显式传 `false` 仍可构建仅含原生菜单的对照注册表；生产回归逐项校验各工厂菜单和 `u_<最终单位名>` 动作 ID
+
+如果原版窗口仍看不到生产进度，这时应检查本局实际发送和回显的命令、工厂对象 ID、来源队伍以及远端客户端构建版本；枚举别名映射已与本机 stock jar 对齐，但本机单测不能证明远端房间确实收到并接受了该动作
+
 原版联机自动化已改为直接运行这份核过指纹的 stock jar，六人 AI 长局的启动与报告格式见 [原版 1.15 多人 AI 长局](rw_115_ai_soak.md)
 
 ## 早期运动与挤压差异
@@ -24,6 +32,18 @@ python tools/verify_rw_115_native_catalog.py `
 `02b-decompiled/com/corrodinggames/rts/game/units/y.java:845-1056` 显示，碰撞使用按单位类型划分的碰撞组、空间网格查询、最多 10 个候选和分帧刷新；同队关系只影响推力权重。`BattleMap._separate_mobile_units()` 已纳入敌对单位并按移动状态选择执行推力的单位。建筑命令的格吸附来自 `y.java:5556-5558`：先将命令坐标减去建筑中心偏移并加 `1.0F`，按地图格截断，再加回中心偏移；建造者的路径目标仍使用命令原始坐标。`gameFramework/k/o.java` 的目标处理还规定：目标范围内没有可通行格时，按 x、y 升序选取最近替代终点。AI 轨迹仍会因不同开局在第 602 或 1806 帧失配，下一步要继续核对施工转维修时的车体方向和移动惯性
 
 该源码树的 `03-deobfuscated/.../game/MovementController.java` 虽名为 MovementController，内容实际是带目标、高度、命中逻辑的弹体类。因此该仓库 `docs/06-world/MOVEMENT.md` 对此类的“单位每帧移动控制器”描述不宜直接作为移植依据
+
+## 1.15 武器、弹体与伤害结算
+
+弹体类以调用链确认，不依据解混淆名字或 `mappings.json` 的标签：`02b-decompiled/.../game/f.java` 继承游戏对象基类并保存目标、位置、高度、速度和 `game/g.java` 弹体定义；`game/units/custom/j.java` 的武器开火路径创建该类并复制炮塔和弹体参数；`game/units/custom/bh.java` 负责解析弹体 INI。该调用链也确认了此前被叫作 MovementController 的 `f.java` 实际负责弹体模拟
+
+`bh.java` 分别把 `directDamage`、`areaDamage`、范围半径、无衰减、边缘半径、空地同时命中、水下命中、友军规则及护盾倍率写入定义。`f.java` 命中分支分别提交直击与范围伤害；范围伤害按 `1.1 - distance / radius` 衰减，边缘半径会减去目标碰撞半径。没有 `areaDamage` 时，直击伤害不会自动变成范围伤害。`targetGround` 也不执行直击伤害
+
+普通非弹道弹体每帧同时追踪目标高度：高度差按水平剩余距离与当前弹速折算；`ballistic` 弹体走单独的升高和下降阶段。`f.java` 还把目标空中类型与爆炸高度 5、潜水高度 -5 和爆炸高度 -2 比较，分别处理空地筛选和水下例外。此前仅更新水平位置，导致攻击空中单位的弹体停在地面高度而永远无法命中
+
+`02b-decompiled/.../game/units/am.java` 的受伤方法在建筑进度低于 1 时先把伤害乘 1.75，再结算护盾。`shieldDamageMultiplier` 只控制护盾扣量；护盾扣完后按 `shieldDefectionMultiplier` 计算传入本体的伤害，最后应用 `hullDamageMultiplier`。这些倍率不能合并成一个泛用护盾倍率，否则护盾仍有余量时会重复吸收本体伤害
+
+坦克替换定义 `RWX-main/assets/units/tanks/tank.ini` 给出的炮弹数据为 25 直击伤害、5 弹速、60 帧寿命，炮塔冷却为 75 帧。炮塔 `size` 与 `turretSize` 是炮塔外观尺寸，不是弹体发射距离；实际发射点来自炮塔挂点，因此无 `muzzleDistance` 定义的单位使用零距离偏移
 
 ## 运行限制
 

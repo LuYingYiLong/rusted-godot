@@ -33,6 +33,8 @@ static func configure_definition(definition: RwUnitDefinition, source_name: Stri
 		projectile.area_damage_no_falloff = bool(weapon_spec["area_no_falloff"])
 		projectile.area_radius_from_edge = bool(weapon_spec["area_from_edge"])
 		projectile.area_minimum_distance = float(weapon_spec["area_minimum_distance"])
+		projectile.area_hit_air_and_land_at_same_time = bool(weapon_spec.get("area_hit_air_and_land_at_same_time", false))
+		projectile.area_hit_underwater_always = bool(weapon_spec.get("area_hit_underwater_always", false))
 		projectile.speed_per_frame = float(weapon_spec["speed"])
 		projectile.target_speed_per_frame = float(weapon_spec["target_speed"])
 		projectile.speed_acceleration_per_frame = float(weapon_spec["speed_acceleration"])
@@ -42,11 +44,20 @@ static func configure_definition(definition: RwUnitDefinition, source_name: Stri
 		projectile.instant = bool(weapon_spec["instant"])
 		projectile.beam = bool(weapon_spec["beam"])
 		projectile.target_ground = bool(weapon_spec["target_ground"])
+		projectile.target_ground_include_target_height = bool(weapon_spec.get("target_ground_include_target_height", false))
+		projectile.target_ground_spread = float(weapon_spec.get("target_ground_spread", 0.0))
+		projectile.target_ground_height_offset = float(weapon_spec.get("target_ground_height_offset", 0.0))
 		projectile.ballistic = bool(weapon_spec.get("ballistic", false))
 		projectile.ballistic_height = float(weapon_spec.get("ballistic_height", 0.0))
 		projectile.ballistic_delay_move_height = float(weapon_spec.get("ballistic_delay_move_height", 0.0))
 		projectile.gravity_per_frame = float(weapon_spec.get("gravity", 0.0))
 		projectile.true_gravity_per_frame = float(weapon_spec.get("true_gravity", 0.0))
+		projectile.initial_unguided_velocity = Vector2(
+			float(weapon_spec.get("initial_unguided_speed_x", 0.0)),
+			float(weapon_spec.get("initial_unguided_speed_y", 0.0)),
+		)
+		projectile.initial_height_velocity = float(weapon_spec.get("initial_unguided_speed_height", 0.0))
+		projectile.speed_spread = float(weapon_spec.get("speed_spread", 0.0))
 		projectile.wobble_amplitude = float(weapon_spec.get("wobble_amplitude", 0.0))
 		projectile.wobble_frequency = float(weapon_spec.get("wobble_frequency", 5.0))
 		projectile.trail_as_particles = bool(weapon_spec.get("trail_effect", false))
@@ -59,7 +70,7 @@ static func configure_definition(definition: RwUnitDefinition, source_name: Stri
 		projectile.trail_texture_scale = 0.5
 		projectile.explode_on_end_of_life = bool(weapon_spec.get("explode_on_end_of_life", false))
 		projectile.retarget_on_target_loss = bool(weapon_spec.get("auto_target_dead", false))
-		projectile.remove_on_target_loss = true
+		projectile.remove_on_target_loss = false
 		projectile.target_loss_retarget_range = float(weapon_spec.get("auto_target_range", 120.0))
 		projectile.target_loss_retarget_lead_distance = float(weapon_spec.get("auto_target_lead", 15.0))
 		projectile.retarget_in_flight = bool(weapon_spec.get("retarget_in_flight", false))
@@ -67,9 +78,11 @@ static func configure_definition(definition: RwUnitDefinition, source_name: Stri
 		projectile.retarget_in_flight_search_range = float(weapon_spec.get("retarget_search_range", 120.0))
 		projectile.retarget_in_flight_lead_distance = float(weapon_spec.get("retarget_search_lead", 15.0))
 		projectile.friendly_fire = bool(weapon_spec["friendly_fire"])
+		projectile.friendly_fire_mode = str(weapon_spec.get("friendly_fire_mode", ""))
 		projectile.building_damage_multiplier = float(weapon_spec.get("building_damage_multiplier", 1.0))
 		projectile.air_damage_multiplier = float(weapon_spec.get("air_damage_multiplier", 1.0))
 		projectile.shield_damage_multiplier = float(weapon_spec.get("shield_damage_multiplier", 1.0))
+		projectile.shield_deflection_multiplier = float(weapon_spec.get("shield_deflection_multiplier", 1.0))
 		projectile.hull_damage_multiplier = float(weapon_spec.get("hull_damage_multiplier", 1.0))
 		projectile.armor_ignore = float(weapon_spec.get("armor_ignore", 0.0))
 		projectile.push_force = float(weapon_spec.get("push_force", 0.0))

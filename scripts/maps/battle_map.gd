@@ -1031,13 +1031,13 @@ func _apply_production_command(command: Dictionary, frame: int) -> void:
 	var team_slot: int = _command_source_team(command)
 	var allowed_mask: int = int(command.get("allowed_team_mask", 0))
 	var network_action_id: String = str(command.get("action_id", ""))
-	print("RW production command echoed: frame=%d team=%d source=%d mask=%d queued=%s stop=%s units=%s action=%s" % [
+	print("RW production command echoed: frame=%d team=%d source=%d mask=%d queued=%s cancel=%s units=%s action=%s" % [
 		frame,
 		int(command.get("team", -1)),
 		team_slot,
 		allowed_mask,
 		str(bool(command.get("is_queued", false))),
-		str(bool(command.get("stop_current_action", false))),
+		str(bool(command.get("is_action_cancelled", false))),
 		str(command.get("unit_ids", [])),
 		network_action_id,
 	])
@@ -1061,7 +1061,7 @@ func _apply_production_command(command: Dictionary, frame: int) -> void:
 			if team_slot == RwRoomClient.local_slot:
 				print("RW production rejected: producer=%d action=%s kind=%d reason=unsupported" % [object_id, network_action_id, action.kind,])
 			continue
-		if bool(command.get("stop_current_action", false)):
+		if bool(command.get("is_action_cancelled", false)):
 			var pending_key: String = "%d:%s" % [object_id, action.action_id]
 			_pending_queue_cancellations[pending_key] = maxi(int(_pending_queue_cancellations.get(pending_key, 0)) - 1, 0)
 			var existing_queue: RwProductionQueue = _production_queues.get(object_id) as RwProductionQueue

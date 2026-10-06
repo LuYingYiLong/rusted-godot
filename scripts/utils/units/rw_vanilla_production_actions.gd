@@ -212,7 +212,7 @@ static func _production_action(target: RwUnitDefinition, required_level: int, fo
 			action.network_build_index = RwVanillaUnitCatalog.native_index(target.unit_name)
 	else:
 		action.kind = RwUnitActionDefinition.Kind.QUEUE_UNIT
-		action.network_action_id = RwVanillaUnitCatalog.native_action_id(target.unit_name)
+		action.network_action_id = RwVanillaUnitCatalog.production_action_id(target.unit_name)
 	return action
 
 

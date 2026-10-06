@@ -80,6 +80,61 @@ const NATIVE_REPLACEMENTS: Dictionary = {
 	"turretT3": "c_turret_t3_gun",
 }
 
+const STOCK_NATIVE_ACTION_IDS: Dictionary = {
+	"extractor": "u_extractor",
+	"landFactory": "u_landFactory",
+	"airFactory": "u_airFactory",
+	"seaFactory": "u_seaFactory",
+	"commandCenter": "u_commandCenter",
+	"turret": "u_turret",
+	"antiAirTurret": "u_antiAirTurret",
+	"builder": "u_builder",
+	"tank": "u_tank",
+	"hoverTank": "u_hoverTank",
+	"artillery": "u_artillery",
+	"helicopter": "u_helicopter",
+	"airShip": "u_airShip",
+	"gunShip": "u_gunShip",
+	"missileShip": "u_missileShip",
+	"gunBoat": "u_gunBoat",
+	"megaTank": "u_megaTank",
+	"laserTank": "u_laserTank",
+	"hovercraft": "u_hovercraft",
+	"ladybug": "u_ladybug",
+	"battleShip": "u_battleShip",
+	"tankDestroyer": "u_tankDestroyer",
+	"heavyTank": "u_heavyTank",
+	"heavyHoverTank": "u_heavyHoverTank",
+	"laserDefence": "u_laserDefence",
+	"dropship": "u_dropship",
+	"tree": "u_tree",
+	"repairbay": "u_repairbay",
+	"NukeLaucher": "u_NukeLaucher",
+	"AntiNukeLaucher": "u_AntiNukeLaucher",
+	"mammothTank": "u_mammothTank",
+	"experimentalTank": "u_experimentalTank",
+	"experimentalLandFactory": "u_experimentalLandFactory",
+	"crystalResource": "u_crystalResource",
+	"wall_v": "u_wall_v",
+	"fabricator": "u_fabricator",
+	"attackSubmarine": "u_attackSubmarine",
+	"builderShip": "u_builderShip",
+	"amphibiousJet": "u_amphibiousJet",
+	"supplyDepot": "u_supplyDepot",
+	"experimentalHoverTank": "u_experimentalHoverTank",
+	"turret_artillery": "u_turret_artillery",
+	"turret_flamethrower": "u_turret_flamethrower",
+	"fogRevealer": "u_fogRevealer",
+	"spreadingFire": "u_spreadingFire",
+	"antiAirTurretT2": "u_antiAirTurretT2",
+	"turretT2": "u_turretT2",
+	"turretT3": "u_turretT3",
+	"damagingBorder": "u_damagingBorder",
+	"zoneMarker": "u_zoneMarker",
+	"editorOrBuilder": "u_editorOrBuilder",
+	"dummyNonUnitWithTeam": "u_dummyNonUnitWithTeam",
+}
+
 const BUILTIN_CUSTOM_UNITS: Dictionary = {
 	"aaBeamGunship": {"source": "assets/units/aa_beam_gunship/aa_beam_gunship.ini", "tech_level": 2, "built_from": ["airFactory",], "converts_to": ["aaBeamGunship_afterburn",],},
 	"aaBeamGunship_afterburn": {"source": "assets/units/aa_beam_gunship/aa_beam_gunship_afterburn.ini", "tech_level": 2, "converts_to": ["aaBeamGunship",], "variant_of": "aaBeamGunship",},
@@ -230,13 +285,9 @@ static func native_name_for_replacement(name: String) -> String:
 	return name
 
 
-## 返回原版生产动作使用的枚举标识，自定义单位继续使用单位名
-static func native_action_id(name: String) -> String:
-	var resolved_native_name: String = native_name_for_replacement(name)
-	var index: int = native_index(resolved_native_name)
-	if index < 0 or index >= 52:
-		return "u_%s" % name
-	return "u_%s" % resolved_native_name
+## 根据最终执行的单位类型生成原版生产动作标识
+static func production_action_id(unit_type_name: String) -> String:
+	return "u_%s" % unit_type_name
 
 
 ## 返回内置自定义单位的目录记录

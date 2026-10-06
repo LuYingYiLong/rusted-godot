@@ -19,9 +19,13 @@ extends Resource
 @export var hit_radius: float = 2.0
 @export var splash_radius: float
 ## 原版默认按距爆炸中心的距离衰减范围伤害
-@export var area_damage_no_falloff: bool = true
+@export var area_damage_no_falloff: bool
 @export var area_radius_from_edge: bool
 @export var area_minimum_distance: float
+## 范围伤害是否同时命中空中与地面单位
+@export var area_hit_air_and_land_at_same_time: bool
+## 范围伤害是否始终命中水下单位
+@export var area_hit_underwater_always: bool
 ## 立即命中并用于激光等即时弹体
 @export var instant: bool
 ## 立即命中时绘制短暂的光束
@@ -32,6 +36,12 @@ extends Resource
 @export var visible_in_flight: bool = true
 ## 飞向发射时的地面坐标，而不继续跟踪目标
 @export var target_ground: bool
+## 射向地面时是否把目标单位高度纳入弹着点高度
+@export var target_ground_include_target_height: bool
+## 射向地面的随机散布半径
+@export var target_ground_spread: float
+## 射向地面的高度偏移
+@export var target_ground_height_offset: float
 ## 弹体使用原版抛物线弹道
 @export var ballistic: bool
 ## 开火前按目标速度预判拦截位置
@@ -41,7 +51,10 @@ extends Resource
 ## 弹体创建后暂停移动的帧数
 @export var delayed_start_frames: float
 ## 弹体移动时的初始附加速度
+@export var initial_unguided_velocity: Vector2
 @export var initial_velocity: Vector2
+## 初速度沿发射方向的随机波动范围
+@export var speed_spread: float
 ## 弹体初始高度方向速度
 @export var initial_height_velocity: float
 ## 原版弹道弹体的固定初始升降速度
@@ -154,18 +167,17 @@ extends Resource
 @export var impact_color: Color = Color.TRANSPARENT
 ## 范围伤害是否影响友方单位
 @export var friendly_fire: bool
+@export var friendly_fire_mode: String
 ## 对建筑造成的伤害倍率
 @export var building_damage_multiplier: float = 1.0
 ## 对空中单位造成的伤害倍率
 @export var air_damage_multiplier: float = 1.0
-## 穿透护盾时应用于护盾的伤害倍率
-@export var target_damage_multiplier: float = 1.0
-## 穿透护盾后保留为生命值伤害的倍率
-@export var splash_damage_multiplier: float = 1.0
 ## 应用于单位生命值的最终伤害倍率
 @export var global_damage_multiplier: float = 1.0
 ## 对护盾造成的伤害倍率
 @export var shield_damage_multiplier: float = 1.0
+## 护盾吸收后仍传递到生命值的伤害比例
+@export var shield_deflection_multiplier: float = 1.0
 ## 对单位本体造成的伤害倍率
 @export var hull_damage_multiplier: float = 1.0
 ## 命中时忽略的护甲值

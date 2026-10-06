@@ -3,8 +3,8 @@ class_name RwVanillaUnitDefinitions
 ## 构建原版单位定义注册表
 
 
-## 创建原版单位注册表，可选开放内置自定义单位的生产菜单
-static func create_registry(include_builtin_custom_actions: bool = false) -> RwUnitRegistry:
+## 创建原版单位注册表，默认包含 1.15 原版内置自定义单位的生产菜单
+static func create_registry(include_builtin_custom_actions: bool = true) -> RwUnitRegistry:
 	var registry: RwUnitRegistry = RwUnitRegistry.new()
 	var assets: RwVanillaUnitAssets = RwVanillaUnitAssets.new()
 	var command_center: RwUnitDefinition = RwUnitDefinition.new()

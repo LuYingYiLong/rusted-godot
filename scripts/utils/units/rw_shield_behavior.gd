@@ -18,3 +18,13 @@ func filter_damage(unit_state: RwUnitState, incoming_damage: float, _context: Rw
 	if absorbed > 0.0:
 		unit_state.set_shield(unit_state.shield - absorbed)
 	return incoming_damage - absorbed
+
+
+func filter_projectile_damage(
+	_unit_state: RwUnitState,
+	incoming_damage: float,
+	_projectile_definition: RwProjectileDefinition,
+	_context: RwCombatContext,
+	_shield_already_handled: bool,
+) -> float:
+	return incoming_damage
