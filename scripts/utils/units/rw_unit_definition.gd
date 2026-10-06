@@ -24,6 +24,8 @@ enum SelectionShape {
 @export var leg_parts: Array[RwUnitLegDefinition]
 ## 可开火武器列表，索引不必与绘制挂件相同
 @export var combat_weapons: Array[RwWeaponDefinition]
+## 单位自动拦截敌方弹体的炮塔配置
+@export var projectile_interceptors: Array[RwProjectileInterceptorDefinition]
 ## 每同步帧执行的单位行为，可由原版单位或模组提供
 @export var behavior: RwUnitBehavior
 @export var shadow_image: String
@@ -79,6 +81,8 @@ enum SelectionShape {
 @export var placement_requires_resource_pool: bool
 @export var placement_requires_water: bool
 @export var attack_range: float
+## 原版攻击配置对发射出的直击与范围伤害统一应用的倍率
+@export var shoot_damage_multiplier: float = 1.0
 @export var selection_shape: SelectionShape
 @export var sight_range: int = 15
 @export var can_reclaim: bool

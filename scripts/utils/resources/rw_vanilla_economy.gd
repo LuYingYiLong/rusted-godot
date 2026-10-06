@@ -123,6 +123,11 @@ func remove_command_center(team_slot: int) -> void:
 	if not _command_center_counts.has(team_slot):
 		return
 	_command_center_counts[team_slot] = maxi(int(_command_center_counts[team_slot]) - 1, 0)
+
+
+## 指挥中心建成时更新该队的资金增长率
+func add_command_center(team_slot: int) -> void:
+	_command_center_counts[team_slot] = int(_command_center_counts.get(team_slot, 0)) + 1
 	if _sources_ready:
 		balance_changed.emit(team_slot, "credits", get_balance(team_slot, "credits"), get_income_rate(team_slot, "credits"))
 

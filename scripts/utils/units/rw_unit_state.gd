@@ -23,6 +23,8 @@ const NAVIGATION_ORDER_TYPES: Array[String] = [
 ]
 
 @export var object_id: int
+## 原版对象的同步随机计数器
+@export var random_counter: int
 @export var source_id: String
 @export var unit_name: String
 @export var team: String
@@ -65,6 +67,10 @@ const NAVIGATION_ORDER_TYPES: Array[String] = [
 ## 附加视觉层所用的同步帧计数
 @export var visual_frame: int
 @export var tech_level: int = 1
+## 原版激光防御的当前充能量
+@export var laser_defense_charge: float = 1.0
+## 原版激光防御耗尽充能后需充满才会恢复拦截
+@export var laser_defense_depleted: bool
 @export var is_dead: bool
 @export var order_type: String
 @export var order_target: Vector2
@@ -204,6 +210,7 @@ var _submerged_below: float = -1.0
 
 func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> void:
 	object_id = int(spawn.get("object_id", 0))
+	random_counter = int(spawn.get("random_counter", 0))
 	source_id = str(spawn.get("source_id", ""))
 	unit_name = str(spawn.get("unit_name", ""))
 	if definition != null:
@@ -267,6 +274,8 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 	push_mass = definition.push_mass if definition != null else 3000.0
 	sight_range = definition.sight_range if definition != null else 15
 	tech_level = maxi(int(spawn.get("tech_level", definition.tech_level if definition != null else 1)), 1)
+	laser_defense_charge = clampf(float(spawn.get("laser_defense_charge", 1.0)), 0.0, 1.0)
+	laser_defense_depleted = bool(spawn.get("laser_defense_depleted", false))
 	visual_frame = maxi(int(spawn.get("visual_frame", 0)), 0)
 	_animation_step_frames = definition.animation_step_frames if definition != null else 0
 	_animation_frame_count = definition.body_frames if definition != null else 1
@@ -290,6 +299,8 @@ func initialize_from_spawn(spawn: Dictionary, definition: RwUnitDefinition) -> v
 
 
 func apply_snapshot(snapshot: Dictionary) -> void:
+	if snapshot.has("random_counter"):
+		random_counter = int(snapshot["random_counter"])
 	if snapshot.has("position"):
 		if world_position.distance_to(snapshot["position"]) > 0.5:
 			_snapshot_moving_frames = 2
@@ -334,6 +345,10 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		visual_frame = maxi(int(snapshot["visual_frame"]), 0)
 	if snapshot.has("tech_level"):
 		tech_level = maxi(int(snapshot["tech_level"]), 1)
+	if snapshot.has("laser_defense_charge"):
+		laser_defense_charge = clampf(float(snapshot["laser_defense_charge"]), 0.0, 1.0)
+	if snapshot.has("laser_defense_depleted"):
+		laser_defense_depleted = bool(snapshot["laser_defense_depleted"])
 	if snapshot.has("resource_balances"):
 		resource_balances = (snapshot["resource_balances"] as Dictionary).duplicate()
 	if snapshot.has("attack_mode"):

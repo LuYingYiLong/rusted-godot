@@ -139,6 +139,8 @@ static func register_definitions(registry: RwUnitRegistry, assets: RwVanillaUnit
 				definition.construction_footprint = Rect2i(-2, -1, 5, 4)
 		definition.placement_requires_resource_pool = bool(spec.get("pool", false))
 		definition.placement_requires_water = bool(spec.get("water", false))
+		if unit_name == "laserDefence":
+			definition.behavior = RwLaserDefenseBehavior.new()
 		if unit_name == "turret":
 			RwVanillaCombatDefinitions.configure_turret(definition)
 		registry.register_definition(definition, assets)

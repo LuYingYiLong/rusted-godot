@@ -41,9 +41,23 @@ python tools/verify_rw_115_native_catalog.py `
 
 普通非弹道弹体每帧同时追踪目标高度：高度差按水平剩余距离与当前弹速折算；`ballistic` 弹体走单独的升高和下降阶段。`f.java` 还把目标空中类型与爆炸高度 5、潜水高度 -5 和爆炸高度 -2 比较，分别处理空地筛选和水下例外。此前仅更新水平位置，导致攻击空中单位的弹体停在地面高度而永远无法命中
 
+这里用自定义单位发射调用点消除字段名歧义：`custom/j.java` 创建配置弹体时把 `ballistic_delaymove_height`、`ballistic_height` 写入 `f.aI`、`f.aJ`，并把 `f.aL` 设为 `-1`；所以这类弹体每帧以当前弹速 `t` 升降。`game/f.java` 的构造默认值 `aI=40`、`aJ=60`、`aL=2` 只适用于没有经过该自定义发射初始化的弹体。Godot 按调用链区分了这些默认值：缺省高度和移动阈值采用 60/40，自定义弹道升降速度采用当前弹速，速度加速即使水平移动尚未解锁也会推进。原版在更新高度前检查水平移动阈值，因此弹体必须在高度严格大于阈值的下一帧才开始水平移动
+
 `02b-decompiled/.../game/units/am.java` 的受伤方法在建筑进度低于 1 时先把伤害乘 1.75，再结算护盾。`shieldDamageMultiplier` 只控制护盾扣量；护盾扣完后按 `shieldDefectionMultiplier` 计算传入本体的伤害，最后应用 `hullDamageMultiplier`。这些倍率不能合并成一个泛用护盾倍率，否则护盾仍有余量时会重复吸收本体伤害
 
-坦克替换定义 `RWX-main/assets/units/tanks/tank.ini` 给出的炮弹数据为 25 直击伤害、5 弹速、60 帧寿命，炮塔冷却为 75 帧。炮塔 `size` 与 `turretSize` 是炮塔外观尺寸，不是弹体发射距离；实际发射点来自炮塔挂点，因此无 `muzzleDistance` 定义的单位使用零距离偏移
+坦克替换定义 `RWX-main/assets/units/tanks/tank.ini` 给出的炮弹数据为 25 直击伤害、5 弹速、60 帧寿命，炮塔冷却为 75 帧。炮塔 `size` 与 `turretSize` 是炮塔外观尺寸，不是弹体发射距离；实际发射点来自炮塔挂点，因此无 `muzzleDistance` 定义的单位使用零距离偏移。`f.java` 在移动前缓存目标距离；只有弹体这一步能抵达目标中心时才把缓存值置零，之后用该缓存判定碰撞。建筑类型单位始终使用 `max(碰撞半径 × 0.8, 6)`，不只是在施工中使用。Godot 已按移动前缓存距离和移动后弹道位置判定碰撞，回归覆盖坦克近距离弹与已完工建筑
+
+原版地面目标弹使用相同的移动前距离缓存，但落点碰撞半径固定为 6 世界单位，并继续检查爆炸高度容差；它不是必须到达坐标中心才爆炸。Godot 保留这一步移动后的实际弹体位置，按缓存的落点距离及高度条件判定命中，并有一枚速度为 2、距落点 5 单位时命中的固定回归
+
+`bh.java` 将 `spawnProjectilesOnCreate`、`spawnProjectilesOnExplode` 与 `spawnProjectilesOnEndOfLife` 分别解析为带数量、概率、偏移和递归限制的弹体列表。内置弹药现在生成完整命名弹体目录，战斗系统在相应时机级联生成弹体；`f.java` 在命中后仍保留寿命与爆炸状态，因此到期分裂不能与命中回调合并。`spawnUnit` 也导入到弹体定义，爆炸时由地图创建单位；固定回归覆盖弹体回调、单位生成、鱼雷到期分裂和坦克碰撞位置。单位生成的非默认选项，以及特殊动作 `fireTurretXAtGround` 到弹体发射的调用链仍未与原版逐帧对齐
+
+`areaExpandTime` 会让爆炸半径逐帧从中心向外扩张，已受范围伤害的对象会加入弹体的排除列表，避免后续帧重复扣血。Godot 已导入此字段，按增长中的半径命中一次并保持爆炸状态直到扩张结束；回归以两帧扩张验证内圈先受伤、外圈后受伤且内圈不重复受伤
+
+`f.java` 的炮弹接近目标 15 世界单位时改用 `turnSpeedWhenNear`；未配置该项的原版默认值为直接转向。生成器之前没有读取此 key，也把默认值当作沿用远距离速度；现在按配置读取并在近距离使用独立默认值，回归覆盖近距离立即转向
+
+目标地面弹在 `bh.java:a(am,f,am,float,float,float)` 的发射分支中将单位目标转成固定弹着点；默认开启 lead targeting 时，`am.java:a(float,float,float,float,float)` 用目标当前速度迭代三次计算拦截点，再按弹体寿命截断提前时间，随后不再追随单位。该分支也对单位目标应用 `targetGroundSpread` 与高度偏移；移动时仍按当前弹体角度逐帧转向这个固定散布点。Godot 现在在发射时快照弹着点并关闭对单位的后续跟踪，同时逐帧转向落点，回归覆盖三次迭代预测、发射后的目标移动与散布后转向。字段类型按 `bh.java` / `bn.java` 的实际读取调用核对：`life`、`delayedStartTimer`、炮塔 `delay` / `warmup` 和 `wobbleFrequency` 走时间解析器，秒后缀乘 60；弹速、转向速度、重力、散布与 `areaExpandTime` 是普通浮点数，不能误乘 60
+
+`bh.java` 也将 `instantReuseLast`、`instantReuseLast_alsoChangeTurretAim`、`instantReuseLast_keepAreaDamageList`、`nukeWeapon`、`deflectionPower`、`flameWeapon` 与雾效可见标志解析到弹体模板。同炮塔弹体复用、复用时保留范围伤害对象表和扫动偏移对瞄准点的联动、弹体雾中可见及揭雾触发已有模拟实现与固定回归；激光防御的弹体偏转规则已按 `units/d/p.java` 接入。核弹持续爆炸效果、火焰专用命中特效和激光拦截粒子的原版细节仍未完整还原，不把 `flameWeapon` 字段名解读成持续灼烧伤害
 
 ## 运行限制
 
@@ -127,3 +141,59 @@ python tools/verify_rw_115_native_catalog.py `
 `units/y.java:a(float,au,ad,boolean)`（约 1663–1745 行）在目标距离平方小于 1681 时累加 `Y`，到达半径按严格大于 240 / 340 分别扩大到 16 / 36，默认 7。`av.h` 攻击移动只有在没有仍可攻击的 `R` 时完成；`av.j` 巡逻还有队列轮换、30 / 80 等另外规则，尚未与此方法合并实现
 
 `ay()`、`az()` 及插入首条命令时清零 `Y`；`a(float,float,int,boolean,boolean)` 的重新申请路径保留 `Y`。同一字段还用于接近建筑目标的另外命令分支，不能将这些分支一概按移动半径处理
+
+
+## 攻击移动首次切换到追击目标
+
+`02b-decompiled/.../game/units/y.java` 的武器更新分支在 `R` 超出 `o(R)` 但仍有效、攻击模式允许追击且 `k` 尚未置位时，立即将临时导航坐标 `l/m` 指向 `R`，并将追击路径计时 `n` 设为 0。这里是首次进入追击的状态转换；普通路径计时不能延迟这次切换。之后沿用原有路径节流，等待下一次计时到期再跟随移动中的目标。
+
+Godot 现已在首次满足追击条件时立即启用临时目标、清零寻路计时并请求路径；后续目标更新仍受 90 帧上限约束。重寻路继续保留同步命令的最终坐标，避免攻击移动被追击目标覆盖
+
+
+## 移动单位死亡后的对象编号
+
+`02b-decompiled/.../game/units/y.java:a(ab, boolean)` 的普通移动单位死亡分支，在非液体地形且死亡类型不是 `verySmall` 或 `buildingNoShockwaveOrSmoke` 时，依次创建 `gameFramework/d/f` 的烟雾与火焰发射器，再尝试创建 `game/l` 焦痕。`d/f` 和 `game/l` 都继承 `gameFramework/w`，构造时会消耗全局对象编号；只播放 Godot 爆炸动画不会推进该编号。原生建造者 `units/e/b.java:e()` 使用 `ab.b`（small），也会创建烟雾和火焰发射器；不能按单位名把 builder 排除
+
+焦痕由 `game/l.b(x, y, type)` 控制：同类焦痕在 25 世界单位邻域达到 3 个，或 5 单位内已有一个时，本次不创建焦痕对象。液体地形由 `units/am.cK()` 检查，最终调用 `gameFramework/utility/y.d(x, y)`。标准坦克在陆地死亡且附近没有焦痕时，原版因此会比此前的 Godot 多消耗 3 个对象编号；下一辆坦克虽然能在 Godot 本地移动，发送的却是原版尚未分配给该坦克的 ID，原版会忽略该移动命令
+
+Godot 现在在移动单位死亡回调中按原版顺序消耗两个特效编号，并按焦痕邻域规则消耗可选的焦痕编号。新增回归检查覆盖普通陆地死亡、焦痕邻近去重、原生建造者和液体地形。实际联机中第二辆坦克的移动仍需再跑一次验证；此前的短时 AI 轨迹没有原版单位死亡，不能证明这条在线链路
+
+
+## 弹药发射、弹道与同步随机数
+
+本轮以 `02b-decompiled` 的解析器、弹体工厂、弹体更新及自定义单位发射调用链交叉核对，不按混淆字段字母猜行为：`game/units/custom/bh.java` 解析配置键并写入弹体对象，`game/f.java` 创建及逐帧更新弹体，`game/units/custom/j.java` 决定自定义单位何时发射、复用弹体和递增对象随机计数。RWX 的单位 ini 用来验证具体炮弹配置；最终行为以 1.15 的这些读取点和调用顺序为准
+
+`game/f.java` 的弹体继承 `gameFramework/w.java`，新建时由游戏的全局对象分配器赋一次唯一编号。`custom/j.java` 的 `instantReuseLast` 分支会重新初始化同一个弹体对象，不会再次运行对象构造函数。复刻此前每次 `projectile_fired` 都递增全局编号，复用即时弹体时会多吃一个编号，之后新生产单位可能因此拿到和原版不同的网络对象编号；现在只给尚无编号的弹体分配 ID，并新增复用不消耗编号的回归
+
+- `gameFramework/f.java:a(w,int,int,int)` 是对象同步随机范围公式。输入包含下一模拟帧、全局种子、对象 ID、对象位置、对象随机计数器和随机流编号。全局种子来自 1.15 房间设置包 106 的版本 8 整数字段；`gameFramework/j/ah.java` 的 `randomSeed` 序列化顺序和 `gameFramework/j/ad.java` 的网络读取顺序都确认该字段是 `ay.q`，开局时 `game/i.java` 将它复制到随机公式读取的 `bJ`。项目此前忽略这个字段，导致真实房间的弹体随机输入错误；现在 `_read_server_settings` 读取并在每个战斗同步帧传给战斗模拟，协议夹具覆盖非零种子。`game/f.java:a(am,float,float,float,int)` 创建弹体时以流 `0` 取 `[0,1]` 相位并递增单位计数器；自定义单位发射点在 `custom/j.java` 中先将计数器增加 `1 + object_id`。之后速度散布用流 `1`；目标单位地面弹的散布依次用流 `2`、`7`，不改随机计数器；纯坐标地面弹依次用流 `2`、`3`，每次散布后再按原版 float32 顺序把落点坐标加到计数器。`custom/bi.java` 的集束弹生成遍历还使用跨所有配置项递增的候选序号：命中概率用该序号，方向、横向和纵向偏移分别用 `序号*4+3`、`序号*2+1`、`序号*3+2`；子弹方向基准是父弹当前 `az`，不是当前速度向量。Godot 已接入并固定随机流、目标继承、总生成上限、弹着点转向和子弹位置回归
+- `custom/j.java` 的自定义武器发射方法先依炮塔索引查找可复用弹体，再调用弹体重置位置；保留已有弹体时不重新抽取创建相位。弹体更新 `game/f.java:a(float)` 先处理延迟起动，再递减寿命；处于延迟期间不会推进普通弹道。运行年龄从首次有效更新累积，扫动使用 `sin((360 * phase + age) * PI / 180)` 和 `sin((360 * phase + age * 1.5) * PI / 180)`，振幅是 `sweepOffset + target.collisionRadius * sweepOffsetFromTargetRadius`。Godot 已接入延迟、原相位扫动及同炮塔 `instantReuseLast` 弹体复用
+- `custom/bh.java` 对 `moveWithParent`、`turnSpeedWhenNear`、`sweepOffset`、`sweepOffsetFromTargetRadius`、`delayedStartTimer` 和 `instantReuseLast` 的键读取，确认它们分别进入弹体更新、转向或发射复用路径；Godot 当前已实现这些配置对应的主要弹体行为。父对象移动时按当前炮塔挂点与弹体保存的上次挂点之差平移弹体起终点，爆炸留场期间也继续跟随
+- `custom/j.java` 的炮塔挂点方法将 ini 中的 `turret_x/turret_y` 用炮塔当前角度旋转后加到单位世界位置。Godot 现在以开火时炮塔角度变换挂点，保留原版世界坐标 Y 方向，并将创建出的相位保存在弹体上供扫动/摆动使用
+- 普通目标弹每帧先缓存移动前目标距离，再把本步位移限制为剩余距离（严格小于本步弹速时）；原版用移动前距离判断碰撞，只有本步能够抵达目标中心时才把缓存距离置零。命中位置仍是转向后的实际弹道位置，不能拿移动后的距离重新判定，否则会提前一帧命中目标半径边缘。Godot 已按这一顺序处理原生弹体碰撞，并保留地面目标弹的固定弹着点规则
+
+目前仍有源码已证实、但需要单独接入的行为：特殊动作 `fireTurretXAtGround` 与弹体发射的同步入口，以及核弹、火焰等专用命中特效。`instantReuseLast_alsoChangeTurretAim` 已按运行时调用关系使用复用弹体的当前扫动偏移修正下一次瞄准点，并有固定角度回归。普通坦克炮弹的发射点、速度/目标散布、扫动/摆动相位、延迟起动、目标接近步长和命中时机已有固定回归；这不等于所有原版弹药或整局联机状态已逐帧等价
+
+### 激光防御与弹体偏转
+
+这里按 `02b-decompiled` 的原生弹体工厂和 `units/d/p.java` 交叉确认字段语义：`custom/j.java` 创建弹体时，`deflectionPower < 0.5` 会置弹体的不可拦截标志；否则将该值复制为弹体拦截耐久。原生炮弹默认耐久为 1，轰炸机炸弹为 3，`-1` 弹药不接受激光防御拦截。每次有效命中使耐久减 1，降到 0 后移除弹体。
+
+原生 `laserDefence` 初始充能为 1.0。单位更新每步补充 `0.0004`，升级后补充 `0.0006`；未升级射程 160、每次消耗 `0.11`，升级后射程 210、每次消耗 `0.05`。充能耗尽后要回满才重新启用。原版每步按弹体列表顺序最多拦一枚：弹体不能是即时弹或不可拦截弹，需已飞行超过 7 帧，或超过 2 帧且速度大于 8；高度不得低于 -1；距离必须小于防御射程。其目标是防御方盟友，或发射方为防御方敌人。检测点是建筑中心上移 13 个世界单位。
+
+Godot 已按这些原生条件更新充能、识别目标、递减弹体耐久并销毁，固定回归覆盖默认坦克弹、三级轰炸机弹、不可拦截弹、升级射程与升级耗能。拦截光束和火花当前是简化表现，原版粒子参数与命中音效还需要进一步对照
+
+
+## 原版弹药倍率、图集与表现分支
+
+这一轮按 `02b-decompiled` 的明确配置键与读写位置追踪，不用 `var0` / `var3` 这类临时变量名猜语义：
+
+- `game/units/custom/bh.java:a(...)` 读取 `[projectile_X]` 的英文配置键。`drawType` 写入弹体绘制类别，`frame` 与 `shadowFrame` 分别指定主图和阴影帧；`largeHitEffect`、`nukeWeapon`、`flameWeapon`、`hitSound`、`lightColor`、`lightSize`、`lightCastOnGround`、`alwaysVisibleInFog`、`shouldRevealFog` 等都在解析器中有各自独立的读取点
+- `game/units/custom/j.java:a(...)` 创建发射弹体时先将 `directDamage`、`areaDamage` 复制到弹体。如果 `ignoreParentShootDamageMultiplier` 未启用，且发射者是自定义单位，则两项都乘发射单位 `[attack] shootDamageMultiplier`。Godot 现在在发射时保存倍率，在直击与溅射结算时各应用一次；子弹继承相同发射倍率，显式跳过标志则倍率固定为 1.0。测试覆盖倍率生效、范围伤害衰减及跳过倍率
+- `custom/j.java` 将含发射倍率的直击伤害写入弹体 `U`；`game/f.java` 用 `目标生命值 > 10 + U` 决定是否使用 `1.1 × 目标碰撞半径`，因此半径分支也必须使用倍率后的直击伤害。Godot 已修正该阈值并添加一条会在旧逻辑首帧误命中的建筑回归
+- 同一个发射方法把 `frame`、`drawType`、`shadowFrame`、`invisible` 写入游戏弹体；`game/f.java` 绘制分支确认 `drawType=0` 使用 `projectiles.png` 的 20×20 格，`1` 使用 `projectiles_large.png` 的 60×60 格，`2` 使用 `projectiles2.png` 的 20×20 格。Godot 现在按类别选图集，使用指定主帧和阴影帧，并把 `drawUnderUnits` 弹体放入单位下方图层
+- `game/f.java` 更新结束时将图像旋转角以每帧最多 12 度逐步逼近弹体朝向。Godot 新增独立的平滑绘制角，模拟朝向和图像朝向分开保存，避免导弹或转弯弹体的贴图每帧硬切角度
+- 原版发射方法还复制 `lightColor`、`lightSize`、`lightCastOnGround` 作为弹体动态光源参数。Godot 已接入光色、大小和贴地绘制；炮兵配置回归确认图集帧、大爆炸标志与贴地光效均有值
+- `game/f.java:a(float)` 的原版碰撞分支在没有自定义爆炸效果时仍调用通用命中特效。`gameFramework/d/c.java:c(float,float,float)` 将普通命中特效设为 `explode_big2` 图集第 3 至第 7 帧，39×40 像素帧、40 像素步距、0.5 缩放和半帧动画速度；`b(float,float,float)` 为大型命中特效使用 `explode_big` 图集第 0 至第 12 帧，缩放随机落在 0.8 至 1.0。Godot 已为普通原版弹药补上通用命中特效，并修正大型爆炸图集帧尺寸、边距、帧数和缩放
+- `game/units/custom/bh.java` 还解析 `teleportSource` 与 `convertHitToSourceTeam`，`game/f.java` 命中时先传送发射者，再执行命中阵营转换和伤害。原版实验武装直升机的 `projectile_blink` 使用 `teleportSource=true`、`targetGround=true`、`instant=true`；Godot 已接入发射者瞬移，并用该原版弹药做命中回归
+- `nukeWeapon` 在原版大型命中特效之外还触发多组持续时间不同的爆炸、冲击波、烟尘、火光与音效；当前只保留大型命中主效果，整套持续核爆效果仍待专门的 VFX emitter 支持。`flameWeapon` 命中时会调用寿命 21 帧的火焰粒子发射器；Godot 当前只显示简化的火焰图集命中动画，未复刻该发射器的逐粒子参数。这里的 `flameWeapon` 是命中特效分支，不代表额外的持续灼烧伤害。`shouldRevealFog` 已接入命中与弹道下降至高度 30 以下的触发点，并创建半径 15 世界单位、持续 360 个同步帧的临时视野源；`alwaysVisibleInFog` 和弹体可见性也已接入绘制判断。护盾专用爆炸和其他自定义粒子发射器仍未完整接入
+
+对标准原版坦克，`assets/units/tanks/tank.ini` 的弹体配置为 25 直击伤害、60 帧寿命、速度 5、帧 1、绘制大小 1；这些值与其余已生成弹道数据一致。原版 `shootDamageMultiplier` 是自定义单位攻击配置，不应臆测套在没有该字段的标准原生坦克上。现有测试分别核对标准坦克数据与一个显式倍率的自定义发射者，避免把两个来源混为一谈

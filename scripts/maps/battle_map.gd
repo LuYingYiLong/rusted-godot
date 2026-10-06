@@ -21,6 +21,7 @@ const NATIVE_FACTORY_NAMES: Array[String] = [
 @onready var fog_sprite: Sprite2D = %FogOverlay
 @onready var navigation_overlay: Node2D = %NavigationOverlay
 @onready var unit_layer: Node2D = %InitialUnits
+@onready var under_unit_projectile_layer: RwBattleProjectileLayer = %UnderUnitProjectileLayer
 @onready var projectile_layer: RwBattleProjectileLayer = %ProjectileLayer
 @onready var vfx_layer: RwBattleVfxLayer = %BattleVfxLayer
 @onready var selection_overlay: Control = %SelectionOverlay
@@ -69,6 +70,8 @@ var _placement_error: String
 var _special_order_type: String
 var _special_order_unit_ids: Array[int]
 var _next_object_id: int = 1
+var _death_scorch_mark_positions: Array[Vector2]
+var _current_simulation_frame: int
 
 
 func _ready() -> void:
@@ -110,11 +113,15 @@ func _ready() -> void:
 	_unit_orders.order_applied.connect(_on_unit_order_applied)
 	_combat = RwBattleCombat.new()
 	_combat.projectile_fired.connect(_on_projectile_fired)
-	_combat.projectile_impacted.connect(projectile_layer.show_impact)
-	_combat.projectile_finished.connect(projectile_layer.finish_projectile)
+	_combat.projectile_impacted.connect(_on_projectile_impacted)
+	_combat.projectile_deflected.connect(_on_projectile_deflected)
+	_combat.projectile_fog_reveal_requested.connect(_on_projectile_fog_reveal_requested)
+	_combat.projectile_finished.connect(_on_projectile_finished)
+	_combat.projectile_unit_spawn_requested.connect(_on_projectile_unit_spawn_requested)
 	_combat.unit_destroyed.connect(_on_combat_unit_destroyed)
 	_combat.configure(_unit_states, _unit_registry, RwRoomClient.players)
 	projectile_layer.set_projectiles(_combat.projectiles)
+	under_unit_projectile_layer.set_projectiles(_combat.projectiles)
 	_focus_on_local_start()
 	_initialize_fog(map_size, tile_size)
 	var minimap_error: String = hud_layer.configure_battle(map_name, _world_size, _unit_states, _unit_registry)
@@ -179,6 +186,7 @@ func _render_initial_units(map_name: String) -> Dictionary:
 		unit_state.initialize_from_spawn(spawn, definition)
 		visual.bind_state(unit_state)
 		unit_layer.add_child(visual)
+		_state_probe.record_object_id(_current_simulation_frame, object_id, "unit", unit_name)
 		_unit_states[object_id] = unit_state
 		_unit_visuals[object_id] = visual
 		if unit_state.movement_speed > 0.0:
@@ -245,8 +253,22 @@ func _refresh_fog_visibility() -> void:
 		var unit_state: RwUnitState = _unit_states[object_id]
 		var visual: RwUnitVisual = _unit_visuals[object_id]
 		visual.visible = _fog.is_unit_visible(unit_state, RwRoomClient.local_slot)
+	_refresh_projectile_fog_visibility()
 	if fog_changed:
 		hud_layer.minimap.refresh_units()
+
+
+func _refresh_projectile_fog_visibility() -> void:
+	if _combat == null or _fog == null:
+		return
+	for projectile: RwProjectileState in _combat.projectiles:
+		var visible: bool = projectile.team == str(RwRoomClient.local_slot)
+		if not visible:
+			visible = _fog.is_visible_at(projectile.world_position)
+		var target: RwUnitState = _unit_states.get(projectile.target_id) as RwUnitState
+		if not visible and target != null:
+			visible = _fog.is_unit_visible(target, RwRoomClient.local_slot)
+		projectile.visible_by_fog = visible
 
 
 func _process(delta: float) -> void:
@@ -734,10 +756,12 @@ func _request_move(screen_position: Vector2) -> void:
 	if _path_grid == null:
 		return
 	var movable_ids: Array[int] = []
+	var local_bindings: PackedStringArray = PackedStringArray()
 	for object_id: int in _selected_unit_ids:
 		var unit_state: RwUnitState = _unit_states.get(object_id) as RwUnitState
 		if unit_state != null and not unit_state.is_dead and unit_state.movement_speed > 0.0 and unit_state.team == str(RwRoomClient.local_slot):
 			movable_ids.append(object_id)
+			local_bindings.append("%d:%s@%s" % [object_id, unit_state.unit_name, str(unit_state.world_position),])
 	if movable_ids.is_empty():
 		return
 	var target: Vector2 = _screen_to_world(screen_position).clamp(Vector2.ZERO, _world_size)
@@ -745,6 +769,12 @@ func _request_move(screen_position: Vector2) -> void:
 		hud_layer.show_status("Could not send move order; check the room connection")
 		AudioManager.play_ui(&"error")
 		return
+	print("RW command sent: move team=%d units=%s target=%s local=%s" % [
+		RwRoomClient.local_slot,
+		str(movable_ids),
+		str(target),
+		str(local_bindings),
+	])
 	AudioManager.play_ui(&"move", linear_to_db(0.2))
 
 
@@ -759,6 +789,14 @@ func _on_room_connection_changed(message: String) -> void:
 
 
 func _on_combat_unit_destroyed(unit_state: RwUnitState) -> void:
+	var death_effect_ids: Array[int] = _allocate_mobile_death_effect_ids(unit_state)
+	print("RW unit death allocation: frame=%d id=%d type=%s team=%s effects=%s" % [
+		_current_simulation_frame,
+		unit_state.object_id,
+		unit_state.unit_name,
+		unit_state.team,
+		str(death_effect_ids),
+	])
 	var definition: RwUnitDefinition = _unit_registry.find_definition(unit_state.source_id, unit_state.unit_name)
 	if definition != null and definition.blocks_movement and _path_grid != null:
 		_path_grid.unblock_structure(unit_state.world_position, definition.structure_footprint_min, definition.structure_footprint_max, definition.get_construction_footprint())
@@ -799,7 +837,13 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 	var first_frame: int = _last_simulated_frame
 	_last_simulated_frame = frame
 	for step: int in frame_delta:
-		_path_grid.simulation_frame = first_frame + step + 1
+		_current_simulation_frame = first_frame + step + 1
+		_path_grid.simulation_frame = _current_simulation_frame
+		if _combat != null:
+			_combat.set_simulation_context(
+				_current_simulation_frame,
+				int(RwRoomClient.settings.get("random_seed", 0)),
+			)
 		_begin_unit_generation_step()
 		var existing_units: Array[RwUnitState] = []
 		existing_units.assign(_unit_states.values())
@@ -819,14 +863,29 @@ func _on_battle_frame_advanced(frame: int, _next_blocking_frame: int) -> void:
 		_finish_unit_generation_step()
 		_separate_mobile_units(RwRoomClient.battle_timeline.step_rate)
 		projectile_layer.advance_effects(RwRoomClient.battle_timeline.step_rate)
+		under_unit_projectile_layer.advance_effects(RwRoomClient.battle_timeline.step_rate)
 		if _combat != null:
 			_combat.advance_frame(RwRoomClient.battle_timeline.step_rate)
+		if _fog != null:
+			_fog.advance_temporary_reveals(RwRoomClient.battle_timeline.step_rate)
 		if _state_probe != null:
-			_state_probe.capture(first_frame + step + 1, RwRoomClient.battle_timeline.step_rate, _unit_states, RwRoomClient.battle_economy, _unit_collisions)
+			_state_probe.capture(
+				first_frame + step + 1,
+				RwRoomClient.battle_timeline.step_rate,
+				_unit_states,
+				RwRoomClient.battle_economy,
+				_unit_collisions,
+				_combat.projectiles if _combat != null else [],
+			)
 		if _unit_orders != null:
 			_unit_orders.finish_step(RwRoomClient.battle_timeline.step_rate)
 	if frame_delta > 0:
+		if _combat != null:
+			projectile_layer.set_projectiles(_combat.projectiles)
+			under_unit_projectile_layer.set_projectiles(_combat.projectiles)
 		projectile_layer.queue_redraw()
+		under_unit_projectile_layer.queue_redraw()
+		under_unit_projectile_layer.queue_redraw()
 		_refresh_fog_visibility()
 		_refresh_builder_vfx(frame)
 	var animation_frame: int = _command_center_frame(frame)
@@ -865,6 +924,28 @@ func _on_battle_commands_reached(frame: int, commands: Array[Dictionary]) -> voi
 		var unit_ids: Array[int] = []
 		for object_id: int in command.get("unit_ids", []):
 			unit_ids.append(object_id)
+		if order_type == "move" and _command_source_team(command) == RwRoomClient.local_slot:
+			var command_target: Vector2 = command.get("target", Vector2.ZERO)
+			print("RW command echoed: frame=%d type=move team=%d source=%d mask=%d units=%s target=%s" % [
+				frame,
+				int(command.get("team", -1)),
+				_command_source_team(command),
+				int(command.get("allowed_team_mask", 0)),
+				str(unit_ids),
+				str(command_target),
+			])
+			for object_id: int in unit_ids:
+				var bound_unit: RwUnitState = _unit_states.get(object_id) as RwUnitState
+				if bound_unit == null:
+					print("RW unit binding: id=%d local_unit=missing" % object_id)
+					continue
+				print("RW unit binding: id=%d local_unit=%s local_team=%s local_pos=%s dead=%s" % [
+					object_id,
+					bound_unit.unit_name,
+					bound_unit.team,
+					str(bound_unit.world_position),
+					str(bound_unit.is_dead),
+				])
 		var busy_ids: Array[int] = []
 		var should_queue: bool = bool(command.get("is_queued", false)) and not bool(command.get("is_instant_command", false))
 		for object_id: int in unit_ids:
@@ -994,8 +1075,214 @@ func _on_unit_order_applied(unit_state: RwUnitState, order_type: String, order: 
 
 
 func _on_projectile_fired(projectile: RwProjectileState) -> void:
-	projectile.object_id = _next_object_id
+	_assign_projectile_object_id(projectile)
+	var layer: RwBattleProjectileLayer = under_unit_projectile_layer if projectile.definition.draw_under_units else projectile_layer
+	layer.show_creation(projectile)
+	var weapon: RwWeaponDefinition = projectile.weapon_definition
+	if weapon != null and not weapon.shoot_sound_name.is_empty() and weapon.shoot_sound_name.to_upper() != "NONE":
+		AudioManager.play_unit_at(
+			StringName(weapon.shoot_sound_name),
+			projectile.origin_position,
+			map_camera.position,
+			900.0,
+			linear_to_db(maxf(weapon.shoot_sound_volume, 0.001)),
+		)
+
+
+func _assign_projectile_object_id(projectile: RwProjectileState) -> void:
+	if projectile.object_id > 0:
+		return
+	var projectile_type: String = projectile.definition.texture_name if projectile.definition != null else "projectile"
+	projectile.object_id = _allocate_object_id("projectile", projectile_type)
+
+
+
+func _allocate_object_id(kind: String, type_name: String, frame: int = -1) -> int:
+	var object_id: int = _next_object_id
 	_next_object_id += 1
+	if _state_probe != null:
+		var allocation_frame: int = _current_simulation_frame if frame < 0 else frame
+		_state_probe.record_object_id(allocation_frame, object_id, kind, type_name)
+	return object_id
+
+
+
+## 补齐原版移动单位死亡时创建的全局效果对象编号
+func _allocate_mobile_death_effect_ids(unit_state: RwUnitState) -> Array[int]:
+	var allocated_ids: Array[int] = []
+	if unit_state == null or not unit_state.is_dead or unit_state.movement_speed <= 0.0 or _path_grid == null:
+		return allocated_ids
+	if _path_grid.is_liquid_at(unit_state.world_position):
+		return allocated_ids
+	allocated_ids.append(_allocate_object_id("death_effect_emitter", "death_smoke"))
+	allocated_ids.append(_allocate_object_id("death_effect_emitter", "death_fire"))
+	if _can_allocate_scorch_mark(unit_state.world_position):
+		allocated_ids.append(_allocate_object_id("death_scorch_mark", "scorch_mark"))
+		_death_scorch_mark_positions.append(unit_state.world_position)
+	return allocated_ids
+
+
+
+func _can_allocate_scorch_mark(world_position: Vector2) -> bool:
+	var nearby_marks: int
+	for mark_position: Vector2 in _death_scorch_mark_positions:
+		var difference: Vector2 = mark_position - world_position
+		if absf(difference.x) < 25.0 and absf(difference.y) < 25.0:
+			nearby_marks += 1
+			if absf(difference.x) < 5.0 and absf(difference.y) < 5.0:
+				return false
+	return nearby_marks < 3
+
+
+
+func _on_projectile_finished(projectile: RwProjectileState) -> void:
+	if projectile == null or projectile.definition == null:
+		return
+	var layer: RwBattleProjectileLayer = under_unit_projectile_layer if projectile.definition.draw_under_units else projectile_layer
+	layer.finish_projectile(projectile)
+
+
+func _on_projectile_deflected(
+	defense_unit: RwUnitState,
+	projectile: RwProjectileState,
+	destroyed: bool,
+) -> void:
+	projectile_layer.show_laser_deflection(defense_unit.world_position + Vector2(0.0, -13.0), projectile, destroyed)
+
+
+func _on_projectile_impacted(projectile: RwProjectileState, target: RwUnitState) -> void:
+	var layer: RwBattleProjectileLayer = under_unit_projectile_layer if projectile.definition.draw_under_units else projectile_layer
+	layer.show_impact(projectile, target)
+	var definition: RwProjectileDefinition = projectile.definition
+	if (
+		definition != null
+		and definition.large_hit_effect
+		and definition.hit_sound
+		and not definition.nuke_weapon
+		and definition.explode_effect.is_empty()
+		and definition.explode_effect_on_shield.is_empty()
+	):
+		AudioManager.play_unit_at(&"explode", projectile.world_position, map_camera.position)
+
+
+func _on_projectile_fog_reveal_requested(projectile: RwProjectileState) -> void:
+	if projectile == null or _fog == null:
+		return
+	_fog.add_temporary_reveal(projectile.world_position, projectile.team, 15, 360.0)
+
+
+func _on_projectile_unit_spawn_requested(projectile: RwProjectileState, spawn_spec: Dictionary) -> void:
+	if projectile == null or _unit_registry == null:
+		return
+	var unit_name: String = str(spawn_spec.get("unit_name", ""))
+	if unit_name.is_empty():
+		return
+	var source_id: String = "custom"
+	var definition: RwUnitDefinition = _unit_registry.find_definition(source_id, unit_name)
+	if definition == null:
+		source_id = "vanilla"
+		definition = _unit_registry.find_definition(source_id, unit_name)
+	if definition == null:
+		return
+	var source: RwUnitState = _unit_states.get(projectile.owner_id) as RwUnitState
+	var team: String = projectile.team if source == null else source.team
+	if bool(spawn_spec.get("neutral_team", false)):
+		team = "none"
+	elif bool(spawn_spec.get("aggressive_team", false)):
+		team = "aggressive"
+	var requested_count: int = maxi(int(spawn_spec.get("count", 1)), 0)
+	var maximum_count: int = maxi(int(spawn_spec.get("max_spawn_limit", requested_count)), 0)
+	var spawn_count: int = mini(requested_count, maximum_count)
+	var spawn_chance: float = clampf(float(spawn_spec.get("spawn_chance", 1.0)), 0.0, 1.0)
+	var heading: float = rad_to_deg(projectile.velocity.angle())
+	for spawn_index: int in spawn_count:
+		if _projectile_spawn_random(projectile, spawn_index) > spawn_chance:
+			continue
+		var position: Vector2 = projectile.world_position + Vector2(
+			float(spawn_spec.get("offset_x", 0.0)) + float(spawn_index),
+			float(spawn_spec.get("offset_y", 0.0)),
+		)
+		var random_x: float = float(spawn_spec.get("offset_random_x", 0.0))
+		var random_y: float = float(spawn_spec.get("offset_random_y", 0.0))
+		position.x += _projectile_spawn_random_signed(projectile, spawn_index * 3 + 1) * random_x
+		position.y += _projectile_spawn_random_signed(projectile, spawn_index * 3 + 2) * random_y
+		var direction: float = 0.0 if bool(spawn_spec.get("always_start_dir_at_zero", false)) else heading
+		direction += float(spawn_spec.get("offset_dir", 0.0))
+		direction += _projectile_spawn_random_signed(projectile, spawn_index * 3 + 3) * float(spawn_spec.get("offset_random_dir", 0.0))
+		if bool(spawn_spec.get("grid_align", false)) and _map_tile_size.x > 0 and _map_tile_size.y > 0:
+			position = Vector2(
+				floorf(position.x / float(_map_tile_size.x)) * float(_map_tile_size.x) + float(_map_tile_size.x) * 0.5,
+				floorf(position.y / float(_map_tile_size.y)) * float(_map_tile_size.y) + float(_map_tile_size.y) * 0.5,
+			)
+		if bool(spawn_spec.get("skip_if_overlapping", false)) and _has_spawn_overlap(position, definition.collision_radius):
+			continue
+		var spawn: Dictionary = {
+			"object_id": _allocate_object_id("projectile_spawn", unit_name),
+			"source_id": source_id,
+			"unit_name": unit_name,
+			"team": team,
+			"position": position,
+			"rotation_degrees": direction,
+			"altitude": float(spawn_spec.get("offset_height", 0.0)),
+		}
+		var tech_level: int = int(spawn_spec.get("tech_level", -1))
+		if tech_level > 0:
+			spawn["tech_level"] = tech_level
+		_register_projectile_spawned_unit(spawn, definition)
+
+
+func _register_projectile_spawned_unit(spawn: Dictionary, definition: RwUnitDefinition) -> void:
+	var team: String = str(spawn["team"])
+	var unit_state: RwUnitState = RwUnitState.new()
+	unit_state.initialize_from_spawn(spawn, definition)
+	var color: Color = RwUnitTeamColors.for_team(team, RwRoomClient.players)
+	var visual: RwUnitVisual = _unit_registry.create_visual(spawn, color)
+	visual.set_footprint_tile_size(_map_tile_size)
+	visual.set_relation(RwUnitTeamColors.relation_for_team(team, RwRoomClient.players, RwRoomClient.local_slot))
+	visual.bind_state(unit_state)
+	unit_layer.add_child(visual)
+	_unit_states[unit_state.object_id] = unit_state
+	_unit_visuals[unit_state.object_id] = visual
+	if _combat != null:
+		_combat.register_unit(unit_state)
+	if unit_state.movement_speed > 0.0:
+		_mobile_unit_states.append(unit_state)
+	if unit_state.unit_name == "commandCenter":
+		_animated_command_centers.append(unit_state)
+		if team.is_valid_int():
+			RwRoomClient.battle_economy.add_command_center(team.to_int())
+	if definition.needs_visual_ticks():
+		_animated_visual_units.append(unit_state)
+	if RwRoomClient.battle_economy.has_unit_income(unit_state):
+		_income_unit_states.append(unit_state)
+		RwRoomClient.battle_economy.register_income_unit(unit_state)
+	if definition.blocks_movement and _path_grid != null:
+		_path_grid.block_structure(unit_state.world_position, definition.structure_footprint_min, definition.structure_footprint_max, definition.get_construction_footprint())
+		_path_grid.finalize_obstacles()
+	_refresh_fog_visibility()
+	hud_layer.minimap.refresh_units()
+
+
+func _projectile_spawn_random(projectile: RwProjectileState, stream: int) -> float:
+	var modulus: int = 2147483647
+	var source_id: int = projectile.owner_id
+	var value: int = posmod(projectile.object_id * 48271 + source_id * 69621 + stream * 133, modulus)
+	value = posmod(value * 48271 + 1, modulus)
+	return float(value) / float(modulus)
+
+
+func _projectile_spawn_random_signed(projectile: RwProjectileState, stream: int) -> float:
+	return _projectile_spawn_random(projectile, stream) * 2.0 - 1.0
+
+
+func _has_spawn_overlap(position: Vector2, collision_radius: float) -> bool:
+	for unit_state: RwUnitState in _unit_states.values():
+		if unit_state == null or unit_state.is_dead:
+			continue
+		var overlap_distance: float = collision_radius + unit_state.collision_radius
+		if position.distance_squared_to(unit_state.world_position) < overlap_distance * overlap_distance:
+			return true
+	return false
 
 
 func _apply_rally_point_command(command: Dictionary) -> void:
@@ -1337,8 +1624,7 @@ func _advance_builder_construction(builder_id: int, site_id: int, frame: int) ->
 			if builder.turn_speed > 0.0 and absf(facing_delta) > 30.0:
 				return
 			# 原版先实例化候选建筑，放置或资金检查失败也会消耗对象编号
-			var candidate_object_id: int = _next_object_id
-			_next_object_id += 1
+			var candidate_object_id: int = _allocate_object_id("building_candidate", definition.unit_name, frame)
 			if not _path_grid.get_placement_error(site_position, definition).is_empty():
 				var existing_building: RwUnitState = _find_overlapping_building(site_position, definition, builder.team)
 				site["finished"] = true
@@ -1600,21 +1886,29 @@ func _spawn_produced_unit(factory: RwUnitState, action: RwUnitActionDefinition) 
 	var spawn_position: Vector2 = factory.world_position + exit_offset
 	if factory.unit_name == "seaFactory":
 		spawn_position.y = maxf(spawn_position.y, factory.world_position.y - 20.0 + definition.collision_radius)
+	var produced_unit_id: int = _allocate_object_id("produced_unit", action.target_unit_name)
 	var spawn: Dictionary = {
-		"object_id": _next_object_id,
+		"object_id": produced_unit_id,
 		"source_id": action.target_source_id,
 		"unit_name": action.target_unit_name,
 		"team": factory.team,
 		"position": spawn_position,
 		"rotation_degrees": 90.0,
 	}
-	_next_object_id += 1
 	var team_color: Color = RwUnitTeamColors.for_team(factory.team, RwRoomClient.players)
 	var visual: RwUnitVisual = _unit_registry.create_visual(spawn, team_color)
 	visual.set_footprint_tile_size(_map_tile_size)
 	visual.set_relation(RwUnitTeamColors.relation_for_team(factory.team, RwRoomClient.players, RwRoomClient.local_slot))
 	var unit_state: RwUnitState = RwUnitState.new()
 	unit_state.initialize_from_spawn(spawn, definition)
+	print("RW unit produced: frame=%d factory_id=%d id=%d type=%s team=%s position=%s" % [
+		_current_simulation_frame,
+		factory.object_id,
+		produced_unit_id,
+		unit_state.unit_name,
+		unit_state.team,
+		str(unit_state.world_position),
+	])
 	if unit_state.movement_speed > 0.0 and factory_definition != null:
 		var exit_path_delay: float
 		if native_factory:

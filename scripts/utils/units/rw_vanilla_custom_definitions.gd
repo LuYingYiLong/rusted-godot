@@ -100,6 +100,7 @@ static func create_definition(unit_name: String, spec: Dictionary, source_id: St
 	definition.movement_sliding = bool(spec.get("move_sliding", uses_sliding))
 	definition.movement_ignores_body = bool(spec.get("move_ignoring_body", uses_sliding))
 	definition.attack_range = float(spec.get("attack_range", 0.0))
+	definition.shoot_damage_multiplier = float(spec.get("shoot_damage_multiplier", 1.0))
 	definition.can_reclaim = bool(spec.get("reclaim", false))
 	definition.resource_costs = {"credits": float(spec.get("price", 0.0)),}
 	definition.build_rate_per_frame = float(spec.get("build_rate", 0.0))

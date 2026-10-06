@@ -264,6 +264,7 @@ def spec_for(path: Path) -> dict[str, object]:
         "move_accel": number(movement.get("moveaccelerationspeed", "")),
         "move_decel": number(movement.get("movedecelerationspeed", "")),
         "attack_range": number(attack.get("maxattackrange", "")),
+        "shoot_damage_multiplier": number(attack.get("shootdamagemultiplier", ""), 1.0),
         "building": core.get("isbuilding", "").casefold() == "true",
         "footprint": footprint(core.get("footprint", "")),
         "construction_footprint": footprint(core.get("constructionfootprint", "")),
@@ -282,6 +283,7 @@ def spec_for(path: Path) -> dict[str, object]:
         "frames": 1, "scale": 1.0, "turret_scale": 1.0,
         "team_colored": True, "mass": 3000.0, "sight": 15,
         "tech_level": 1, "exit_y": 9.0, "exit_move_away": 70.0,
+        "shoot_damage_multiplier": 1.0,
     }
     spec.update({key: value for key, value in optional.items() if value != defaults.get(key, None) and value not in ("", [], False, 0, 0.0)})
     if spec.get("building") and spec.get("footprint"):

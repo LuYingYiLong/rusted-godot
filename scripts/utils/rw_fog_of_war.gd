@@ -19,6 +19,7 @@ var minimap_texture: Texture2D
 
 var _cells: PackedByteArray
 var _working_cells: PackedByteArray
+var _temporary_reveals: Array[Dictionary]
 
 
 func configure(size_in_tiles: Vector2i, world_tile_size: Vector2i, fog_mode: int, is_map_revealed: bool) -> void:
@@ -26,6 +27,7 @@ func configure(size_in_tiles: Vector2i, world_tile_size: Vector2i, fog_mode: int
 	tile_size = world_tile_size
 	mode = clampi(fog_mode, Mode.NO_FOG, Mode.LOS_FOG) as Mode
 	revealed_map = is_map_revealed
+	_temporary_reveals.clear()
 	_cells.resize(map_size.x * map_size.y)
 	_cells.fill(10)
 	_rebuild_textures()
@@ -47,6 +49,12 @@ func update_visibility(unit_states: Dictionary, players: Array[Dictionary], loca
 		)
 		if relation == RwUnitTeamColors.Relation.OWN or relation == RwUnitTeamColors.Relation.ALLY:
 			_reveal_circle(unit_state.world_position, unit_state.sight_range)
+	for reveal: Dictionary in _temporary_reveals:
+		var reveal_relation: RwUnitTeamColors.Relation = RwUnitTeamColors.relation_for_team(
+			str(reveal["team"]), players, local_slot
+		)
+		if reveal_relation == RwUnitTeamColors.Relation.OWN or reveal_relation == RwUnitTeamColors.Relation.ALLY:
+			_reveal_circle(reveal["position"], int(reveal["sight_range"]))
 	if _working_cells == _cells:
 		return false
 	_cells = _working_cells
@@ -61,6 +69,28 @@ func is_visible_at(world_position: Vector2) -> bool:
 	if cell.x < 0 or cell.y < 0 or cell.x >= map_size.x or cell.y >= map_size.y:
 		return false
 	return _cells[cell.y * map_size.x + cell.x] < 5
+
+
+## 添加持续指定同步帧的原版弹药视野源
+func add_temporary_reveal(world_position: Vector2, team: String, sight_range: int, duration_frames: float) -> void:
+	if duration_frames <= 0.0 or sight_range <= 0:
+		return
+	_temporary_reveals.append({
+		"position": world_position,
+		"team": team,
+		"sight_range": sight_range,
+		"remaining_frames": duration_frames,
+	})
+
+
+## 按同步步长推进弹药视野源的生命周期
+func advance_temporary_reveals(simulation_delta: float) -> void:
+	var step: float = maxf(simulation_delta, 0.0)
+	for index: int in range(_temporary_reveals.size() - 1, -1, -1):
+		var reveal: Dictionary = _temporary_reveals[index]
+		reveal["remaining_frames"] = float(reveal["remaining_frames"]) - step
+		if float(reveal["remaining_frames"]) <= 0.0:
+			_temporary_reveals.remove_at(index)
 
 
 func is_unit_visible(unit_state: RwUnitState, local_slot: int) -> bool:

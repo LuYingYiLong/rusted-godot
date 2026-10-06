@@ -394,6 +394,7 @@ func _read_server_settings(payload: PackedByteArray) -> void:
 	settings["fog"] = stream.get_32()
 	settings["revealed"] = stream.get_u8() != 0
 	settings["ai_difficulty"] = stream.get_32()
+	settings["random_seed"] = 0
 	var settings_version: int = stream.get_u8()
 	stream.get_u8()
 	stream.get_u8()
@@ -431,6 +432,17 @@ func _read_server_settings(payload: PackedByteArray) -> void:
 				connection_changed.emit("The room contains non-original units: %s" % unit_name)
 				_disconnect(false)
 				return
+	if settings_version >= 4:
+		stream.get_u8()
+	if settings_version >= 5:
+		stream.get_u8()
+	if settings_version >= 6:
+		stream.get_u8()
+	if settings_version >= 7:
+		stream.get_u8()
+		stream.get_u8()
+	if settings_version >= 8:
+		settings["random_seed"] = stream.get_32()
 	settings["vanilla"] = true
 	if _has_player_update:
 		_confirm_join()

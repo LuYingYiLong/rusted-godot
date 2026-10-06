@@ -32,6 +32,7 @@ var _water_costs: PackedInt32Array
 var _cliff_costs: PackedInt32Array
 var _cliff_water_costs: PackedInt32Array
 var _water_tiles: PackedByteArray
+var _liquid_tiles: PackedByteArray
 var _resource_pool_tiles: PackedByteArray
 var _structure_blocks: PackedByteArray
 var _placement_blocks: PackedByteArray
@@ -92,6 +93,14 @@ func structure_anchor_cell(world_position: Vector2, minimum_offset: Vector2i, ma
 func is_water_at(world_position: Vector2) -> bool:
 	var cell: Vector2i = world_to_cell(world_position)
 	return _is_in_bounds(cell) and _water_tiles[_cell_index(cell)] != 0
+
+
+
+## 返回位置是否处于水或熔岩地形
+func is_liquid_at(world_position: Vector2) -> bool:
+	var cell: Vector2i = world_to_cell(world_position)
+	return _is_in_bounds(cell) and _liquid_tiles[_cell_index(cell)] != 0
+
 
 
 func is_passable(cell: Vector2i, movement_type: String) -> bool:
@@ -736,6 +745,7 @@ func _initialize(parsed: Dictionary) -> bool:
 	_cliff_costs.resize(cell_count)
 	_cliff_water_costs.resize(cell_count)
 	_water_tiles.resize(cell_count)
+	_liquid_tiles.resize(cell_count)
 	_resource_pool_tiles.resize(cell_count)
 	_structure_blocks.resize(cell_count)
 	_placement_blocks.resize(cell_count)
@@ -748,6 +758,7 @@ func _initialize(parsed: Dictionary) -> bool:
 		if overlay_gids.size() == cell_count:
 			overlay_info = _tile_info.get(overlay_gids[index], Vector2i.ZERO)
 		_water_tiles[index] = 1 if ground_info.x & WATER else 0
+		_liquid_tiles[index] = 1 if ground_info.x & (WATER | LAVA) else 0
 		_resource_pool_tiles[index] = 1 if items_info.x & RESOURCE_POOL or ground_info.x & RESOURCE_POOL else 0
 		var has_overlay: bool = overlay_gids.size() == cell_count and overlay_gids[index] != 0
 		_land_costs[index] = _tile_cost(ground_info, items_info, overlay_info, has_overlay, "LAND")

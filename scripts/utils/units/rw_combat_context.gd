@@ -7,6 +7,11 @@ func advance_weapons(_unit_state: RwUnitState, _definition: RwUnitDefinition) ->
 	pass
 
 
+## 推进原版激光防御的充能并尝试拦截一枚弹体
+func advance_laser_defense(_unit_state: RwUnitState, _definition: RwUnitDefinition) -> void:
+	pass
+
+
 ## 根据对象编号查找战场单位
 func find_unit(_object_id: int) -> RwUnitState:
 	return null

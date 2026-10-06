@@ -17,6 +17,16 @@ const UI_SOUNDS: Dictionary = {
 ## 单位或战场发出的声音
 const UNIT_SOUNDS: Dictionary = {
 	&"explode": preload("uid://qiosplwo0uoy"),
+	&"cannon_firing": preload("uid://b1jj2wvnk0ga8"),
+	&"firing3": preload("uid://d2l6n6efxxcfx"),
+	&"gun_fire": preload("uid://deuerfa2vbgfl"),
+	&"large_gun_fire1": preload("uid://bpruvqfwee1ci"),
+	&"large_gun_fire2": preload("uid://cjrg2nacno5w3"),
+	&"lighting_burst": preload("uid://dgj83hk4bbnm5"),
+	&"missile_fire": preload("uid://dfvdhinvy7ukh"),
+	&"nuke_launch": preload("uid://vr3pkyp1lkk1"),
+	&"plasma_fire": preload("uid://dhri1wqdei5ht"),
+	&"tank_firing": preload("uid://1vi827bwxoce"),
 }
 
 ## 菜单和战斗场景使用的循环背景音乐

@@ -29,6 +29,14 @@ extends Resource
 @export var can_target_water: bool
 @export var can_target_air: bool
 @export var can_target_air_when_submerged: bool = true
+## 原版炮塔开火时播放的音效 ID
+@export var shoot_sound_name: String
+## 原版炮塔开火音效的线性音量
+@export var shoot_sound_volume: float = 0.3
+## 原版炮塔开火时生成的火焰与自定义特效列表
+@export var shoot_flame: String
+## 原版炮塔开火时的闪光颜色
+@export var shoot_light_color: Color = Color.TRANSPARENT
 
 
 ## 按目标移动类型返回本次射击使用的弹体

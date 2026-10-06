@@ -41,6 +41,12 @@ centered = false
 unique_name_in_owner = true
 z_index = 45
 
+[node name="UnderUnitProjectileLayer" type="Node2D" parent="MapRoot"]
+unique_name_in_owner = true
+z_index = 49
+script = ExtResource("4_projectiles")
+draw_under_units_only = true
+
 [node name="InitialUnits" type="Node2D" parent="MapRoot" unique_id=1115084356]
 unique_name_in_owner = true
 z_index = 50

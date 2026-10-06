@@ -316,8 +316,11 @@ def run(arguments: argparse.Namespace) -> Path:
         "stage_seconds": arguments.stages,
         "trace_interval_frames": arguments.trace_interval,
         "original_frame_end_trace": arguments.original_trace,
+        "original_object_id_trace": arguments.original_trace,
         "original_weapon_catalog": arguments.weapon_catalog,
+        "original_projectile_trace": arguments.projectile_trace,
         "full_unit_trace_comparison": arguments.original_trace and arguments.trace_interval == 1 and not arguments.trace_units,
+        "trace_through_first_mismatch": arguments.trace_through_first_mismatch,
         "stage_time_basis": "verified_simulation_seconds",
         "output_directory": str(output),
     }
@@ -354,12 +357,15 @@ def run(arguments: argparse.Namespace) -> Path:
         "RW_PROBE_CHECKSUMS": "1",
         "RW_PROBE_CHECKSUM_STRIDE": "301",
         "RW_PROBE_PATH": str(output / "godot.tsv"),
+        "RW_PROBE_PROJECTILES": str(output / "godot-projectiles.jsonl") if arguments.projectile_trace else "",
         "RW_PROBE_INTERVAL": str(arguments.trace_interval),
         "RW_PROBE_UNIT_IDS": arguments.trace_units,
     })
     host_environment = environment
     if arguments.weapon_catalog:
         host_environment = environment | {"RW115_WEAPON_CATALOG": str(output / "original-weapons.jsonl")}
+    if arguments.projectile_trace:
+        host_environment = host_environment | {"RW115_PROJECTILE_TRACE": str(output / "original-projectiles.jsonl")}
 
     host: subprocess.Popen[bytes] | None = None
     client: subprocess.Popen[bytes] | None = None
@@ -446,7 +452,7 @@ def run(arguments: argparse.Namespace) -> Path:
                     probe_failure = original_trace_failure(output, last_verified_frame)
                     if probe_failure:
                         parity_failure = {"event": "original_probe_failed", "reason": probe_failure}
-                if parity_failure is not None and not stop_requested:
+                if parity_failure is not None and not stop_requested and not arguments.trace_through_first_mismatch:
                     stop_requested = True
                     control.write_text("parity_difference\n", encoding="utf-8")
                     result = {"stage_seconds": arguments.stages[stage_index], "status": "failed", "elapsed_seconds": round(elapsed, 1), "failure": parity_failure}
@@ -457,7 +463,7 @@ def run(arguments: argparse.Namespace) -> Path:
                     if verified_checksums == 0:
                         parity_failure = {"event": "no_verified_checksums"}
                         continue
-                    if metadata["full_unit_trace_comparison"]:
+                    if metadata["full_unit_trace_comparison"] and not (arguments.trace_through_first_mismatch and parity_failure is not None):
                         unit_comparison = compare(output, max_frame=last_verified_frame)
                         team_comparison = compare_teams(output / "original-teams.csv", output / "godot.teams.tsv", last_verified_frame)
                         (output / f"team-differences-{arguments.stages[stage_index]}s.json").write_text(json.dumps(team_comparison, indent=2), encoding="utf-8")
@@ -471,7 +477,7 @@ def run(arguments: argparse.Namespace) -> Path:
                                               "missing_unit_frames": unit_comparison["missing_godot_unit_frames"],
                                               "extra_unit_frames": unit_comparison["extra_godot_unit_frames"]}
                             continue
-                    result = {"stage_seconds": arguments.stages[stage_index], "status": "passed", "elapsed_seconds": round(elapsed, 1), "verified_checksums": verified_checksums,
+                    result = {"stage_seconds": arguments.stages[stage_index], "status": "diagnostic_complete" if arguments.trace_through_first_mismatch and parity_failure is not None else "passed", "elapsed_seconds": round(elapsed, 1), "verified_checksums": verified_checksums,
                               "verified_simulation_seconds": last_verified_seconds, "last_verified_frame": last_verified_frame}
                     stage_results.append(result)
                     with stage_report.open("a", encoding="utf-8") as stream:
@@ -485,6 +491,7 @@ def run(arguments: argparse.Namespace) -> Path:
             summary = collect_summary(report, metadata, client.returncode or 0)
             summary["original_metrics"] = collect_original_metrics(output / "original-metrics.jsonl")
             summary["stages"] = stage_results
+            summary["requested_duration_reached"] = stage_index == len(arguments.stages)
             if metadata["full_unit_trace_comparison"] and verified_checksums > 0:
                 unit_comparison = compare(output, max_frame=last_verified_frame)
                 (output / "unit-differences.json").write_text(json.dumps(unit_comparison, indent=2), encoding="utf-8")
@@ -492,13 +499,16 @@ def run(arguments: argparse.Namespace) -> Path:
                 team_comparison = compare_teams(output / "original-teams.csv", output / "godot.teams.tsv", last_verified_frame)
                 summary["team_trace_comparison"] = team_comparison
                 (output / "team-differences.json").write_text(json.dumps(team_comparison, indent=2), encoding="utf-8")
-            summary["parity_status"] = "failed" if parity_failure is not None else ("passed" if stage_index == len(arguments.stages) else "incomplete")
+            summary["parity_status"] = "diagnostic_mismatch_recorded" if arguments.trace_through_first_mismatch and parity_failure is not None else ("failed" if parity_failure is not None else ("passed" if stage_index == len(arguments.stages) else "incomplete"))
             (output / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"Status={summary['status']} frame={summary['last_frame']} commands={summary['total_commands']}", flush=True)
             if summary["first_difference"]:
                 print(f"First parity difference: {summary['first_difference']}", flush=True)
             if summary["status"] != "completed":
                 raise RuntimeError(f"Godot soak did not complete; see {output}")
+            if arguments.trace_through_first_mismatch and summary["status"] == "completed":
+                print(f"Diagnostic run ended; recorded parity status={summary['parity_status']}; requested_duration_reached={summary['requested_duration_reached']}; see {output}")
+                return output
             if summary["parity_status"] != "passed":
                 raise RuntimeError(f"Parity gate {summary['parity_status']}; see {output}")
             return output
@@ -529,6 +539,8 @@ def main() -> None:
     parser.add_argument("--trace-units", default="", help="Comma-separated unit IDs for high-frequency Godot tracing")
     parser.add_argument("--original-trace", action="store_true", help="Capture stock unit states on the simulation thread at every frame end")
     parser.add_argument("--weapon-catalog", action="store_true", help="Probe each stock unit turret once and record native projectile parameters; requires --original-trace")
+    parser.add_argument("--projectile-trace", action="store_true", help="Record every live original and Godot projectile at each simulation frame end; requires --original-trace")
+    parser.add_argument("--trace-through-first-mismatch", action="store_true", help="Continue collecting object and unit traces until the requested duration after a parity mismatch; diagnostic only")
     parser.add_argument("--metrics-interval", type=int, default=30)
     parser.add_argument("--startup-timeout", type=int, default=90)
     parser.add_argument("--room-timeout", type=int, default=45)
@@ -544,6 +556,8 @@ def main() -> None:
         parser.error("Sampling intervals must be positive")
     if arguments.weapon_catalog and not arguments.original_trace:
         parser.error("--weapon-catalog requires --original-trace")
+    if arguments.projectile_trace and not arguments.original_trace:
+        parser.error("--projectile-trace requires --original-trace")
     try:
         print(f"Output: {run(arguments)}")
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:

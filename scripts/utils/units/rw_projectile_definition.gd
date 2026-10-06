@@ -4,6 +4,61 @@ extends Resource
 
 ## 命中时对目标造成的基础伤害
 @export var damage: float
+## 原版激光防御拦截弹体所需的命中次数；小于 0.5 时不可被拦截
+@export var deflection_power: float = 1.0
+## 原版弹药是否跳过发射单位的 shootDamageMultiplier
+@export var ignore_parent_shoot_damage_multiplier: bool
+## 原版弹体渲染类别：0 为默认图集，1 为大型图集，2 为第二图集
+@export var draw_type: int
+## 原版弹体阴影使用的图集帧，-1 表示不绘制
+@export var shadow_frame: int = -1
+## 原版弹体是否隐藏自身图像
+@export var invisible: bool
+## 原版弹体是否绘制在单位下方
+@export var draw_under_units: bool
+## 原版命中时是否触发大型爆炸表现
+@export var large_hit_effect: bool
+## 原版核弹弹体使用专属命中表现并绕过普通雾中可见性检查
+@export var nuke_weapon: bool
+## 原版弹体是否在雾中始终可见
+@export var always_visible_in_fog: bool
+## 原版弹体移动时是否揭示战争迷雾
+@export var should_reveal_fog: bool
+## 原版命中时是否播放默认命中音效
+@export var hit_sound: bool = true
+## 原版命中时是否生成火焰武器特效
+@export var flame_weapon: bool
+## 原版弹体命中时播放的自定义爆炸效果名称
+@export var explode_effect: String
+## 原版弹体命中护盾时播放的自定义效果名称
+@export var explode_effect_on_shield: String
+## 原版弹体生成时播放的自定义效果名称
+@export var effect_on_create: String
+## 此弹药所属单位声明的原版自定义特效定义
+@export var effect_profiles: Dictionary
+## 用于查找单位自定义特效的内置单位名
+@export var effect_owner_name: String
+## 原版弹体命中后是否将发射单位传送到命中位置
+@export var teleport_source: bool
+## 原版弹体命中后是否将目标转换到发射单位阵营
+@export var convert_hit_to_source_team: bool
+## 原版弹体贴图按单位配置文件路径索引的资源键
+@export var shadow_texture_name: String
+## 原版光束主图、起点图和终点图资源键
+@export var beam_texture_name: String
+@export var beam_start_texture_name: String
+@export var beam_end_texture_name: String
+## 原版光束纹理偏移速度
+@export var beam_image_offset_rate: float
+@export var beam_start_rotated: bool
+@export var beam_end_rotated: bool
+## 原版弹体颜色中来源颜色和队伍颜色的混合比例
+@export var team_color_ratio: float
+@export var team_color_source_ratio: float = 1.0
+## 原版弹体标签，用于防空拦截筛选
+@export var tags: Array[String]
+## 拦截命中时只将目标弹体的剩余寿命归零
+@export var intercept_projectile_remove_target_life_only: bool
 ## 范围伤害与直接伤害分别结算
 @export var splash_damage: float
 ## 每个同步帧移动的世界距离
@@ -13,8 +68,8 @@ extends Resource
 @export var speed_acceleration_per_frame: float
 ## 每帧最大转向角；负值表示直接追踪目标
 @export var turn_speed_degrees: float = -1.0
-## 距目标 15 世界单位内使用的转向速度；-2 表示沿用远距离转向速度
-@export var turn_speed_near_degrees: float = -2.0
+## 距目标 15 世界单位内使用的转向速度
+@export var turn_speed_near_degrees: float = -1.0
 @export var lifetime_frames: int = 60
 @export var hit_radius: float = 2.0
 @export var splash_radius: float
@@ -48,6 +103,20 @@ extends Resource
 @export var lead_target: bool
 ## 大于零时覆盖用于预判的飞行速度
 @export var lead_target_speed_calculation: float
+## 复用同一炮塔上一个尚未结束的即时弹体
+@export var instant_reuse_last: bool
+## 复用即时弹体时同步更新炮塔瞄准
+@export var instant_reuse_last_also_change_turret_aim: bool
+## 复用即时弹体时保留已受范围伤害的对象列表
+@export var instant_reuse_last_keep_area_damage_list: bool
+## 弹体在飞行时跟随发射单位移动
+@export var move_with_parent: bool
+## 原版弹体目标扫动速度，源码当前帧更新路径未读取此值
+@export var sweep_speed: float
+## 弹着点扫动偏移
+@export var sweep_offset: float
+## 按目标碰撞半径缩放的扫动偏移
+@export var sweep_offset_from_target_radius: float
 ## 弹体创建后暂停移动的帧数
 @export var delayed_start_frames: float
 ## 弹体移动时的初始附加速度
@@ -57,16 +126,16 @@ extends Resource
 @export var speed_spread: float
 ## 弹体初始高度方向速度
 @export var initial_height_velocity: float
-## 原版弹道弹体的固定初始升降速度
-@export var ballistic_vertical_speed: float = 2.0
+## 原版弹道弹体未指定独立升降速度时使用当前水平弹速
+@export var ballistic_vertical_speed: float = -1.0
 ## 弹体高度方向重力
 @export var gravity_per_frame: float
 ## 弹体高度方向额外重力
 @export var true_gravity_per_frame: float
 ## 抛物线轨迹的最高点
-@export var ballistic_height: float
+@export var ballistic_height: float = -1.0
 ## 抛物线弹体延迟移动高度变化的帧数
-@export var ballistic_delay_move_height: float
+@export var ballistic_delay_move_height: float = -1.0
 ## 原版升降弹体开始水平移动的高度
 @export var altitude_move_start: float
 ## 原版升降弹体的飞行高度上限
@@ -74,7 +143,9 @@ extends Resource
 ## 原版升降弹体每帧升降距离
 @export var altitude_change_per_frame: float
 ## 接近目标后开始下降的距离
-@export var altitude_descent_range: float
+@export var altitude_descent_range: float = 20.0
+## 爆炸范围从中心向外扩张所需的同步帧数
+@export var area_expand_time: float
 ## 高度轨迹弹体的命中高度容差
 @export var altitude_hit_tolerance: float = 3.0
 ## 目标单位被摧毁或消失时立即引爆
@@ -120,6 +191,8 @@ extends Resource
 @export var trail_color: Color = Color.TRANSPARENT
 ## 将尾迹绘制为烟尘粒子
 @export var trail_as_particles: bool
+## 原版由 trailEffect 指定的自定义尾迹效果
+@export var trail_effect_name: String
 @export var trail_emission_interval_frames: float = 1.0
 @export var trail_texture_name: String
 @export var trail_texture_frame_size: Vector2i = Vector2i(20, 20)
@@ -145,6 +218,14 @@ extends Resource
 @export var trail_during_stationary: bool
 ## 弹体到期时是否产生一次爆炸结算
 @export var explode_on_end_of_life: bool
+## 弹体寿命结束时要生成的后续弹体
+@export var spawn_on_end_of_life: Array[Dictionary]
+## 弹体生成时要生成的后续弹体
+@export var spawn_on_create: Array[Dictionary]
+## 弹体爆炸时要生成的后续弹体
+@export var spawn_on_explode: Array[Dictionary]
+## 弹体爆炸时要生成的单位
+@export var spawn_units_on_explode: Array[Dictionary]
 ## 命中时播放的横向爆炸图集
 @export var impact_texture_name: String
 @export var impact_frame_size: Vector2i = Vector2i(40, 49)
@@ -204,6 +285,8 @@ extends Resource
 @export var attached_light_scale: float = 0.5
 ## 沿弹体附着绘制的原版动态光效透明度
 @export var attached_light_alpha: float = 0.3
+## 沿弹体绘制的原版动态光效是否固定在地面高度
+@export var attached_light_cast_on_ground: bool
 ## 原版命中时使用小型爆炸效果
 @export var small_explosion: bool
 @export var visual_radius: float = 3.0

@@ -29,13 +29,15 @@ public final class Rw115UnitProbeAgent {
 	private static BufferedWriter obstacleWriter;
 	private static BufferedWriter weaponWriter;
 	private static BufferedWriter projectileWriter;
+	private static BufferedWriter objectIdWriter;
 	private static boolean weaponCatalogCaptured;
+	private static boolean projectileTraceEveryFrame;
 	private static final Set<Long> capturedProjectileIds = new HashSet<>();
 	private static java.util.Set<Long> obstacleIds = new java.util.HashSet<>();
 	private static long stepUnitId;
 	private static int stepFirstFrame;
 	private static int stepLastFrame;
-	private static final String HEADER = "frame,id,x,y,rotation,speed,turn_velocity,push_x,push_y,build,hp,dead,order,path_count,path_points,pending_path,nav_requested,repath_timer,unit_index,collision_active,collision_refresh,next_refresh,moving_path,candidates,weapon_warmup,factory_clearance,terrain_blocked_time,terrain_clear_steps,waypoint_time,slide_x,slide_y,formation_leader,formation_x,formation_y,formation_angle,formation_size,formation_leader_age,formation_recovery,formation_lag,arrival_time\n";
+	private static final String HEADER = "frame,id,type,x,y,rotation,speed,turn_velocity,push_x,push_y,build,hp,dead,order,path_count,path_points,pending_path,nav_requested,repath_timer,unit_index,collision_active,collision_refresh,next_refresh,moving_path,candidates,weapon_warmup,factory_clearance,terrain_blocked_time,terrain_clear_steps,waypoint_time,slide_x,slide_y,formation_leader,formation_x,formation_y,formation_angle,formation_size,formation_leader_age,formation_recovery,formation_lag,arrival_time\n";
 
 	private Rw115UnitProbeAgent() {}
 
@@ -45,11 +47,21 @@ public final class Rw115UnitProbeAgent {
 		writer.write(HEADER);
 		teamWriter = Files.newBufferedWriter(tracePath.resolveSibling("original-teams.csv"));
 		teamWriter.write("frame,slot,credits,ai,difficulty,income_multiplier\n");
+		objectIdWriter = Files.newBufferedWriter(tracePath.resolveSibling("original-object-ids.csv"));
+		objectIdWriter.write("frame,id,class,thread\n");
 		String weaponCatalog = System.getenv("RW115_WEAPON_CATALOG");
 		if (weaponCatalog != null && !weaponCatalog.isEmpty()) {
 			Path weaponPath = Path.of(weaponCatalog);
 			weaponWriter = Files.newBufferedWriter(weaponPath);
 			projectileWriter = Files.newBufferedWriter(weaponPath.resolveSibling("original-projectiles.jsonl"));
+		}
+		String projectileTrace = System.getenv("RW115_PROJECTILE_TRACE");
+		if (projectileTrace != null && !projectileTrace.isEmpty()) {
+			if (projectileWriter != null) {
+				projectileWriter.close();
+			}
+			projectileWriter = Files.newBufferedWriter(Path.of(projectileTrace));
+			projectileTraceEveryFrame = true;
 		}
 		String obstacleList = System.getenv("RW115_OBSTACLE_IDS");
 		if (obstacleList != null && !obstacleList.isEmpty()) {
@@ -73,7 +85,8 @@ public final class Rw115UnitProbeAgent {
 				boolean frameClass = "com/corrodinggames/rts/game/i".equals(name);
 				boolean movementClass = stepWriter != null && "com/corrodinggames/rts/game/units/y".equals(name);
 				boolean pathClass = stepWriter != null && "com/corrodinggames/rts/gameFramework/k/o".equals(name);
-				if (!frameClass && !movementClass && !pathClass) {
+				boolean objectClass = "com/corrodinggames/rts/gameFramework/w".equals(name);
+				if (!frameClass && !movementClass && !pathClass && !objectClass) {
 					return null;
 				}
 				ClassReader reader = new ClassReader(bytes);
@@ -86,8 +99,27 @@ public final class Rw115UnitProbeAgent {
 						boolean frameHook = frameClass && "a".equals(method) && "(F)V".equals(descriptor);
 						boolean movementHook = movementClass && "a".equals(method) && "(FLcom/corrodinggames/rts/game/units/ad;Lcom/corrodinggames/rts/game/units/au;Z)V".equals(descriptor);
 						boolean pathHook = pathClass && "a".equals(method) && "(Lcom/corrodinggames/rts/gameFramework/k/k;)V".equals(descriptor);
-						if (!frameHook && !movementHook && !pathHook) {
+						boolean objectIdHook = objectClass && "<init>".equals(method) && "(Z)V".equals(descriptor);
+						if (!frameHook && !movementHook && !pathHook && !objectIdHook) {
 							return next;
+						}
+						if (objectIdHook) {
+							hooks[0]++;
+							return new MethodVisitor(Opcodes.ASM5, next) {
+								@Override
+								public void visitFieldInsn(int opcode, String owner, String fieldName, String fieldDescriptor) {
+									super.visitFieldInsn(opcode, owner, fieldName, fieldDescriptor);
+									if (opcode == Opcodes.PUTFIELD && "com/corrodinggames/rts/gameFramework/w".equals(owner)
+										&& "eh".equals(fieldName) && "J".equals(fieldDescriptor)) {
+										super.visitVarInsn(Opcodes.ALOAD, 0);
+										super.visitFieldInsn(Opcodes.GETFIELD, owner, fieldName, fieldDescriptor);
+										super.visitVarInsn(Opcodes.ALOAD, 0);
+										super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "getClass", "()Ljava/lang/Class;", false);
+										super.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getName", "()Ljava/lang/String;", false);
+										super.visitMethodInsn(Opcodes.INVOKESTATIC, "Rw115UnitProbeAgent", "recordObjectId", "(JLjava/lang/String;)V", false);
+									}
+								}
+							};
 						}
 						if (pathHook) {
 							hooks[0]++;
@@ -134,10 +166,22 @@ public final class Rw115UnitProbeAgent {
 				if (hooks[0] != 1) {
 					throw new IllegalStateException("Unexpected stock simulation hook count: " + hooks[0]);
 				}
-				System.out.println("RW115 probe hooked " + (frameClass ? "main-thread simulation frame end" : pathClass ? "path solver inputs" : "movement decision"));
+				System.out.println("RW115 probe hooked " + (frameClass ? "main-thread simulation frame end" : pathClass ? "path solver inputs" : movementClass ? "movement decision" : "global object ID allocation"));
 				return output.toByteArray();
 			}
 		});
+	}
+
+	/** 记录原版全局对象分配器产生的编号和对象类型 */
+	public static void recordObjectId(long objectId, String className) {
+		if (objectIdWriter == null || objectId == 0L) {
+			return;
+		}
+		try {
+			objectIdWriter.write(lastFrame + "," + objectId + "," + className + "," + Thread.currentThread().getName() + "\n");
+		} catch (Throwable failure) {
+			recordFailure(failure);
+		}
 	}
 
 	/** 在求解器接收任务时复制寻路输入，不修改任务或地图代价数组 */
@@ -242,8 +286,12 @@ public final class Rw115UnitProbeAgent {
 					obstacleWriter = Files.newBufferedWriter(tracePath.resolveSibling("original-obstacles.csv"));
 					obstacleWriter.write("frame,id,class,x,y,hp,dead,collidable,collision_group,radius\n");
 				}
+				objectIdWriter.close();
+				objectIdWriter = Files.newBufferedWriter(tracePath.resolveSibling("original-object-ids.csv"));
+				objectIdWriter.write("frame,id,class,thread\n");
 			}
 			if (frame == lastFrame || frame <= 0) {
+				objectIdWriter.flush();
 				return;
 			}
 			lastFrame = frame;
@@ -291,6 +339,7 @@ public final class Rw115UnitProbeAgent {
 					}
 				}
 				batch.append(frame).append(',').append(access.id.getLong(unit)).append(',')
+					.append(access.unitName.invoke(access.unitDefinition.invoke(unit))).append(',')
 					.append(access.x.getFloat(unit)).append(',').append(access.y.getFloat(unit)).append(',')
 					.append(access.rotation.getFloat(unit)).append(',').append(access.speed.getFloat(unit)).append(',')
 					.append(access.turnVelocity.getFloat(unit)).append(',').append(access.pushX.getFloat(unit)).append(',')
@@ -330,6 +379,7 @@ public final class Rw115UnitProbeAgent {
 			}
 			teamWriter.write(teams.toString());
 			teamWriter.flush();
+			objectIdWriter.flush();
 		} catch (Throwable failure) {
 			recordFailure(failure);
 		}
@@ -347,9 +397,10 @@ public final class Rw115UnitProbeAgent {
 			Class<?> projectileClass = Class.forName("com.corrodinggames.rts.game.f");
 			Class<?> registryClass = Class.forName("com.corrodinggames.rts.game.units.ar");
 			Object prototypesValue = unitClass.getField("bF").get(null);
-			if (!(prototypesValue instanceof Map<?, ?> prototypes)) {
+			if (!(prototypesValue instanceof Map)) {
 				throw new IllegalStateException("Original native unit template map is unavailable");
 			}
+			Map<?, ?> prototypes = (Map<?, ?>) prototypesValue;
 			Field activeField = projectileClass.getField("a");
 			activeProjectiles = activeField.get(null);
 			projectileCount = activeProjectiles.getClass().getMethod("size");
@@ -420,14 +471,18 @@ public final class Rw115UnitProbeAgent {
 			for (int index = 0; index < projectileCount; index++) {
 				Object projectile = get.invoke(activeProjectiles, index);
 				long objectId = id.getLong(projectile);
-				if (!capturedProjectileIds.add(objectId)) {
+				if (!projectileTraceEveryFrame && !capturedProjectileIds.add(objectId)) {
 					continue;
 				}
+				capturedProjectileIds.add(objectId);
 				Object owner = ownerField.get(projectile);
 				Object target = targetField.get(projectile);
 				String ownerName = owner == null ? "" : String.valueOf(nameMethod.invoke(typeMethod.invoke(owner)));
 				String targetName = target == null ? "" : String.valueOf(nameMethod.invoke(typeMethod.invoke(target)));
-				projectileWriter.write("{\"frame\":" + frame + ",\"id\":" + objectId + ",\"owner\":\""
+				long ownerId = owner == null ? -1L : id.getLong(owner);
+				long targetId = target == null ? -1L : id.getLong(target);
+				projectileWriter.write("{\"frame\":" + frame + ",\"id\":" + objectId + ",\"owner_id\":" + ownerId
+					+ ",\"target_id\":" + targetId + ",\"owner\":\""
 					+ jsonEscape(ownerName) + "\",\"target\":\"" + jsonEscape(targetName) + "\",\"weapon_index\":"
 					+ projectileClass.getField("k").getShort(projectile) + ",\"projectile\":" + scalarFields(projectile)
 					+ ",\"settings\":" + scalarFields(Access.field(projectile.getClass(), "g").get(projectile)) + "}\n");
@@ -453,8 +508,8 @@ public final class Rw115UnitProbeAgent {
 				}
 				first = false;
 				result.append('"').append(jsonEscape(field.getName())).append("\":");
-				if (fieldValue instanceof String stringValue) {
-					result.append('"').append(jsonEscape(stringValue)).append('"');
+				if (fieldValue instanceof String) {
+					result.append('"').append(jsonEscape(String.valueOf(fieldValue))).append('"');
 				} else {
 					result.append(fieldValue);
 				}
@@ -491,6 +546,8 @@ public final class Rw115UnitProbeAgent {
 		final Method difficulty = teamType.getMethod("C");
 		final Method incomeMultiplier = teamType.getMethod("E");
 		final Method engineInstance = engineType.getMethod("B");
+		final Method unitDefinition = unitType.getMethod("r");
+		final Method unitName = unitDefinition.getReturnType().getMethod("i");
 		final Method unitArray = unitType.getField("bE").get(null).getClass().getMethod("a");
 		final Method unitCount = unitType.getField("bE").get(null).getClass().getMethod("size");
 		final Method currentOrder = mobileType.getMethod("ar");
